@@ -3,6 +3,8 @@ import Login from "./pages/login/Login";
 import List from "./pages/list/List";
 import Single from "./pages/single/Single";
 import New from "./pages/new/New";
+import Order from "./pages/Order/Order";
+import Delivery from "./pages/Delivery/Delivery";
 import "./style/dark.scss";
 import { useContext } from "react";
 import { DarkModeContext } from "./context/darkModeContext";
@@ -78,6 +80,26 @@ function App() {
                   </RequireAuth>
                 }
               />
+            </Route>
+            <Route
+            path="orders"
+            element={
+              <RequireAuth>
+                <Order />
+              </RequireAuth>
+            }
+              >
+
+            </Route>
+            <Route
+            path="delivery"
+            element={
+              <RequireAuth>
+                <Delivery />
+              </RequireAuth>
+            }
+              >
+
             </Route>
           </Route>
         </Routes>
