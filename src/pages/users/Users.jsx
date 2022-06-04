@@ -1,17 +1,17 @@
-import "./stats.scss"
+import "./users.scss"
 import Sidebar from "../../components/sidebar/Sidebar"
 import Navbar from "../../components/navbar/Navbar"
 
-const Stats = () => {
+const Users = () => {
    
     return (
-      <div className="stats">
+      <div className="users">
           <Sidebar />
-          <div className="statsContainer">
+          <div className="usersContainer">
             <Navbar/>
           </div>
      </div>
     );
     }
 
-export default Stats;
+export default Users;

@@ -1,17 +1,17 @@
-import "./stats.scss"
+import "./products.scss"
 import Sidebar from "../../components/sidebar/Sidebar"
 import Navbar from "../../components/navbar/Navbar"
 
-const Stats = () => {
+const Products = () => {
    
     return (
-      <div className="stats">
+      <div className="products">
           <Sidebar />
-          <div className="statsContainer">
+          <div className="productsContainer">
             <Navbar/>
           </div>
      </div>
     );
     }
 
-export default Stats;
+export default Products;
