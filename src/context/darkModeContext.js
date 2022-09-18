@@ -1,3 +1,10 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Dark Modus Context
+ */
 import { createContext, useReducer } from "react";
 import DarkModeReducer from "./darkModeReducer";
 

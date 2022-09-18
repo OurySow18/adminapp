@@ -1,3 +1,10 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Authentikation reducer, initialisiert die ausgewählte Aktion
+ */
 const AuthReducer = (state, action) => {
     switch (action.type) {
       case "LOGIN": {

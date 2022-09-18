@@ -1,3 +1,10 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Addiert neue Daten in der Datenbank {Products und Users}
+ */
 import { useState, useEffect } from "react";
 import "./new.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
@@ -15,12 +22,29 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useNavigate } from "react-router-dom";
 
+//Array für die User Kategorie
+const categorieUser = ['ADMIN', 'CLIENT', 'DRIVER'];
+//Array für die Produkt Kategorie
+const categorieProduct = ['ENFANT', 'BEURE', 'EAUX', 'FOSCAO', 'HUILE', 'LAIT', 'MAYONNAISE', 
+                          'NESCAFE', 'OIGNON', 'POMMEDETERRE', 'RIZ', 'SAVON', 'SUCCRE', 'TOMATE' ];
 const New = ({ inputs, title, typeCmp }) => {
-  const [file, setFile] = useState("");
+  const [file, setFile] = useState(""); 
+  const [categories, setCategories] = useState([]);
   const [data, setData] = useState({});
   const [perc, setPerc] = useState(null);
   const navigate = useNavigate();
 
+  //wählt die aufgerufene Kategorie
+  useEffect(() => {
+    setCategories(() => {
+     return typeCmp === "users" ? 
+     categorieUser:
+     categorieProduct
+    });
+    
+  }, [typeCmp])
+  
+  //Aufladung des Bildes
   useEffect(() => {
     const uploadFile = () => {
       const name = new Date().getTime() + file.name;
@@ -59,6 +83,7 @@ const New = ({ inputs, title, typeCmp }) => {
     file && uploadFile();
   }, [file]);
 
+  //Input Daten im Array speichern
   const handleInput = (e) => {
     const id = e.target.id;
     const value = e.target.value;
@@ -66,27 +91,41 @@ const New = ({ inputs, title, typeCmp }) => {
     setData({ ...data, [id]: value });
   };
 
+  //übernimmt die Änderung der Ausgabe in der Input Komponent
+  const handleChange = (e) => {    
+    setData({ ...data, category: e.target.value }); 
+  }
+
+  // zurück zu den vorherige Seite
+  const onBack = (e) =>{ 
+    e.preventDefault();
+    navigate(-1)
+  }
+
+  //wird ausgeführt nach dem Druck auf save Button
   const handleAdd = async (e) => {
     e.preventDefault();
     try {
-      if (typeCmp=== "user"){
-        const res = await createUserWithEmailAndPassword(
-          auth,
-          data.email,
-          data.password
-        );
-      
-      await setDoc(doc(db, typeCmp, res.user.uid), {
-        ...data,
-        timeStamp: serverTimestamp(),
-      });
-    } else {
-        await addDoc(collection(db, typeCmp), {
-        ...data,
-        timeStamp: serverTimestamp(),
-      });
-  }
-    navigate(-1);
+          if (typeCmp=== "users"){
+            const res = await createUserWithEmailAndPassword(
+              auth,
+              data.email,
+              data.password
+            );
+          
+            await setDoc(doc(db, typeCmp, res.user.uid), {
+              ...data,
+              timeStamp: serverTimestamp(),
+              status: true,
+            });
+        } else { 
+            await addDoc(collection(db, typeCmp), {
+            ...data,
+            timeStamp: serverTimestamp(),
+            status: false,
+          });
+      }
+        navigate(-1);
     } catch (err) {
       console.log(err);
     } finally {
@@ -127,6 +166,16 @@ const New = ({ inputs, title, typeCmp }) => {
                   style={{ display: "none" }}
                 />
               </div>
+              <div className="formInput" >
+                <label>
+                  Category {typeCmp}
+                  <select label={typeCmp} onChange={handleChange}>
+                  {categories.map((item) => (
+                    <option value={item}>{item}</option>                 
+                  ))} 
+                  </select>
+                </label>
+              </div>
 
               {inputs.map((input) => (
                 <div className="formInput" key={input.id}>
@@ -139,9 +188,33 @@ const New = ({ inputs, title, typeCmp }) => {
                   />
                 </div>
               ))}
-              <button disabled={perc !== null && perc < 100} type="submit">
-                Send
+               
+             {
+              typeCmp === "products" && 
+                          <div className="formInput" >
+                              <label> Description </label>
+                                <textarea 
+                                  id= "description"
+                                  label= "Description"
+                                  type= "textarea"
+                                  rows={15}
+                                  cols={65}
+                                  onChange={handleInput}
+                                  placeholder= "Product Description"
+                                  value={data.description}
+                                />
+                          
+                            </div>  
+            }
+              <div>
+                <button onClick={onBack} type="submit">
+                back
               </button>
+              <button disabled={perc !== null && perc < 100} type="submit">
+                save
+              </button>
+              </div>
+              
             </form>
           </div>
         </div>

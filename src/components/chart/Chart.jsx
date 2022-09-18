@@ -1,3 +1,10 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Die Statistiken für sechs letze Monaten werden hier angezeigt
+ */
 import "./chart.scss"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 

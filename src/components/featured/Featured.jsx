@@ -1,3 +1,10 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Statistiken über das Geld
+ */
 import "./featured.scss"
 import { CircularProgressbar } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
@@ -15,31 +22,31 @@ const Featured = () => {
       </div>
       <div className="bottom">
         <div className="featuredChart">
-          <CircularProgressbar value={70} text={"70%"} strockWidth={1} />
+          <CircularProgressbar value={90} text={"90%"} strockWidth={1} />
         </div>
         <p className="total">Total sales made today</p>
-        <p className="amount">$420</p>
+        <p className="amount">€890</p>
         <p className="desc">Previous transactions processing. Last payments may not be included</p>
         <div className="summary">
           <div className="item">
             <div className="itemTitle">Target</div>
             <div className="itemResult negative">
               <KeyboardArrowDownIcon font-size ="small"/>
-              <div className="resultAmount">$12.4k</div>
+              <div className="resultAmount">€12.4k</div>
             </div>
           </div>
           <div className="item">
             <div className="itemTitle">Last Week</div>
             <div className="itemResult positive">
               <KeyboardArrowDownIcon font-size ="small"/>
-              <div className="resultAmount">$120.4k</div>
+              <div className="resultAmount">€583.9k</div>
             </div>
           </div>
           <div className="item">
             <div className="itemTitle">Last Month</div>
             <div className="itemResult positive">
               <KeyboardArrowDownIcon font-size ="small"/>
-              <div className="resultAmount">$1200.4k</div>
+              <div className="resultAmount">€3900.6k</div>
             </div>
           </div>
         </div>

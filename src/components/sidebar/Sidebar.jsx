@@ -2,7 +2,10 @@ import "./sidebar.scss";
 import {Link} from "react-router-dom";
 import {useContext} from "react"
 import {DarkModeContext} from "../../context/darkModeContext"
+import { auth } from "../../firebase"
+import { signOut } from "firebase/auth";
 
+import { useNavigate } from "react-router-dom";
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
 import StoreIcon from '@mui/icons-material/Store';
@@ -16,6 +19,20 @@ import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 
 const Sidbar = () => {
   const {dispatch} = useContext(DarkModeContext)
+  const navigate = useNavigate()
+
+
+  const logout = async() => {
+    //dispatchLogout({type:"LOGOUT"})
+    signOut(auth).then(() => {
+      // Sign-out successful.
+      navigate("/login")      
+    }).catch((error) => {
+      // An error happened.
+      alert('Fehler')
+    });
+    
+  }
   return (
     <div className="sidebar">
           <div className="top">
@@ -82,7 +99,7 @@ const Sidbar = () => {
                 <AccountBalanceOutlinedIcon className="icon"/>
                 <span>Profile</span>
               </li>
-              <li>
+              <li onClick={logout}>
                 <ExitToAppIcon className="icon"/>
                 <span>Logout</span>
               </li>               

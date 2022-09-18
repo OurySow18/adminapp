@@ -1,3 +1,10 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Navbar Komponent
+ */
 import "./navbar.scss";
 import {useContext} from "react"
 import {DarkModeContext} from "../../context/darkModeContext"

@@ -5,4 +5,17 @@
     .orderContainer{
         flex:6
     }
+
+    .listContainer{
+        -webkit-box-shadow: 2px 4px 10px 1px #000000; 
+        box-shadow: 2px 4px 10px 1px #4b4a4a;
+        padding: 20px;
+        margin: 20px;
+
+        .listTitle{
+            font-weight: 500;
+            color: gray;
+            margin-bottom: 15px;
+        }
+    }
 }

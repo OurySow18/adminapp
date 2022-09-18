@@ -1,3 +1,10 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Listet die gegebenen Daten auf, hier products oder users
+ */
 import './datatable.scss'
 import {Link} from "react-router-dom";
 import {useState, useEffect} from "react"
@@ -9,25 +16,11 @@ import {db} from "../../firebase";
 const Datatable = ({typeColumns, title}) => {
 
   const [data, setData] = useState([]); 
+  const [count, setCount] = useState(0); 
 
-  const lien = title === "users" ? "users/new" : "product/new"
-
+  //ruft die Daten aus Firestore ab
  useEffect(() =>{
-  /*   const fetchData = async () =>{
-      let list = [];
-      try {
-        const querySnapshot = await getDocs(collection(db, "users"));
-        querySnapshot.forEach((doc) => {
-          list.push({id: doc.id, ...doc.data()});
-        });
-        setData(list);
-      } catch (error) {
-          console.log(error)
-      }      
-    }
-    fetchData()*/
-
-    //Real Time
+      //Real Time
     const unsub = onSnapshot(
       collection(db, title), 
       (snapShot) => {
@@ -36,16 +29,18 @@ const Datatable = ({typeColumns, title}) => {
         list.push({ id: doc.id, ...doc.data() });
       });
       setData(list);
-    }, 
-      (error) => {
-        console.log(error);
-      }
-    );
-    return () => {
-      unsub();
+      setCount(list.length);
+      }, 
+        (error) => {
+          console.log(error);
+        }
+      ); 
+      return () => {
+        unsub();
     };
-    }, []);
+  }, [title]);
 
+  //löscht das entsprechende Produkte
   const handleDelete = async(id) => {
     try {
       await deleteDoc(doc(db, title, id));
@@ -63,7 +58,7 @@ const Datatable = ({typeColumns, title}) => {
         renderCell: (params) => {
             return(
                 <div className="cellAction" >
-                  <Link to="/users/test" style={{ textDecoration:"none" }}>
+                  <Link to={{pathname:params.id}} style={{ textDecoration:"none" }}>
                     <div className="viewButton" >View</div>
                   </Link>
                     <div 
@@ -71,7 +66,7 @@ const Datatable = ({typeColumns, title}) => {
                       onClick={() => handleDelete(params.row.id)} 
                       >
                         Delete
-                      </div>
+                    </div>
                 </div>
             );
         },
@@ -81,8 +76,8 @@ const Datatable = ({typeColumns, title}) => {
   return (
     <div className="datatable" > 
       <div className="datatableTitle">
-        Add new {title}
-        <Link to="/users/new" className="link">
+        Number of {title} is {count}
+        <Link to={{pathname:"new"}} className="link">
           Add new
         </Link>
       </div>

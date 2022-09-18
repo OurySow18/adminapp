@@ -1,3 +1,10 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Authentikation Context
+ */
 import { createContext, useReducer, useEffect } from "react";
 import AuthReducer from "./AuthReducer";
 

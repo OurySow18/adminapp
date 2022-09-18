@@ -1,6 +1,13 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Login Seite
+ */
 import  './login.scss'
 import {useState, useContext} from "react"
-import {signInWithEmailAndPassword } from "firebase/auth";
+import {signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth } from "../../firebase"
 import { useNavigate } from "react-router-dom";
 import {AuthContext} from "../../context/AuthContext"
@@ -18,19 +25,25 @@ const Login = () => {
 
    const handleLogin = (e) =>{
      e.preventDefault();
-
-     signInWithEmailAndPassword(auth, email, password)
-  .then((userCredential) => {
-    // Signed in 
-    const user = userCredential.user;
-    dispatch({type:"LOGIN", payload:user})
-    navigate("/")
-    // ...
-  })
+      //SignIn Methode
+      signInWithEmailAndPassword(auth, email, password)
+      .then((userCredential) => {
+        // Signed in 
+        const user = userCredential.user;
+        //versendet LOGIN Aktion
+        dispatch({type:"LOGIN", payload:user})
+        
+        setError(false)
+        //navigiert zu der Startseite
+        navigate("/")
+      }
+    
+  )
   .catch((error) => {
     const errorCode = error.code;
     const errorMessage = error.message;
-    // ..
+    console.log(errorCode)
+    console.log(errorMessage)
   });
    }
     return (

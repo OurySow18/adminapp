@@ -1,3 +1,10 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Aktiviert oder deaktiviert der Dark Modus
+ */
 const DarkModeReducer = (state, action) => {
     switch (action.type) {
       case "LIGHT": {

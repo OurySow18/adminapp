@@ -1,10 +1,17 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Firebase konfiguration
+ */
 import { initializeApp } from "firebase/app" 
-import { getAuth } from "firebase/auth";
+import { getAuth  } from "firebase/auth";
 import { getFirestore}  from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-
-
  
+// Packet die Zugriffsinformationen unseres Firebase-Projekts 
+//in die Variable firebaseConfig, die Daten sind für jedes Projekt unterschiedlich
 const firebaseConfig = {
 
     apiKey: "AIzaSyDCENsh0tZlNtbcNAZZHqt1RtkNIsWsNuE",
@@ -22,16 +29,13 @@ const firebaseConfig = {
   };
   
   
-  // Initialize Firebase
-  
+  // Initialize Firebase  
   const app = initializeApp(firebaseConfig);
   export const auth = getAuth()
+
   
   // Initialize Cloud Firestore and get a reference to the service
   export const db = getFirestore(app);
 
   // Get a reference to the storage service, which is used to create references in your storage bucket
 export const storage = getStorage(app);
-
-
-  

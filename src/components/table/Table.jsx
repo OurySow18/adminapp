@@ -1,5 +1,10 @@
-import table from "./table.scss"
-import { styled } from '@mui/material/styles';
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Table Komponent, benutzt Dummy Daten zuerst
+ */
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell, { tableCellClasses } from '@mui/material/TableCell';

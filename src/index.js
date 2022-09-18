@@ -1,3 +1,10 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Startseite, Wräppt die App.js in DarkModeContextProvider und der Provider
+ */
 import React from 'react';
 import ReactDOM from 'react-dom'; 
 import App from './App'; 

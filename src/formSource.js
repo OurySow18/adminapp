@@ -1,27 +1,34 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Input Einstellungen
+ */
 export const userInputs = [
     {
       id: "username",
       label: "Username",
       type: "text",
-      placeholder: "john_doe",
+      placeholder: "Oury_Sow",
     },
     {
       id: "surname",
       label: "Name and surname",
       type: "text",
-      placeholder: "John Doe",
+      placeholder: "Amadou Oury Sow",
     },
     {
       id: "email",
       label: "Email",
       type: "mail",
-      placeholder: "john_doe@gmail.com",
+      placeholder: "asow@hs-bremerhaven.de",
     },
     {
       id: "phone",
       label: "Phone",
       type: "text",
-      placeholder: "+1 234 567 89",
+      placeholder: "+49 15752441731",
     },
     {
       id: "password",
@@ -32,34 +39,28 @@ export const userInputs = [
       id: "addresse",
       label: "Address",
       type: "text",
-      placeholder: "Elton St. 216 NewYork",
+      placeholder: "Luisental 28, 28359 Bremen",
     },
     {
       id: "country",
       label: "Country",
       type: "text",
-      placeholder: "USA",
+      placeholder: "Germany",
     },
   ];
-  
+
   export const productInputs = [
     {
-      id: "title",
-      label: "Title",
+      id: "name",
+      label: "Name",
       type: "text",
       placeholder: "Apple Macbook Pro",
     },
     {
-      id: "description",
-      label: "Description",
+      id: "poids",
+      label: "Poids",
       type: "text",
-      placeholder: "Description",
-    },
-    {
-      id: "category",
-      label: "Category",
-      type: "text",
-      placeholder: "Computers",
+      placeholder: "Poids du produits",
     },
     {
       id: "price",
@@ -73,4 +74,5 @@ export const userInputs = [
       type: "text",
       placeholder: "in stock",
     },
+   
   ];

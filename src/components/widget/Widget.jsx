@@ -1,3 +1,10 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Die Widget werden hier erstellt
+ */
 import './widget.scss'
 import {useEffect, useState} from "react"
 import {collection, query, where, getDocs} from "firebase/firestore"
@@ -14,9 +21,7 @@ const Widget = ({type}) => {
     const [amount, setAmount] = useState(null)
     const [diff, setDiff] = useState(null)
 
-    let data;
-   // let amount = 100
-   // let diff = 20
+    let data; 
     switch (type) {
         case "user":
             data={
@@ -74,6 +79,7 @@ const Widget = ({type}) => {
             break;
     }
 
+    //ruft die Daten von Firestore ab
     useEffect(() => {
         const fetchData = async () => {
             const today = new Date();
@@ -104,7 +110,7 @@ const Widget = ({type}) => {
     <div className="widget">
         <div className="left">
             <span className="title" > {data.title}</span>
-            <span className="counter" >{data.isMoney && "$"}{amount} </span>
+            <span className="counter" >{data.isMoney && "€"}{amount} </span>
             <span className="link" >{data.link}</span>
         </div>
         <div className="right">

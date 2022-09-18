@@ -1,3 +1,10 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * App Einstellung 
+ */
 import Home from "./pages/home/Home";
 import Login from "./pages/login/Login";
 import List from "./pages/list/List";
@@ -10,20 +17,23 @@ import { useContext } from "react";
 import { DarkModeContext } from "./context/darkModeContext";
 import { productInputs, userInputs } from "./formSource";
 import {userColumns, productColumns} from "./datatablesource";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import {AuthContext} from "./context/AuthContext"
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"; 
+import {auth} from "./firebase"
+import Details from "./pages/productDetails/Details";
 
-function App() {
-  const { darkMode } = useContext(DarkModeContext);
-  const {currentUser} = useContext(AuthContext);
+function App() { 
+  const { darkMode } = useContext(DarkModeContext); 
   const titleUser = "Add new User";
   const titleProduct = "Add new Product";
 
+  //prüft, ob der User eigeloggtist. Wenn nein bleibt man auf der login Seite
   const RequireAuth = ({ children }) => {
-    return currentUser ? (children) : <Navigate to="/login" />;
+    return auth.currentUser?.email ? (children) : <Navigate to="/login" />;
   };
+  
 
   return (
+    //prüft, ob der Dark Modus akiviert ist
     <div className={darkMode ? "app dark " : "app"}>
       <BrowserRouter>
         <Routes>
@@ -46,10 +56,10 @@ function App() {
                 }
               />
               <Route
-                path=":userId"
+                path=":id"
                 element={
                   <RequireAuth>
-                    <Single />
+                    <Single  title="users"/>
                   </RequireAuth>
                 }
               />
@@ -57,18 +67,18 @@ function App() {
                 path="new"
                 element={
                   <RequireAuth>
-                    <New inputs={userInputs} title={titleUser} typeCmp="user" />
+                    <New inputs={userInputs} title={titleUser} typeCmp="users" />
                   </RequireAuth>
                 }
               />
             </Route>
             <Route path="products">
-              <Route index element={<List typeColumns={productColumns} title="product" />} />
+              <Route index element={<List typeColumns={productColumns} title="products" />} />
               <Route
-                path=":productId"
+                path=":id"
                 element={
                   <RequireAuth>
-                    <Single />
+                    <Details inputs={productInputs} title="products" />
                   </RequireAuth>
                 }
               />
@@ -76,7 +86,7 @@ function App() {
                 path="new"
                 element={
                   <RequireAuth>
-                    <New inputs={productInputs} title={titleProduct} typeCmp="product" />
+                    <New inputs={productInputs} title={titleProduct} typeCmp="products" />
                   </RequireAuth>
                 }
               />

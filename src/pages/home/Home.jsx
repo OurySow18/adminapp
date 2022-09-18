@@ -1,3 +1,11 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Home Seite, die Statistiken werden hier angezeigt.
+ * Der ruft alle Widget ab und die Komponenten zu den letzten Bestellungen
+ */
 import './home.scss'
 import Sidebar from "../../components/sidebar/Sidebar"
 import Navbar from "../../components/navbar/Navbar"

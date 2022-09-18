@@ -1,3 +1,10 @@
+/**
+ * Abgabe Bachelorarbeit
+ * Author: Amadou Oury Sow
+ * Date: 15.09.2022
+ * 
+ * Einstellung Daten für unser Table
+ */
 export const userColumns = [
     { field: "id", headerName: "ID", width: 70 },
     {
@@ -22,28 +29,26 @@ export const userColumns = [
     {
       field: "addresse",
       headerName: "Addresse",
+      width: 150,
+    },
+    {
+      field: "category",
+      headerName: "Category",
       width: 100,
     },
     {
       field: "status",
       headerName: "Status",
-      width: 160,
-      renderCell: (params) => {
-        return (
-          <div className={`cellWithStatus ${params.row.status}`}>
-            {params.row.status}
-          </div>
-        );
-      },
+      width: 160,      
     },
   ];
 
 export const productColumns = [
-    { field: "id", headerName: "ID", width: 70 },
+    { field: "id", headerName: "ID", width: 100 },
     {
       field: "product",
       headerName: "Product",
-      width: 230,
+      width: 100,
       renderCell: (params) => {
         return (
           <div className="cellWithImg">
@@ -54,16 +59,16 @@ export const productColumns = [
       },
     },
     {
+      field: "name",
+      headerName: "Name",
+      width: 230,
+    },
+    {
       field: "description",
       headerName: "Description",
       width: 230,
     },
   
-    {
-      field: "addresse",
-      headerName: "Addresse",
-      width: 100,
-    },
     {
       field: "category",
       headerName: "Category",
@@ -77,14 +82,7 @@ export const productColumns = [
     {
       field: "status",
       headerName: "Status",
-      width: 160,
-      renderCell: (params) => {
-        return (
-          <div className={`cellWithStatus ${params.row.status}`}>
-            {params.row.status}
-          </div>
-        );
-      },
+      width: 160,      
     },
   ];
   
