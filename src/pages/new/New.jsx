@@ -24,6 +24,8 @@ import { useNavigate } from "react-router-dom";
 
 //Array für die User Kategorie
 const categorieUser = ['ADMIN', 'CLIENT', 'DRIVER'];
+//Array für die Product Type
+const categorieType = ['ACTUEL', 'BREAKFAST', 'CEREMONIE', 'ENFANTS'];
 //Array für die Produkt Kategorie
 const categorieProduct = ['ENFANT', 'BEURE', 'EAUX', 'FOSCAO', 'HUILE', 'LAIT', 'MAYONNAISE', 
                           'NESCAFE', 'OIGNON', 'POMMEDETERRE', 'RIZ', 'SAVON', 'SUCCRE', 'TOMATE' ];
@@ -203,8 +205,17 @@ const New = ({ inputs, title, typeCmp }) => {
                                   placeholder= "Product Description"
                                   value={data.description}
                                 />
-                          
-                            </div>  
+                                <div className="formInput" >
+                                  <label> 
+                                    <select label=""onChange={handleChange}>
+                                    {categorieType.map((item) => (
+                                      <option value={item}>{item}</option>                 
+                                    ))} 
+                                    </select>
+                                  </label>
+                              </div>                          
+                            </div>
+                              
             }
               <div>
                 <button onClick={onBack} type="submit">
