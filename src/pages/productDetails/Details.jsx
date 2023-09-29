@@ -23,6 +23,7 @@ import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUpload
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 const categorieProduct = [
+  "AUCUN",
   "ENFANT",
   "BEURE",
   "EAUX",
@@ -37,6 +38,14 @@ const categorieProduct = [
   "SAVON",
   "SUCCRE",
   "TOMATE",
+  "THE",
+  "PATTE",
+  "HARICOTS",
+  "JUS",
+  "BISCUITS",
+  "COUSCOUS",
+  "HAMZA",
+  "CHOCOLAT",
 ];
 //Array für die Product Type
 const categorieType = ["ACTUEL", "BREAKFAST", "CEREMONIE", "ENFANTS"];
