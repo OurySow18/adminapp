@@ -10,6 +10,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
 import StoreIcon from '@mui/icons-material/Store';
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
+import LocalPrintshopSharpIcon from '@mui/icons-material/LocalPrintshopSharp';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import SettingsSystemDaydreamOutlinedIcon from '@mui/icons-material/SettingsSystemDaydreamOutlined';
@@ -74,6 +75,12 @@ const Sidbar = () => {
               <li>
                 <LocalShippingIcon className="icon" />
                 <span>Delivery</span>
+              </li>
+              </Link>
+              <Link to="/delivredOrders" style={{ textDecoration:"none" }}>
+              <li>
+                <LocalPrintshopSharpIcon className="icon" />
+                <span>Delivered Orders</span>
               </li>
               </Link>
               <p className="title">USEFUL</p>

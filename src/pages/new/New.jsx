@@ -221,6 +221,8 @@ const New = ({ inputs, title, typeCmp }) => {
                 <button onClick={onBack} type="submit">
                 back
               </button>
+              </div>
+              <div>
               <button disabled={perc !== null && perc < 100} type="submit">
                 save
               </button>

@@ -1,34 +1,60 @@
-.login{
-    height: 100vh;
+.login {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  form {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
 
-    form{
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-
-      input{
-        width: 200px;
-        height: 30px;
-        margin: 10px;
-      }
-
-      button{
-        width: 200px;
-        height: 30px;
-        border: none;
-        background-color: purple;
-        color: white;
-        font-weight: bold;
-        cursor: pointer;
-      }
-
-      span{
-        font-size: 12px;
-        color: red;
-        margin-top: 10px;
-      }
+    input {
+      width: 200px;
+      height: 30px;
+      margin: 10px;
     }
+
+    .password-input {
+      position: relative; /* Pour positionner l'icône par rapport à l'input */
+      width: 200px; /* Largeur de l'input */
+      height: 30px; /* Hauteur de l'input */
+      margin: 10px;
+    }
+
+    .password-toggle {
+      position: absolute; /* Position absolue par rapport à son parent */
+      width: 860px; /* Largeur de l'input */
+      height: 30px; /* Hauteur de l'input */
+      margin: 22px;
+      margin-top: 15px;
+      top: 50%; /* Centrage vertical */
+      right: 1px; /* Marge à droite */
+      transform: translateY(-50%); /* Décalage vertical pour centrer */
+      cursor: pointer;
+      color: rgb(216, 28, 28); /* Couleur par défaut de l'icône */
+      transition: color 0.3s ease; /* Transition de couleur pour un effet visuel */
+    }
+
+    .password-toggle:hover {
+      color: black; /* Changement de couleur au survol */
+    }
+
+    button {
+      width: 210px;
+      height: 30px;
+      margin: 10px;
+      border: none;
+      background-color: purple;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    span {
+      font-size: 25px;
+      color: red;
+      margin-top: 50px;
+    }
+  }
 }

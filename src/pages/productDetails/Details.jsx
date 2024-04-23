@@ -213,6 +213,19 @@ const Details = ({ title }) => {
               </div>
 
               <div className="formInput">
+                <label> ProductId </label>
+                <input
+                  id="product_id"
+                  label="ProductId"
+                  type="text"
+                  placeholder="Product Id"
+                  value={data.product_id}
+                  onChange={handleInput}
+                  disabled={true}
+                />
+              </div>
+
+              <div className="formInput">
                 <label> Name </label>
                 <input
                   id="name"

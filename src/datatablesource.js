@@ -5,9 +5,16 @@
  * 
  * Einstellung Daten für unser Table
  */
+import { format } from "date-fns";
+
+// Fonction de formattage personnalisée pour le timestamp
+const formatDate = (timestamp) => {
+  return format(timestamp.toDate(), "dd/MM/yyyy HH:mm:ss");
+};
+
 export const userColumns = [
-    { field: "id", headerName: "ID", width: 70 },
-    {
+    { field: "id", headerName: "ID", width: 270 },
+    /*{
       field: "user",
       headerName: "User",
       width: 230,
@@ -19,6 +26,11 @@ export const userColumns = [
           </div>
         );
       },
+    },*/
+    {
+      field: "surname",
+      headerName: "Nom",
+      width: 350,
     },
     {
       field: "email",
@@ -27,9 +39,9 @@ export const userColumns = [
     },
   
     {
-      field: "addresse",
-      headerName: "Addresse",
-      width: 150,
+      field: "adresse",
+      headerName: "Adresse",
+      width: 250,
     },
     {
       field: "category",
@@ -44,7 +56,7 @@ export const userColumns = [
   ];
 
 export const productColumns = [
-    { field: "id", headerName: "ID", width: 100 },
+    { field: "product_id", headerName: "ID", width: 100 },
     {
       field: "product",
       headerName: "Product",
@@ -85,4 +97,44 @@ export const productColumns = [
       width: 160,      
     },
   ];
+  
+
+export const orderColumns = [
+    { field: "orderId", headerName: "Commande ID", width: 200 },     
+    {
+      field: "deliverInfos.recipientName",
+      headerName: "Nom du recepteur",
+      width: 230,
+      valueGetter: (params) => params.row.deliverInfos.recipientName,
+    },
+    {
+      field: "deliverInfos.adresse",
+      headerName: "Adresse de livraison",
+      width: 200,
+      valueGetter: (params) => params.row.deliverInfos.adresse,
+    },
+    {
+      field: "deliverInfos.phone",
+      headerName: "Telephone de livraison",
+      width: 180,
+      valueGetter: (params) => params.row.deliverInfos.phone,
+    },
+    {
+      field: "timeStamp",
+      headerName: "Date & Heure",
+      width: 180,
+      valueGetter: (params) => formatDate(params.row.timeStamp),
+    },
+  
+    {
+      field: "paymentType",
+      headerName: "Type de Payement",
+      width: 150,
+    },
+    {
+      field: "total",
+      headerName: "Total",
+      width: 150,
+    },
+     ];
   

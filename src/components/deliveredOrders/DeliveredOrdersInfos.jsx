@@ -5,12 +5,12 @@
  *
  * Die Bestellungen weden hier agezeigt
  */
-import "./order.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar"; 
-import ListOrder from "../../components/order/ListOrder";
+import "./deliveredOrders.scss";
+import Sidebar from "../sidebar/Sidebar";
+import Navbar from "../navbar/Navbar";  
+import ListDeliveryOrder from "../listDeliveryOrder/ListDeliveryOrder";
 
-const Order = ({ typeColumns, title }) => {
+const DelivredOrder = ({ typeColumns, title }) => {
   return (
     <div className="order">
       <Sidebar />
@@ -18,11 +18,11 @@ const Order = ({ typeColumns, title }) => {
         <Navbar />
         <div className="listContainer">
           <div className="listTitle">Commandes</div>
-          <ListOrder  typeColumns={typeColumns} title={title} />
+          <ListDeliveryOrder  typeColumns={typeColumns} title={title} />
         </div>
       </div>
     </div>
   );
 };
 
-export default Order;
+export default DelivredOrder;
