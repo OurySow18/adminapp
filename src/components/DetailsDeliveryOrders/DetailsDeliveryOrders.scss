@@ -44,6 +44,15 @@ label {
     color: orange; // ou toute autre couleur de votre choix
 }
 
+.delivered {
+    color: green; // ou toute autre couleur de votre choix
+}
+
+// Styles pour le statut "En attente de payement"
+.notDelivered {
+    color: orange; // ou toute autre couleur de votre choix
+}
+
 input[type="text"],
 textarea {
     width: 100%;

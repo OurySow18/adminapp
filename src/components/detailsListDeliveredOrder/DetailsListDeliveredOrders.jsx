@@ -33,13 +33,16 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
   const goBack = () => {
     navigate("/delivredOrders"); // Rediriger vers la page des produits
   };
-   
-  console.log(orderDetails)
+
+  console.log(orderDetails);
+
 
   const generatePrintContent = () => {
     const currentDate = new Date();
-    const formattedDate = `${currentDate.getDate()}/${currentDate.getMonth() + 1}/${currentDate.getFullYear()}`;
-  
+    const formattedDate = `${currentDate.getDate()}/${
+      currentDate.getMonth() + 1
+    }/${currentDate.getFullYear()}`;
+
     const headerContent = `
       <div class="invoice-header">
         <div class="company-info">
@@ -57,7 +60,7 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
         </div>
       </div>
     `;
-  
+
     const customerInfo = `
       <div class="customer-info">
         <h3>Coordonnées du client :</h3>
@@ -85,7 +88,7 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
       </div>
     </div>
   `;
-  
+
     let itemsContent = `
       <table class="invoice-items">
         <thead>
@@ -97,7 +100,9 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
           </tr>
         </thead>
         <tbody>
-          ${orderDetails.cart.map((product, index) => `
+          ${orderDetails.cart
+            .map(
+              (product, index) => `
             <tr>
               <td>${product.name}</td>
               <td>${product.name}</td>
@@ -105,13 +110,13 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
               <td>${product.quantity}</td>
               <td>${product.quantity * product.price} GNF</td>
             </tr>
-          `).join('')}
+          `
+            )
+            .join("")}
         </tbody>
       </table>
     `;
 
-    
-  
     const printContent = `
       <style>
         @media print {
@@ -203,7 +208,7 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
           
           .signature-input {
             width: 100%;
-            margin-top: 500px;
+            margin-top: 200px;
             margin-bottom: 10px; /* Espacement entre la signature et le titre */
           }
           
@@ -221,32 +226,18 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
         ${footerContent}
       </div>
     `;
-  
+
     return printContent;
   };
-    
-  
+
   const printOrder = () => {
     const printContent = generatePrintContent();
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open("", "_blank");
     printWindow.document.write(printContent);
     printWindow.document.close();
     printWindow.print();
   };
-  
-  const validateOrder = async () => {
-    try {
-        // Mettez à jour la valeur payed dans la base de données
-        await updateDoc(doc(db, "orders", params.id), {
-            payed: true,
-        });
-        // Mettre à jour l'état local si nécessaire
-        // setData({ ...data, payed: true });
-        console.log("La commande a été validée avec succès !");
-    } catch (error) {
-        console.error("Erreur lors de la validation de la commande :", error);
-    }
-};
+ 
 
   return (
     <div className="details">
@@ -256,7 +247,9 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
 
         <div className="top">
           <h1>Détails de la commande</h1>
-          <Link className="link" onClick={validateOrder}>{btnValidation}</Link>
+          <Link className="link" onClick={printOrder}>
+            {btnValidation}
+          </Link>
         </div>
 
         <div className="formContainer">
@@ -268,7 +261,7 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
             <div className="formGroup">
               <label>ID de la commande:</label>
               <input type="text" value={orderDetails?.orderId || ""} disabled />
-            </div> 
+            </div>
             <div className="formGroup">
               <label>Nom du récepteur:</label>
               <input
@@ -300,14 +293,24 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
                 disabled
               ></textarea>
             </div>
-            
+
             <div className="formGroup">
               <label>Status du payement:</label>
-              <input type="text" value={orderDetails?.payed ? "Payer" : "En attente de payement"}  className={orderDetails?.payed ? "paid" : "pending"} disabled />
+              <input
+                type="text"
+                value={orderDetails?.payed ? "Payer" : "En attente de payement"}
+                className={orderDetails?.payed ? "paid" : "pending"}
+                disabled
+              />
             </div>
             <div className="formGroup">
               <label>Status de la livraison:</label>
-              <input type="text" value={orderDetails?.delivered ? "Livrer" : "Pas encore livrer"}  className={orderDetails?.payed ? "paid" : "pending"} disabled />
+              <input
+                type="text"
+                value={orderDetails?.delivered ? "Livrer" : "Pas encore livrer"}
+                className={orderDetails?.delivered ? "delivered" : "notDelivered"}
+                disabled
+              />
             </div>
             <div className="formGroup">
               <label>Total:</label>
@@ -317,8 +320,13 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
               <label>Date et heure:</label>
               <input
                 type="text"
-                value={ orderDetails?.timeStamp && format(orderDetails?.timeStamp.toDate(), 'dd/MM/yyyy HH:mm:ss')}
-                 
+                value={
+                  orderDetails?.timeStamp &&
+                  format(
+                    orderDetails?.timeStamp.toDate(),
+                    "dd/MM/yyyy HH:mm:ss"
+                  )
+                }
                 disabled
               />
             </div>
@@ -328,7 +336,7 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
                 {orderDetails?.cart?.map((product, index) => (
                   <li key={index}>
                     <span>
-                      {product.quantity} x {product.name}  
+                      {product.quantity} x {product.name}
                     </span>
                     <span>{product.price} GNF</span>
                     <span>{product.quantity * product.price} GNF</span>
@@ -341,7 +349,7 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
 
         <div>
           <button onClick={goBack}>Revenir en arrière</button>
-          
+
           <button onClick={printOrder}>Imprimer la commande</button>
         </div>
       </div>

@@ -8,10 +8,7 @@ import { DataGrid } from "@mui/x-data-grid";
 const ListDeliveryOrder = ({ typeColumns }) => {
   const [data, setData] = useState([]);
   const [count, setCount] = useState(0); 
-  
-  const params = useParams();
-  //console.log(params) 
-
+   
   // Récupère les données de Firestore et met à jour l'état local
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "archivedOrders"), (snapshot) => {
@@ -36,6 +33,7 @@ const ListDeliveryOrder = ({ typeColumns }) => {
     };
   }, []);
 
+  console.log("Data: ", data)
   const actionColumn = [
     {
       field: "action",
@@ -59,7 +57,7 @@ const ListDeliveryOrder = ({ typeColumns }) => {
   return ( 
         <div className="listOrder">
         <div className="listOrderTitel">
-          Nombre de Commandes: {count} 
+          Nombre de Commandes archivées: {count} 
         </div>
         <DataGrid
           className="datagrid"

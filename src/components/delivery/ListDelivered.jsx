@@ -59,7 +59,7 @@ const ListDelivered = ({ typeColumns }) => {
   return ( 
         <div className="listOrder">
         <div className="listOrderTitel">
-          Nombre de Commandes: {count} 
+          Nombre de Livraisons a effectuées: {count} 
         </div>
         <DataGrid
           className="datagrid"

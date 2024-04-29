@@ -48,67 +48,67 @@ const Sidbar = () => {
               <Link to="/" style={{ textDecoration:"none" }}>
                 <li>              
                   <DashboardIcon className="icon" />
-                  <span>Dashboard</span>                
+                  <span>Tableau de bord</span>                
                 </li>
               </Link>
               <p className="title">LISTS</p>
               <Link to="/users" style={{ textDecoration:"none" }}>
               <li>
                 <PersonOutlineOutlinedIcon className="icon"/>
-                <span>Users</span>
+                <span>Utilisateurs</span>
               </li>
               </Link>
               <Link to="/products" style={{ textDecoration:"none" }}>
               <li>
                 <StoreIcon className="icon"/>
-                <span>Products</span>
+                <span>Produits</span>
               </li>
               </Link>
               <Link to="/orders" style={{ textDecoration:"none" }}>
                 <li>
                   <CreditCardIcon className="icon" />                
-                  <span>Orders</span>
+                  <span>Commandes</span>
                 </li>
               </Link>
               
               <Link to="/delivery" style={{ textDecoration:"none" }}>
               <li>
                 <LocalShippingIcon className="icon" />
-                <span>Delivery</span>
+                <span>Livraisons</span>
               </li>
               </Link>
               <Link to="/delivredOrders" style={{ textDecoration:"none" }}>
               <li>
                 <LocalPrintshopSharpIcon className="icon" />
-                <span>Delivered Orders</span>
+                <span>Commandes livrées</span>
               </li>
               </Link>
-              <p className="title">USEFUL</p>
+              <p className="title">UTILES</p>
               <li>
                 <CreditCardIcon className="icon"/>
-                <span>Stats</span>
+                <span>Statistiques</span>
               </li>
               <li>
                 <NotificationsNoneIcon className="icon"/>
                 <span>Notifications</span>
               </li>
-              <p className="title">SERVICE</p>
+              <p className="title">SERVICES</p>
               <li>
                 <SettingsSystemDaydreamOutlinedIcon className="icon"/>
-                <span>System Health</span>
+                <span>System</span>
               </li>
               <li>
                 <SettingsApplicationsIcon className="icon"/>
-                <span>Settings</span>
+                <span>Configurations</span>
               </li>
-              <p className="title">USER</p>
+              <p className="title">Compte</p>
               <li>
                 <AccountBalanceOutlinedIcon className="icon"/>
                 <span>Profile</span>
               </li>
               <li onClick={logout}>
                 <ExitToAppIcon className="icon"/>
-                <span>Logout</span>
+                <span>Déconnexion</span>
               </li>               
             </ul>
           </div>

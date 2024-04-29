@@ -7,7 +7,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { db } from "../../firebase";
-import { doc, onSnapshot, setDoc, collection, getDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, collection, getDoc, deleteDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 
 const DetailsDeliveryOrders = ({ title, btnValidation }) => {
   const [orderDetails, setOrderDetails] = useState({});
@@ -28,6 +28,20 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
 
     return () => unsubscribe();
   }, []);
+
+  const updateOrder = async () => {
+    try {
+      // Mettez à jour la valeur payed dans la base de données
+      await updateDoc(doc(db, "orders", params.id), {
+        delivered: true,
+      });
+      // Mettre à jour l'état local si nécessaire
+      // setData({ ...data, payed: true }); 
+      alert("La commande a été archivée avec succès !");
+    } catch (error) {
+      console.error("Erreur lors de la validation de la commande :", error);
+    }
+  };
 
   // Gérer le retour en arrière
   const goBack = () => {
@@ -201,7 +215,7 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
           
           .signature-input {
             width: 100%;
-            margin-top: 500px;
+            margin-top: 200px;
             margin-bottom: 10px; /* Espacement entre la signature et le titre */
           }
           
@@ -234,6 +248,7 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
   console.log(params.id)
   const archivOrder = async () => {
     try {
+      updateOrder();
       // Récupérer les données de la commande depuis la collection actuelle
       const orderSnapshot = doc(db, title, params.id);
       const orderData = await getDoc(orderSnapshot);
@@ -252,7 +267,7 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
       await deleteDoc(doc(db, title, params.id));
 
       console.log("La commande a été archivée avec succès !");
-      navigate("/orders");  
+      navigate("/delivery");  
     } catch (error) {
       console.error("Erreur lors de l'archivage de la commande :", error);
     }
@@ -327,7 +342,7 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
               <input
                 type="text"
                 value={orderDetails?.delivered ? "Livrer" : "Pas encore livrer"}
-                className={orderDetails?.payed ? "paid" : "pending"}
+                className={orderDetails?.delivered ? "delivered" : "notDelivered"}
                 disabled
               />
             </div>

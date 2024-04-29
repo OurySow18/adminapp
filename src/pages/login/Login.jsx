@@ -55,8 +55,7 @@ const Login = () => {
           type="email"
           placeholder="email"
           onChange={(e) => setEmail(e.target.value)}
-        />
-        <div>
+        /> 
           <input
             type={showPassword ? "text" : "password"}
             placeholder="Password"
@@ -65,8 +64,7 @@ const Login = () => {
           />
           <span className="password-toggle" onClick={togglePasswordVisibility}>
             {showPassword ? <FaEyeSlash /> : <FaEye />}
-          </span>
-        </div>
+          </span> 
         <button type="submit">Login</button>
         {error && <span>Wrong email or password!</span>}
       </form>

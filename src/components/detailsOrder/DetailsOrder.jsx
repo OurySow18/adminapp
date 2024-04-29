@@ -4,10 +4,7 @@ import { useState, useEffect } from "react";
 import Sidebar from "../sidebar/Sidebar";
 import Navbar from "../navbar/Navbar";
 import { useNavigate, useParams } from "react-router-dom";
-import { format } from "date-fns";
-import BWIPJS from "bwip-js";
-import ReactDOM from "react-dom";
-import QRCode from "react-qr-code";
+import { format } from "date-fns"; 
 
 import { getAuth } from "firebase/auth";
 import { db } from "../../firebase";
@@ -21,7 +18,7 @@ import {
 } from "firebase/firestore";
 
 const DetailsOrder = ({ title, btnValidation }) => {
-  const [orderDetails, setOrderDetails] = useState('');
+  const [orderDetails, setOrderDetails] = useState([]);
   const navigate = useNavigate();
   const params = useParams();
 
@@ -97,19 +94,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
       </div>
     </div>
   `;
-
-    const scanCodeContent = `
-    <article>
-      <h1>Code de Scan</h1>
-      <div style="height: auto; margin: 0 auto; max-width: 64px; width: 100%;">
-        <QRCode
-          size={256}
-          value="${orderDetails?.scanNum || "gp6swohyb6MbfAprZYMhwrNWWRO23011969325372424"}"
-          viewBox="0 0 256 256"
-        />
-      </div>
-    </article>
-  `;
+ 
 
     let itemsContent = `
       <table class="invoice-items">
@@ -244,8 +229,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
       <div class="invoice">
         ${headerContent}
         ${customerInfo}
-        ${itemsContent} 
-        ${scanCodeContent} 
+        ${itemsContent}  
         ${footerContent}
       </div>
     `;
@@ -260,6 +244,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
     printWindow.document.close();
     printWindow.print();
   };
+ 
 
   const html = `
   <html>
@@ -342,15 +327,12 @@ const DetailsOrder = ({ title, btnValidation }) => {
   </header> 
   <article>
     <h1>Code de Scan</h1>     
-    <article>
-      <h1>Code de Scan</h1>
-      <div style="height: auto; margin: 0 auto; max-width: 64px; width: 100%;">
-        <QRCode
-          size={256}
-          value="${orderDetails?.scanNum || ""}"
-          viewBox="0 0 256 256"
-        />
-      </div>
+    <article> 
+    <div style="height: auto; margin: 0 auto; max-width: 200px; width: 100%;">
+    <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${
+      orderDetails?.scanNum
+    }" alt="Code-barres de la commande" style="max-width: 100%; height: auto;">
+  </div>
     </article> 
   </article>  
   <aside>
@@ -371,14 +353,13 @@ const DetailsOrder = ({ title, btnValidation }) => {
     // Add a new document with a generated id
     const newEmail = doc(collection(db, "mail"));
     var user = getAuth().currentUser;
-    var userMail = user.email;
-    var userUid = user.uid;
+    var userMail = user.email; 
 
     await setDoc(newEmail, {
       //to: [userMail],
       to: "amadourys15@yahoo.com",
       message: {
-        subject: "Votre Facture",
+        subject: "Paiement validé",
         text: "Merci pour votre Commande",
         html: html,
         /* attachments: [
@@ -388,8 +369,10 @@ const DetailsOrder = ({ title, btnValidation }) => {
           }
         ]*/
       },
-    });
-    // Alert.alert("Facture","Votre Facture a été envoyer dans votre Mail.");
+    }); 
+    // Afficher une alerte indiquant que la confirmation a été envoyée avec succès au client
+    window.alert("La confirmation a été envoyée avec succès au client.");
+    navigate("/orders");  
   };
 
   const validateOrder = async () => {
@@ -476,7 +459,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
               <input
                 type="text"
                 value={orderDetails?.delivered ? "Livrer" : "Pas encore livrer"}
-                className={orderDetails?.payed ? "paid" : "pending"}
+                className={orderDetails?.delivered ? "delivered" : "notDelivered"}
                 disabled
               />
             </div>
@@ -512,21 +495,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
                 ))}
               </ul>
             </div>
-            <div
-              style={{
-                height: "auto",
-                margin: "0 auto",
-                maxWidth: 164,
-                width: "100%",
-              }}
-            >
-              <QRCode
-                size={256}
-                style={{ height: "auto", maxWidth: "100%", width: "100%" }}
-                value={orderDetails?.scanNum || ""}
-                viewBox={`0 0 256 256`}
-              />
-            </div>
+             
           </form>
         </div>
 
