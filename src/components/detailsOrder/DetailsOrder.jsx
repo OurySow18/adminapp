@@ -85,11 +85,11 @@ const DetailsOrder = ({ title, btnValidation }) => {
     <!-- Signatures -->
     <div class="signatures">
       <div class="signature">
-        <input type="text" placeholder="Signature du client" class="signature-input" />
+        <input type="text" placeholder="X" class="signature-input" />
         <h3>Signature du client :</h3>
       </div>
       <div class="signature">
-        <input type="text" placeholder="Signature du livreur" class="signature-input" />
+        <input type="text" placeholder="X" class="signature-input" />
         <h3>Signature du livreur :</h3>
       </div>
     </div>
