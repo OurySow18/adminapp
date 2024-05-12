@@ -27,8 +27,36 @@ const categorieUser = ['ADMIN', 'CLIENT', 'DRIVER'];
 //Array für die Product Type
 const categorieType = ['ACTUEL', 'BREAKFAST', 'CEREMONIE', 'ENFANTS'];
 //Array für die Produkt Kategorie
-const categorieProduct = ['ENFANT', 'BEURE', 'EAUX', 'FOSCAO', 'HUILE', 'LAIT', 'MAYONNAISE', 
-                          'NESCAFE', 'OIGNON', 'POMMEDETERRE', 'RIZ', 'SAVON', 'SUCCRE', 'TOMATE' ];
+const categorieProduct = [
+  "AUCUN",
+  "ENFANT",
+  "BEURE",
+  "EAUX",
+  "FOSCAO",
+  "HUILE",
+  "LAIT",
+  "MAYONNAISE",
+  "NESCAFE",
+  "OIGNON",
+  "POMMEDETERRE",
+  "RIZ",
+  "SAVON",
+  "SUCCRE",
+  "TOMATE",
+  "THE",
+  "PATTE",
+  "HARICOTS",
+  "JUS",
+  "BISCUITS",
+  "COUSCOUS",
+  "HAMZA",
+  "CHOCOLAT",
+  "BONBON",
+  "BISCUITS",
+  "COTON",
+  "CHIPS",
+  "CORN FLAKES"
+];
 const New = ({ inputs, title, typeCmp }) => {
   const [file, setFile] = useState(""); 
   const [categories, setCategories] = useState([]);

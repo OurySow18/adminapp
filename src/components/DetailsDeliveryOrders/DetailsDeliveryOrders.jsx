@@ -82,7 +82,7 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
 
     const footerContent = `
     <div class="invoice-footer">
-      <p>Total de la facture: ${orderDetails.total} GNF</p>
+      <p>Total de la facture: ${orderDetails.total.toLocaleString("fr-FR")} GNF</p>
       <p>Merci de votre achat.</p>
     </div>
     <!-- Signatures -->

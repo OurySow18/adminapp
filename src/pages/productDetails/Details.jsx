@@ -46,6 +46,11 @@ const categorieProduct = [
   "COUSCOUS",
   "HAMZA",
   "CHOCOLAT",
+  "BONBON",
+  "BISCUITS",
+  "COTON",
+  "CHIPS",
+  "CORN FLAKES"
 ];
 //Array für die Product Type
 const categorieType = ["ACTUEL", "BREAKFAST", "CEREMONIE", "ENFANTS"];
