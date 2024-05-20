@@ -82,7 +82,13 @@
                             border-bottom: 1px solid gray;
                         }
                     }
-
+                    .formInput.description {
+                        width: 100%;
+            
+                        textarea {
+                          height: 200px; /* Ajustez cette valeur pour une plus grande hauteur */
+                        }
+                      }
                     button{
                         width: 150px;
                         padding: 10px;

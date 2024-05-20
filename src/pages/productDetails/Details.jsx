@@ -46,32 +46,32 @@ const categorieProduct = [
   "COUSCOUS",
   "HAMZA",
   "CHOCOLAT",
-  "BONBON",
-  "BISCUITS",
+  "BONBON", 
   "COTON",
   "CHIPS",
   "CORN FLAKES"
 ];
 //Array für die Product Type
-const categorieType = ["ACTUEL", "BREAKFAST", "CEREMONIE", "ENFANTS"];
+const categorieType = ['BREAKFAST', 'DEJEUNER','CEREMONIE', 'ENFANTS', 'FEMMES'];
+const contentType = ['AUCUN', 'CARTON','SAC'];
 
 const Details = ({ title }) => {
-  const [file, setFile] = useState("");
+  const [file, setFile] = useState(null);
   const [data, setData] = useState({});
-  const [activStatus, setActivStatus] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
   const [isActiv, setIsActiv] = useState(false);
+  const [perc, setPerc] = useState(null); 
   const navigate = useNavigate();
-  const [perc, setPerc] = useState(null);
-  //bekommt die Daten durch die Navigationsparameters
   const params = useParams();
 
-  //ruft die Details eines Produktes von Firestore ab
+ // Fetch product details from Firestore
   useEffect(() => {
     const unsub = onSnapshot(
       doc(db, title, params.id),
       (doc) => {
         setData(doc.data());
+        setIsChecked(doc.data().status);
+        setIsActiv(doc.data().homePage);
       },
       (error) => {
         console.log(error);
@@ -80,9 +80,9 @@ const Details = ({ title }) => {
     return () => {
       unsub();
     };
-  }, []);
+  }, [params.id, title]);
 
-  //lädt das Bild ein
+  // Handle file upload to Firebase Storage
   useEffect(() => {
     const uploadFile = () => {
       const name = new Date().getTime() + file.name;
@@ -93,20 +93,8 @@ const Details = ({ title }) => {
       uploadTask.on(
         "state_changed",
         (snapshot) => {
-          const progress =
-            (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          console.log("Upload is " + progress + "% done");
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
           setPerc(progress);
-          switch (snapshot.state) {
-            case "paused":
-              console.log("Upload is paused");
-              break;
-            case "running":
-              console.log("Upload is running");
-              break;
-            default:
-              break;
-          }
         },
         (error) => {
           console.log(error);
@@ -118,47 +106,41 @@ const Details = ({ title }) => {
         }
       );
     };
-    file && uploadFile();
+    if (file) uploadFile();
   }, [file]);
-
-  useEffect(() => {
-    setIsChecked(isChecked);
-  }, [isChecked]);
-  useEffect(() => {
-    setIsChecked(isActiv);
-  }, [isActiv]);
-
-  //zurück zu den Produkten
-  const onBack = () => {
-    navigate("/products");
-  };
+  // Handle form inputs
   const handleInput = (e) => {
-    const id = e.target.id;
-    const value = e.target.value;
-
+    const { id, value } = e.target;
     setData({ ...data, [id]: value });
   };
-  const handleChange = (e) => {
+
+  const handleChangeCategory = (e) => {
     setData({ ...data, category: e.target.value });
   };
+
   const handleChangeType = (e) => {
     setData({ ...data, type: e.target.value });
   };
+  
+  const handleChangeContent = (e) => {
+    setData({ ...data, content: e.target.value });
+  };
+
   const checkHandler = () => {
     setIsChecked(!isChecked);
-    setData({ ...data, status: isChecked });
+    setData({ ...data, status: !isChecked });
   };
+
   const checkActivHandler = () => {
     setIsActiv(!isActiv);
-    setData({ ...data, homePage: isActiv });
+    setData({ ...data, homePage: !isActiv });
   };
-  
-  //aktualisiert die productsdaten
+
+  // Update product details in Firestore
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
-      const productRef = doc(db, "products", params.id);
-
+      const productRef = doc(db, title, params.id);
       await updateDoc(productRef, {
         ...data,
         timeStamp: serverTimestamp(),
@@ -166,26 +148,21 @@ const Details = ({ title }) => {
       navigate("/products");
     } catch (err) {
       console.log(err);
-    } finally {
-      console.log("We do cleanup here");
     }
   };
-
-
+ 
   return (
-    <div className="details">
+        <div className="details">
       <Sidebar />
       <div className="detailsContainer">
         <Navbar />
         <div className="top">
           <h1>Update Product</h1>
-          <Link to={"/products/new"} className="link">
-            Add new
-          </Link>
+          <Link to="/products/new" className="link">Add new</Link>
         </div>
         <div className="bottom">
           <div className="left">
-            <img src={data.img} alt="" className="image" />
+            <img src={data.img || "/default-image.png"} alt="Product" className="image" />
           </div>
           <div className="right">
             <form onSubmit={handleUpdate}>
@@ -200,140 +177,148 @@ const Details = ({ title }) => {
                   style={{ display: "none" }}
                 />
               </div>
-              <div className="formInput">
-                <label>
-                  Category Product
-                  <select
-                    id="cat"
-                    label="Product category"
-                    onChange={handleChange}
-                    value={data.category}
-                    defaultValue={data.category}
-                  >
-                    {categorieProduct.map((item) => (
-                      <option value={item}>{item}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
 
               <div className="formInput">
-                <label> ProductId </label>
-                <input
-                  id="product_id"
-                  label="ProductId"
-                  type="text"
-                  placeholder="Product Id"
-                  value={data.product_id}
-                  onChange={handleInput}
-                  disabled={true}
-                />
-              </div>
-
-              <div className="formInput">
-                <label> Name </label>
-                <input
-                  id="name"
-                  label="Name"
-                  type="text"
-                  placeholder="Product name"
-                  value={data.name}
-                  onChange={handleInput}
-                />
-              </div>
-
-              <div className="formInput">
-                <label> Poids </label>
-                <input
-                  id="poids"
-                  label="Poids"
-                  type="text"
-                  placeholder="Product poids"
-                  value={data.poids}
-                  onChange={handleInput}
-                />
-              </div>
-
-              <div className="formInput">
-                <label> Price </label>
-                <input
-                  id="price"
-                  label="Price"
-                  type="text"
-                  placeholder="Product price"
-                  value={data.price}
-                  onChange={handleInput}
-                />
-              </div>
-
-              <div className="formInput">
-                <label> Stock </label>
-                <input
-                  id="stock"
-                  label="Stock"
-                  type="text"
-                  placeholder="Product stock"
-                  value={data.stock}
-                  onChange={handleInput}
-                />
-              </div>
-              <div className="formInput">
-                <input
-                  type="checkbox"
-                  id="checkbox"
-                  checked={data.status}
-                  onChange={checkHandler}
-                />
-                {data.status ? "Activ" : "Inactiv"}
-              </div>
-              <div className="formInput">
-                <input
-                  type="checkbox"
-                  id="checkbox"
-                  checked={data.homePage}
-                  onChange={checkActivHandler}
-                />
-                {data.homePage ? "Trend" : "Normal"}
-              </div>
-              {
-                //<div className="formInput">
-                //<Checkbox status={data.status} />
-                // <input  value={activStatus} type='radio' text="Activ" onChange={handle_checkbox_Change} />
-                //activStatus ? <CheckBox  />   :  <CheckBoxOutlineBlankIcon />}
-                // {activStatus ? "Activ" : "Inactiv"
-                //</div>
-              }
-
-              <div className="formInput">
-                <label> Description </label>
-                <textarea
-                  id="description"
-                  label="Description"
-                  type="textarea"
-                  rows={15}
-                  cols={48}
-                  placeholder="Product description"
-                  value={data.description}
-                  onChange={handleInput}
-                />
-              </div>
-              <div className="formInput">
+                <label>Category Product</label>
                 <select
-                  id="categorie"
-                  label="categorieType"
-                  onChange={handleChangeType}
-                  value={data.type}
-                  defaultValue={data.type}
+                  id="category"
+                  onChange={handleChangeCategory}
+                  value={data.category || ""}
                 >
-                  {categorieType.map((item) => (
-                    <option value={item}>{item}</option>
+                  {categorieProduct.map((item) => (
+                    <option key={item} value={item}>{item}</option>
                   ))}
                 </select>
               </div>
-              <button onClick={onBack}>Back</button>
-              <button disabled={perc !== null && perc < 100} type="submit">
-                Update
-              </button>
+                  
+              <div className="formInput">
+                <label>Category Type</label>
+                <select
+                  id="type"
+                  onChange={handleChangeType}
+                  value={data.type || ""}
+                >
+                  {categorieType.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="formInput">
+                <label>Type de contenant</label>
+                <select
+                  id="content"
+                  onChange={handleChangeContent}
+                  value={data.content || ""}
+                >
+                  {contentType.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="formInput">
+                <label>ProductId</label>
+                <input
+                  id="product_id"
+                  type="text"
+                  placeholder="Product Id"
+                  value={data.product_id || ""}
+                  onChange={handleInput}
+                  disabled
+                />
+              </div>
+
+              <div className="formInput">
+                <label>Name</label>
+                <input
+                  id="name"
+                  type="text"
+                  placeholder="Product name"
+                  value={data.name || ""}
+                  onChange={handleInput}
+                />
+              </div>
+
+              <div className="formInput">
+                <label>Poids</label>
+                <input
+                  id="poids"
+                  type="text"
+                  placeholder="Product poids"
+                  value={data.poids || ""}
+                  onChange={handleInput}
+                />
+              </div>
+
+              <div className="formInput">
+                <label>Prix en gros</label>
+                <input
+                  id="price"
+                  type="text"
+                  placeholder="Product price"
+                  value={data.price || ""}
+                  onChange={handleInput}
+                />
+              </div>
+              <div className="formInput">
+                <label>Prix en detail</label>
+                <input
+                  id="priceInDetail"
+                  type="text"
+                  placeholder="Product price in detail"
+                  value={data.priceInDetail || ""}
+                  onChange={handleInput}
+                />
+              </div>
+
+              <div className="formInput">
+                <label>Stock</label>
+                <input
+                  id="stock"
+                  type="text"
+                  placeholder="Product stock"
+                  value={data.stock || ""}
+                  onChange={handleInput}
+                />
+              </div>
+
+              <div className="formInput">
+                <input
+                  type="checkbox"
+                  id="status"
+                  checked={isChecked}
+                  onChange={checkHandler}
+                />
+                {isChecked ? "Active" : "Inactive"}
+              </div>
+
+              <div className="formInput">
+                <input
+                  type="checkbox"
+                  id="homePage"
+                  checked={isActiv}
+                  onChange={checkActivHandler}
+                />
+                {isActiv ? "Trend" : "Normal"}
+              </div>
+
+              <div className="formInput description">
+                <label>Description</label>
+                <textarea
+                  id="description"
+                  rows={6}
+                  placeholder="Product description"
+                  value={data.description || ""}
+                  onChange={handleInput}
+                />
+              </div>
+
+
+              <div className="formButtons">
+                <button type="button" onClick={() => navigate("/products")}>Back</button>
+                <button type="submit" disabled={perc !== null && perc < 100}>Update</button>
+              </div>
             </form>
           </div>
         </div>
@@ -341,6 +326,7 @@ const Details = ({ title }) => {
     </div>
   );
 };
+
 
 export default Details;
 

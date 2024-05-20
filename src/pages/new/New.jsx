@@ -25,7 +25,7 @@ import { useNavigate } from "react-router-dom";
 //Array für die User Kategorie
 const categorieUser = ['ADMIN', 'CLIENT', 'DRIVER'];
 //Array für die Product Type
-const categorieType = ['ACTUEL', 'BREAKFAST', 'CEREMONIE', 'ENFANTS'];
+const categorieType = ['BREAKFAST', 'DEJEUNER','CEREMONIE', 'ENFANTS', 'FEMMES'];
 //Array für die Produkt Kategorie
 const categorieProduct = [
   "AUCUN",
