@@ -49,7 +49,8 @@ const categorieProduct = [
   "BONBON", 
   "COTON",
   "CHIPS",
-  "CORN FLAKES"
+  "CORN FLAKES",
+  "INSECTICIDE"
 ];
 //Array für die Product Type
 const categorieType = ['BREAKFAST', 'DEJEUNER','CEREMONIE', 'ENFANTS', 'FEMMES'];
@@ -218,14 +219,14 @@ const Details = ({ title }) => {
               </div>
 
               <div className="formInput">
-                <label>ProductId</label>
+                <label>Id</label>
                 <input
                   id="product_id"
                   type="text"
                   placeholder="Product Id"
                   value={data.product_id || ""}
                   onChange={handleInput}
-                  disabled
+                  //disabled
                 />
               </div>
 

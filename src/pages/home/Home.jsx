@@ -13,6 +13,7 @@ import Widget from "../../components/widget/Widget"
 import Featured from "../../components/featured/Featured"
 import Chart from "../../components/chart/Chart"
 import Table from "../../components/table/Table"
+import ChartContainer from '../chart/ChartContainer'
 
 
 const Home = () => {
@@ -31,7 +32,7 @@ const Home = () => {
 
             <div className="charts">
               <Featured />
-              <Chart title="6 derniers mois (revenus)" aspect={2/1} />
+              <ChartContainer aspect={2 / 1} title="Six derniers mois (Revenus)" />
             </div>
             <div className="listContainer">
               <div className="listTitle">Dernières transactions</div>

@@ -17,6 +17,7 @@ import SettingsSystemDaydreamOutlinedIcon from '@mui/icons-material/SettingsSyst
 import SettingsApplicationsIcon from '@mui/icons-material/SettingsApplications';
 import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import AddLocationIcon from '@mui/icons-material/AddLocation';
 
 const Sidbar = () => {
   const {dispatch} = useContext(DarkModeContext)
@@ -62,6 +63,12 @@ const Sidbar = () => {
               <li>
                 <StoreIcon className="icon"/>
                 <span>Produits</span>
+              </li>
+              </Link>
+              <Link to="/zones" style={{ textDecoration:"none" }}>
+              <li>
+                <AddLocationIcon className="icon"/>
+                <span>Zones</span>
               </li>
               </Link>
               <Link to="/orders" style={{ textDecoration:"none" }}>

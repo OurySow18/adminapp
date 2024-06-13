@@ -98,6 +98,41 @@ export const productColumns = [
     },
   ];
   
+export const zonesColumns = [
+    { field: "zone_id", headerName: "ID", width: 100 },
+    {
+      field: "zones",
+      headerName: "Zones",
+      width: 100, 
+    },
+    {
+      field: "priceZoneMinimum",
+      headerName: "Prix minimum",
+      width: 230,
+    },
+    {
+      field: "priceZoneMaximum",
+      headerName: "Prix maximum",
+      width: 230,
+    },
+  
+    {
+      field: "createdAt",
+      headerName: "Creation",
+      width: 100,
+    },
+    {
+      field: "updatedAt",
+      headerName: "Modification",
+      width: 100,
+    },
+    {
+      field: "status",
+      headerName: "Status",
+      width: 160,      
+    },
+  ];
+  
 
 export const orderColumns = [
     { field: "orderId", headerName: "Commande ID", width: 200 },     

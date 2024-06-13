@@ -51,6 +51,12 @@ export const userInputs = [
 
   export const productInputs = [
     {
+      id: "product_id",
+      label: "Id",
+      type: "text",
+      placeholder: "Numero du Produit",
+    },
+    {
       id: "name",
       label: "Name",
       type: "text",
@@ -74,5 +80,33 @@ export const userInputs = [
       type: "text",
       placeholder: "in stock",
     },
+   
+  ];
+
+  export const zonesInputs = [
+    {
+      id: "zoneName",
+      label: "Name",
+      type: "text",
+      placeholder: "Apple Macbook Pro",
+    },
+    {
+      id: "neighborhoods",
+      label: "Quartier",
+      type: "text",
+      placeholder: "Quartier",
+    },
+    {
+      id: "priceZoneMinimum",
+      label: "Prix Minimum",
+      type: "text",
+      placeholder: "20000",
+    },
+    {
+      id: "priceZoneMaximum",
+      label: "Prix Maximum",
+      type: "text",
+      placeholder: "30000",
+    },  
    
   ];
