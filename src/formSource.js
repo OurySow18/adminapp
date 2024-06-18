@@ -85,17 +85,17 @@ export const userInputs = [
 
   export const zonesInputs = [
     {
+      id: "zone_id",
+      label: "Id",
+      type: "text",
+      placeholder: "Numero de Zone",
+    },
+    {
       id: "zoneName",
       label: "Name",
       type: "text",
       placeholder: "Apple Macbook Pro",
-    },
-    {
-      id: "neighborhoods",
-      label: "Quartier",
-      type: "text",
-      placeholder: "Quartier",
-    },
+    }, 
     {
       id: "priceZoneMinimum",
       label: "Prix Minimum",

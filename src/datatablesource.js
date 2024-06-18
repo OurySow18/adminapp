@@ -99,9 +99,9 @@ export const productColumns = [
   ];
   
 export const zonesColumns = [
-    { field: "zone_id", headerName: "ID", width: 100 },
+    { field: "id", headerName: "ID", width: 270 },
     {
-      field: "zones",
+      field: "zoneName",
       headerName: "Zones",
       width: 100, 
     },

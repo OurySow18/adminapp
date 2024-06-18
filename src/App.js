@@ -24,6 +24,7 @@ import Details from "./pages/productDetails/Details";
 import DeliveredOrders from "./components/deliveredOrders/DeliveredOrdersInfos";
 import DetailsDeliveryOrders from "./components/DetailsDeliveryOrders/DetailsDeliveryOrders";
 import DetailsListDeliveredOrder from "./components/detailsListDeliveredOrder/DetailsListDeliveredOrders";
+import Zone from "./pages/zones/Zone";
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -121,7 +122,7 @@ function App() {
                 path=":id"
                 element={
                   <RequireAuth>
-                    <Details inputs={zonesInputs} title="zones" />
+                    <Zone inputs={zonesInputs} title="zones" />
                   </RequireAuth>
                 }
               />

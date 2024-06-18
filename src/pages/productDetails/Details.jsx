@@ -255,20 +255,30 @@ const Details = ({ title }) => {
               <div className="formInput">
                 <label>Prix en gros</label>
                 <input
-                  id="price"
+                  id="priceWholesale"
                   type="text"
                   placeholder="Product price"
-                  value={data.price || ""}
+                  value={data.priceWholesale || ""}
                   onChange={handleInput}
                 />
               </div>
               <div className="formInput">
+                <label>Nombre d´unité</label>
+                <input
+                  id="nbUnit"
+                  type="text"
+                  placeholder="Nombre de pieces dans un Carton"
+                  value={data.nbUnit || ""}
+                  onChange={handleInput}
+                />
+              </div> 
+              <div className="formInput">
                 <label>Prix en detail</label>
                 <input
-                  id="priceInDetail"
+                  id="price"
                   type="text"
                   placeholder="Product price in detail"
-                  value={data.priceInDetail || ""}
+                  value={data.price || ""}
                   onChange={handleInput}
                 />
               </div>
