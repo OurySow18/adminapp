@@ -15,9 +15,7 @@ import { db } from "../../firebase";
 const Datatable = ({ typeColumns, title }) => {
   const [data, setData] = useState([]);
   const [count, setCount] = useState(0);
-
-  console.log("typeColumns: ", typeColumns)
-  console.log(title)
+ 
   //ruft die Daten aus Firestore ab
   useEffect(() => {
     //Real Time
@@ -55,8 +53,7 @@ const Datatable = ({ typeColumns, title }) => {
       field: "action",
       headername: "Action",
       width: 200,
-      renderCell: (params) => { 
-        console.log("Type: ", params.id)
+      renderCell: (params) => {  
         return (
           <div className="cellAction">
             <Link
@@ -76,7 +73,7 @@ const Datatable = ({ typeColumns, title }) => {
       },
     },
   ];
-console.log(data)
+  
   return (
     <div className="datatable">
       <div className="datatableTitle">

@@ -14,20 +14,19 @@ import { getStorage } from "firebase/storage";
 //in die Variable firebaseConfig, die Daten sind für jedes Projekt unterschiedlich
 const firebaseConfig = {
 
-    apiKey: "AIzaSyDCENsh0tZlNtbcNAZZHqt1RtkNIsWsNuE",
+    apiKey: process.env.REACT_APP_API_KEY,
   
-    authDomain: "monmarhe.firebaseapp.com",
+    authDomain: process.env.REACT_APP_AUTH_DOMAIN,
   
-    projectId: "monmarhe",
+    projectId: process.env.REACT_APP_PROJECT_ID,
   
-    storageBucket: "monmarhe.appspot.com",
+    storageBucket: process.env.REACT_APP_STORAGE_BUCKET,
   
-    messagingSenderId: "810364309186",
+    messagingSenderId: process.env.REACT_APP_MESSAGING_SENDER_ID,
   
-    appId: "1:810364309186:web:3042a0b4f1564492db755b"
+    appId: process.env.REACT_APP_APP_ID
   
-  };
-  
+  }; 
   
   // Initialize Firebase  
   const app = initializeApp(firebaseConfig);

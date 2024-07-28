@@ -8,8 +8,10 @@
 import Home from "./pages/home/Home";
 import Login from "./pages/login/Login";
 import List from "./pages/list/List";
+import ListProducts from "./pages/listProducts/ListProducts";
 import Single from "./pages/single/Single";
 import New from "./pages/new/New";
+import NewProduct from "./pages/newProduct/NewProduct";
 import Order from "./pages/Order/Order";
 import Delivery from "./pages/Delivery/Delivery";
 import DetailsOrder from "./components/detailsOrder/DetailsOrder";
@@ -87,7 +89,8 @@ function App() {
             {/*Products*/}
             <Route path="products">
               <Route
-                index
+                index 
+               // element={<ListProducts typeColumns={productColumns} title="products" />}
                 element={<List typeColumns={productColumns} title="products" />}
               />
               <Route
@@ -102,10 +105,9 @@ function App() {
                 path="new"
                 element={
                   <RequireAuth>
-                    <New
+                    <NewProduct
                       inputs={productInputs}
-                      title={titleProduct}
-                      typeCmp="products"
+                      title={titleProduct} 
                     />
                   </RequireAuth>
                 }

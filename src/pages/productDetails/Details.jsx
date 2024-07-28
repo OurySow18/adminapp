@@ -53,7 +53,7 @@ const categorieProduct = [
   "INSECTICIDE"
 ];
 //Array für die Product Type
-const categorieType = ['BREAKFAST', 'DEJEUNER','CEREMONIE', 'ENFANTS', 'FEMMES'];
+const categorieType = ['AUTRES','BREAKFAST', 'DEJEUNER','CEREMONIE', 'ENFANTS', 'FEMMES'];
 const contentType = ['AUCUN', 'CARTON','SAC'];
 
 const Details = ({ title }) => {
@@ -61,7 +61,10 @@ const Details = ({ title }) => {
   const [data, setData] = useState({});
   const [isChecked, setIsChecked] = useState(false);
   const [isActiv, setIsActiv] = useState(false);
-  const [perc, setPerc] = useState(null); 
+  const [perc, setPerc] = useState(null);   
+  const [imageObjects, setImageObjects] = useState([]); // État pour stocker les objets d'image avec URL et référence
+  const [mainImageIndex, setMainImageIndex] = useState(0); // État pour définir l'index de l'image principale
+
   const navigate = useNavigate();
   const params = useParams();
 
@@ -72,7 +75,9 @@ const Details = ({ title }) => {
       (doc) => {
         setData(doc.data());
         setIsChecked(doc.data().status);
-        setIsActiv(doc.data().homePage);
+        setIsActiv(doc.data().homePage);  
+        setImageObjects(doc.data().images || []); // Récupération des images du produit
+    
       },
       (error) => {
         console.log(error);
@@ -135,6 +140,28 @@ const Details = ({ title }) => {
   const checkActivHandler = () => {
     setIsActiv(!isActiv);
     setData({ ...data, homePage: !isActiv });
+  };
+
+  const handleImageDelete = async (index) => {
+    // Fonction de suppression d'une image du produit
+    try {
+      const imageRef = ref(storage, imageObjects[index].ref);
+      //await deleteObject(imageRef);
+      const updatedImages = [...imageObjects];
+      updatedImages.splice(index, 1);
+      setImageObjects(updatedImages);
+      setData((prev) => ({
+        ...prev,
+        images: updatedImages,
+      }));
+    } catch (error) {
+      console.error("Error deleting image: ", error);
+    }
+  };
+
+  const setMainImage = (index) => {
+    // Fonction pour définir l'image principale
+    setMainImageIndex(index);
   };
 
   // Update product details in Firestore
