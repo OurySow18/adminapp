@@ -140,13 +140,13 @@ export const orderColumns = [
       field: "deliverInfos.recipientName",
       headerName: "Nom du recepteur",
       width: 230,
-      valueGetter: (params) => params.row.deliverInfos.recipientName,
+      valueGetter: (params) => params.row.deliverInfos.name,
     },
     {
       field: "deliverInfos.adresse",
       headerName: "Adresse de livraison",
       width: 200,
-      valueGetter: (params) => params.row.deliverInfos.adresse,
+      valueGetter: (params) => params.row.deliverInfos.address,
     },
     {
       field: "deliverInfos.phone",

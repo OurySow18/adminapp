@@ -300,7 +300,7 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
               <label>Nom du récepteur:</label>
               <input
                 type="text"
-                value={orderDetails?.deliverInfos?.recipientName || ""}
+                value={orderDetails?.deliverInfos?.name || ""}
                 disabled
               />
             </div>
@@ -308,7 +308,7 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
               <label>Adresse de livraison:</label>
               <input
                 type="text"
-                value={orderDetails?.deliverInfos?.adresse || ""}
+                value={orderDetails?.deliverInfos?.address || ""}
                 disabled
               />
             </div>
@@ -323,7 +323,7 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
             <div className="formGroup">
               <label>Description de la livraison:</label>
               <textarea
-                value={orderDetails?.deliverInfos?.deliv_description || ""}
+                value={orderDetails?.deliverInfos?.additionalInfo || ""}
                 disabled
               ></textarea>
             </div>

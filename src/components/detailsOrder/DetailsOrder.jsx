@@ -70,8 +70,8 @@ const DetailsOrder = ({ title, btnValidation }) => {
       <div class="customer-info">
         <h3>Coordonnées du client :</h3>
         <p>No Facture: ${orderDetails.orderId}</p>
-        <p>Nom: ${orderDetails.deliverInfos.recipientName}</p>
-        <p>Adresse: ${orderDetails.deliverInfos.adresse}</p>
+        <p>Nom: ${orderDetails.deliverInfos.name}</p>
+        <p>Adresse: ${orderDetails.deliverInfos.address}</p>
         <p>Téléphone: ${orderDetails.deliverInfos.phone}</p>
         <p>Description: ${orderDetails.deliverInfos.deliv_description}</p>
       </div>
@@ -305,8 +305,8 @@ const DetailsOrder = ({ title, btnValidation }) => {
     <tr>
        <td >
        <p>No Facture: ${orderDetails.orderId}</p>
-       <p>Nom: ${orderDetails.deliverInfos?.recipientName}</p>
-       <p>Adresse: ${orderDetails.deliverInfos?.adresse}</p>
+       <p>Nom: ${orderDetails.deliverInfos?.name}</p>
+       <p>Adresse: ${orderDetails.deliverInfos?.address}</p>
        <p>Telephone: ${orderDetails.deliverInfos?.phone}</p>
        <p>Telephone: ${orderDetails.deliverInfos?.deliv_description}</p>
        <p>Type de Payement: ${orderDetails.paymentType} </p> 
@@ -417,7 +417,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
               <label>Nom du récepteur:</label>
               <input
                 type="text"
-                value={orderDetails?.deliverInfos?.recipientName || ""}
+                value={orderDetails?.deliverInfos?.name || ""}
                 disabled
               />
             </div>
@@ -425,7 +425,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
               <label>Adresse de livraison:</label>
               <input
                 type="text"
-                value={orderDetails?.deliverInfos?.adresse || ""}
+                value={orderDetails?.deliverInfos?.address || ""}
                 disabled
               />
             </div>
@@ -440,7 +440,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
             <div className="formGroup">
               <label>Description de la livraison:</label>
               <textarea
-                value={orderDetails?.deliverInfos?.deliv_description || ""}
+                value={orderDetails?.deliverInfos?.additionalInfo || ""}
                 disabled
               ></textarea>
             </div>

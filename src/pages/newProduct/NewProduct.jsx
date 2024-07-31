@@ -55,6 +55,7 @@ const categorieProduct = [
   "COTON",
   "CHIPS",
   "CORN FLAKES",
+  "SAC à MAIN "
 ];
 
 const New = ({ inputs, title }) => {

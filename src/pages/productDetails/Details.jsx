@@ -50,7 +50,8 @@ const categorieProduct = [
   "COTON",
   "CHIPS",
   "CORN FLAKES",
-  "INSECTICIDE"
+  "INSECTICIDE",
+  "SAC à MAIN "
 ];
 //Array für die Product Type
 const categorieType = ['AUTRES','BREAKFAST', 'DEJEUNER','CEREMONIE', 'ENFANTS', 'FEMMES'];
