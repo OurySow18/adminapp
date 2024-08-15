@@ -34,8 +34,12 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
     navigate("/delivredOrders"); // Rediriger vers la page des produits
   };
 
-  console.log(orderDetails);
-
+  function formatPrice(price) {
+    return parseFloat(price).toLocaleString("fr-FR", {
+      style: "currency",
+      currency: "GNF",
+    });
+  }
 
   const generatePrintContent = () => {
     const currentDate = new Date();
@@ -51,7 +55,7 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
             <h1>Monmarche</h1>
             <p>Bantounka 2</p>
             <p>Tel: +224 612 12 12 29</p>
-            <p>monmarchegn@gmail.com</p>
+            <p>infos@monmarchegn.com</p>
           </div>
         </div>
         <div class="invoice-info">
@@ -64,16 +68,18 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
     const customerInfo = `
       <div class="customer-info">
         <h3>Coordonnées du client :</h3>
-        <p>Nom: ${orderDetails.customerName}</p>
-        <p>Adresse: ${orderDetails.customerAddress}</p>
-        <p>Téléphone: ${orderDetails.customerPhone}</p>
-        <p>Email: ${orderDetails.customerEmail}</p>
+        <p>No Facture: ${orderDetails.orderId}</p>
+        <p>Nom: ${orderDetails.deliverInfos.name}</p>
+        <p>Adresse: ${orderDetails.deliverInfos.address}</p>
+        <p>Téléphone: ${orderDetails.deliverInfos.phone}</p>
+        <p>Description: ${orderDetails.deliverInfos.additionalInfo}</p>
       </div>
     `;
 
     const footerContent = `
     <div class="invoice-footer">
-      <p>Total de la facture: ${orderDetails.total} GNF</p>
+      <p>Montant Livraison: ${formatPrice(orderDetails.deliveryFee)} GNF</p> 
+      <p>Total de la facture: ${formatPrice(orderDetails.total)} GNF</p>
       <p>Merci de votre achat.</p>
     </div>
     <!-- Signatures -->
@@ -89,136 +95,181 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
     </div>
   `;
 
-    let itemsContent = `
-      <table class="invoice-items">
-        <thead>
-          <tr>
-            <th>Produit</th>
-            <th>Prix unitaire</th>
-            <th>Quantité</th>
-            <th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${orderDetails.cart
-            .map(
-              (product, index) => `
-            <tr>
-              <td>${product.name}</td>
-              <td>${product.name}</td>
-              <td>${product.price} GNF</td>
-              <td>${product.quantity}</td>
-              <td>${product.quantity * product.price} GNF</td>
-            </tr>
-          `
-            )
-            .join("")}
-        </tbody>
-      </table>
-    `;
+  let itemsContent = `
+  <table class="invoice-items">
+    <thead>
+      <tr>
+        <th>Produit</th> 
+        <th>Quantité en gros</th>
+        <th>Montant en gros</th> 
+        <th>Quantité détail</th>
+        <th>Montant détail</th> 
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${orderDetails.cart
+        .map(
+          (product) => `
+        <tr>
+          <td class="product-name">${product.name}</td> 
+          <td class="product-quantity">${
+            product.quantityBulk
+              ? product.quantityBulk + " x " + formatPrice(product.priceBulk)
+              : "0"
+          }</td> 
+          <td class="product-amount">${product.amountBulk || "0"} GNF</td>
+          <td class="product-quantity">${
+            product.quantityDetail
+              ? product.quantityDetail +
+                " x " +
+                formatPrice(product.priceDetail)
+              : "0"
+          }</td>
+          <td class="product-amount">${product.amountDetail || "0"} GNF</td> 
+          <td class="product-total">${product.totalAmount || "0"} GNF</td>
+        </tr>
+      `
+        )
+        .join("")}
+    </tbody>
+  </table>
+`;
+
 
     const printContent = `
-      <style>
-        @media print {
-          @page {
-            size: A4;
-            margin: 0;
-          }
-          body {
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-          }
-          .invoice {
-            width: 100%;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-          }
-          .company-info {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-          }
-          .company-logo {
-            max-width: 100px;
-            margin-right: 20px;
-          }
-          .company-details h1 {
-            font-size: 24px;
-            margin: 0;
-          }
-          .company-details p {
-            margin: 5px 0;
-          }
-          .invoice-info {
-            flex-grow: 1;
-            text-align: right;
-          }
-          .invoice-info h2 {
-            font-size: 24px;
-            margin: 0;
-          }
-          .invoice-info p {
-            margin: 5px 0;
-          }
-          .customer-info {
-            margin-bottom: 20px;
-          }
-          .customer-info h3 {
-            margin-top: 0;
-          }
-          .customer-info p {
-            margin: 5px 0;
-          }
-          .invoice-footer {
-            text-align: center;
-            margin-top: 20px;
-          }
-          .invoice-footer p {
-            margin: 5px 0;
-          }
-          .invoice-items {
-            border-collapse: collapse;
-            width: 100%;
-          }
-          .invoice-items th, .invoice-items td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-          }
-          .invoice-items th {
-            background-color: #f2f2f2;
-          }
-          .signatures {
-            display: flex;
-            justify-content: space-between;
-          }
-          
-          .signature {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-top: 20px; /* Espace réservé pour chaque signature en haut de la ligne */
-          }
-          
-          .signature-input {
-            width: 100%;
-            margin-top: 200px;
-            margin-bottom: 10px; /* Espacement entre la signature et le titre */
-          }
-          
-          .signature h3 {
-            margin: 0;
-          }
-          
-          
+     <style>
+      @media print {
+        @page {
+          size: A4;
+          margin: 0;
         }
-      </style>
+        body {
+          margin: 0;
+          padding: 0;
+          font-family: Arial, sans-serif;
+          background-color: #f3f3f3;
+        }
+        .invoice {
+          width: 100%;
+          max-width: 800px;
+          margin: 0 auto;
+          padding: 20px;
+          border: 1px solid #ccc;
+          border-radius: 10px;
+          background-color: #fff;
+        }
+        .company-info {
+          display: flex;
+          align-items: center;
+          margin-bottom: 20px;
+        }
+        .company-logo {
+          max-width: 100px;
+          margin-right: 20px;
+        }
+        .company-details h1 {
+          font-size: 28px;
+          margin: 0;
+          color: #333;
+        }
+        .company-details p {
+          margin: 5px 0;
+          color: #555;
+        }
+        .invoice-info {
+          flex-grow: 1;
+          text-align: right;
+        }
+        .invoice-info h2 {
+          font-size: 24px;
+          margin: 0;
+          color: #444;
+        }
+        .invoice-info p {
+          margin: 5px 0;
+          color: #666;
+        }
+        .customer-info {
+          margin-bottom: 20px;
+          padding: 10px;
+          border-radius: 5px;
+          background-color: #f9f9f9;
+          border-left: 5px solid #0b79d0;
+        }
+        .customer-info h3 {
+          margin-top: 0;
+          color: #333;
+        }
+        .customer-info p {
+          margin: 5px 0;
+          color: #555;
+        }
+        .invoice-footer {
+          text-align: center;
+          margin-top: 20px;
+        }
+        .invoice-footer p {
+          margin: 5px 0;
+          color: #333;
+          font-weight: bold;
+        }
+        .invoice-items {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 20px;
+        }
+        .invoice-items th, .invoice-items td {
+          border: 1px solid #ddd;
+          padding: 10px;
+          text-align: left;
+          font-size: 14px;
+        }
+        .invoice-items th {
+          background-color: #0b79d0;
+          color: #fff;
+          font-weight: bold;
+        }
+        .product-name {
+          font-weight: bold;
+          color: #333;
+        }
+        .product-quantity, .product-amount, .product-total {
+          color: #555;
+        }
+        .product-quantity {
+          text-align: center;
+        }
+        .product-amount, .product-total {
+          text-align: right;
+        }
+        .signatures {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 40px;
+        }
+        .signature {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          page-break-inside: avoid;
+        }
+        .signature-input {
+          width: 100%;
+          margin-top: 40px;
+          margin-bottom: 10px;
+          border: none;
+          border-bottom: 1px solid #000;
+          text-align: center;
+          font-size: 14px;
+        }
+        .signature h3 {
+          margin: 0;
+          color: #333;
+        }
+      }
+    </style>
       <div class="invoice">
         ${headerContent}
         ${customerInfo}
@@ -237,7 +288,6 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
     printWindow.document.close();
     printWindow.print();
   };
- 
 
   return (
     <div className="details">
@@ -308,7 +358,9 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
               <input
                 type="text"
                 value={orderDetails?.delivered ? "Livrer" : "Pas encore livrer"}
-                className={orderDetails?.delivered ? "delivered" : "notDelivered"}
+                className={
+                  orderDetails?.delivered ? "delivered" : "notDelivered"
+                }
                 disabled
               />
             </div>
@@ -335,11 +387,50 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
               <ul>
                 {orderDetails?.cart?.map((product, index) => (
                   <li key={index}>
-                    <span>
-                      {product.quantity} x {product.name}
-                    </span>
-                    <span>{product.price} GNF</span>
-                    <span>{product.quantity * product.price} GNF</span>
+                    <div>
+                      <span>{product.name}</span>
+                    </div>
+                    {/* Ajout des nouvelles informations ici */}
+                    <div>
+                      <span>
+                        Quantité en gros:{" "}
+                        {formatPrice(product.amountBulk) || "N/A"}
+                      </span>
+                    </div>
+                    <div>
+                      <span>
+                        Quantité en détail:{" "}
+                        {formatPrice(product.amountDetail) || "N/A"}
+                      </span>
+                    </div>
+                    <div>
+                      <span>
+                        Prix en gros: {formatPrice(product.priceBulk) || "N/A"}{" "}
+                        GNF
+                      </span>
+                    </div>
+                    <div>
+                      <span>
+                        Prix en détail:{" "}
+                        {formatPrice(product.priceDetail) || "N/A"} GNF
+                      </span>
+                    </div>
+                    <div>
+                      <span>
+                        Quantité en détail: {product.quantityDetail || "N/A"}
+                      </span>
+                    </div>
+                    <div>
+                      <span>
+                        Seconde quantité: {product.secondQuantity || "N/A"}
+                      </span>
+                    </div>
+                    <div>
+                      <span>
+                        Montant total:{" "}
+                        {formatPrice(product.totalAmount) || "N/A"} GNF
+                      </span>
+                    </div>
                   </li>
                 ))}
               </ul>
