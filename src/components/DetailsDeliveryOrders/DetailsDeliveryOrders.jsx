@@ -301,8 +301,145 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
     printWindow.document.close();
     printWindow.print();
   };
-  
-  console.log(params.id)
+
+  const html = `
+  <!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    <title>Confirmation de Livraison - MonMarche</title>
+    <style>
+      body {
+        background-color: #f9f9f9;
+        color: #333;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        margin: 0;
+        padding: 0;
+        line-height: 1.6;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        background-color: #ff6f00;
+        color: #ffffff;
+        padding: 10px;
+        border-radius: 8px 8px 0 0;
+        text-align: center;
+      }
+      .header img {
+        max-width: 100px;
+        margin-bottom: 10px;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 24px;
+      }
+      .content {
+        padding: 20px;
+        text-align: center;
+      }
+      .content h2 {
+        color: #ff6f00;
+        font-size: 20px;
+      }
+      .content p {
+        margin: 15px 0;
+      }
+      .button {
+        background-color: #ff6f00;
+        color: #ffffff;
+        padding: 10px 20px;
+        text-decoration: none;
+        border-radius: 5px;
+        display: inline-block;
+        margin-top: 20px;
+      }
+      .footer {
+        background-color: #ff6f00;
+        color: #ffffff;
+        padding: 10px;
+        border-radius: 0 0 8px 8px;
+        text-align: center;
+        font-size: 12px;
+      }
+      .footer p {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <img src="https://firebasestorage.googleapis.com/v0/b/monmarhe.appspot.com/o/logo%2Ficon-192.png?alt=media&token=e0038238-452c-4940-bffd-2fed309ce07e" alt="MonMarche Logo" />
+        <h1>Commande Livrée avec Succès !</h1>
+      </div>
+      <div class="content">
+        <h2>Merci pour votre achat !</h2>
+        <p>Bonjour chèr(e) Client(e),</p>
+        <p>Nous vous informons que votre commande <strong>${orderDetails?.orderId}</strong> a été livrée avec succès à l'adresse suivante :</p>
+        <p><strong>${ orderDetails?.deliverInfos?.address }</strong></p>
+        <p>Nous espérons que vous êtes satisfait de votre achat.</p>
+        <p>Si vous avez des questions ou des préoccupations, n'hésitez pas à nous contacter à tout moment.</p>
+        <p>À très bientôt sur MonMarche !</p> 
+      </div>
+      <div class="footer">
+        <p>&copy; ${new Date().getFullYear()} MonMarche. Tous droits réservés.</p>
+        <p>Cosa rond point, immeuble Elhadj Chérif. +224 612121229.</p>
+      </div>
+    </div>
+  </body>
+</html>
+  `;
+
+  const sendPerMail = async () => {
+    try {
+      // Add a new document with a generated id
+      const newEmail = doc(collection(db, "mail"));
+
+      // Récupérer le document utilisateur
+      const userDoc = await getDoc(doc(db, "users", orderDetails.userId));
+
+      if (userDoc.exists()) {
+        const userMail = userDoc.data().email;
+        console.log("User email:", userMail);
+
+        // Créer un nouveau document dans la collection "mail"
+        await setDoc(newEmail, {
+          to: userMail,
+          message: {
+            subject: "Commande livrée",
+            text: "Commande livrée avec succès",
+            html: html,
+            /* attachments: [
+              {
+                content: html,
+                filename: uri
+              }
+            ]*/
+          },
+        });
+
+        // Afficher une alerte indiquant que la confirmation a été envoyée avec succès au client
+        window.alert("La confirmation a été envoyée avec succès au client."); 
+      } else {
+        console.error("No such user document!");
+        window.alert("Erreur : Utilisateur introuvable.");
+      }
+    } catch (error) {
+      console.error("Error sending email:", error);
+      window.alert(
+        "Une erreur s'est produite lors de l'envoi de l'email. Veuillez réessayer."
+      );
+    }
+  };
+
+   
   const archivOrder = async () => {
     try {
       updateOrder();
@@ -323,7 +460,8 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
       // Supprimer la commande de la collection actuelle
       await deleteDoc(doc(db, title, params.id));
 
-      console.log("La commande a été archivée avec succès !");
+      console.log("La commande a été archivée avec succès !");      
+      await sendPerMail();
       navigate("/delivery");  
     } catch (error) {
       console.error("Erreur lors de l'archivage de la commande :", error);
@@ -337,7 +475,7 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
         <Navbar />
 
         <div className="top">
-          <h1>Détails de la commande</h1>
+          <h1>Détails de la Livraison</h1>
           <Link className="link" onClick={archivOrder}>
             {btnValidation}
           </Link>

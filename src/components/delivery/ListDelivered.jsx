@@ -19,7 +19,7 @@ const ListDelivered = ({ typeColumns }) => {
       snapshot.docs.forEach((doc) => {
         const orderData = doc.data();
         // Vérifie si la commande n'est pas payée avant de l'ajouter à la liste
-        if (orderData.payed && !orderData.delivered) {
+        if (orderData.payed) {
           list.push({ id: doc.id, ...orderData });
         }
       });
