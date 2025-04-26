@@ -1,10 +1,3 @@
-/**
- * Abgabe Bachelorarbeit
- * Author: Amadou Oury Sow
- * Date: 15.09.2022
- * 
- * Einstellung Daten für unser Table
- */
 import { format } from "date-fns";
 
 // Fonction de formattage personnalisée pour le timestamp
@@ -13,29 +6,29 @@ const formatDate = (timestamp) => {
 };
 
 export const userColumns = [
-    { field: "id", headerName: "ID", width: 270 },
-    /*{
-      field: "user",
-      headerName: "User",
-      width: 230,
-      renderCell: (params) => {
-        return (
-          <div className="cellWithImg">
-            <img className="cellImg" src={params.row.image} alt="avatar" />
-            {params.row.username}
-          </div>
-        );
-      },
-    },*/
+    { field: "id", headerName: "ID", width: 70 }, 
     {
       field: "surname",
       headerName: "Nom",
-      width: 350,
+      width: 190,
     },
     {
       field: "email",
       headerName: "Email",
       width: 230,
+    },
+  
+    {
+      field: "signInMethod",
+      headerName: "Connexion",
+      width: 100,
+    },
+
+    {
+      field: "timeStamp",
+      headerName: "Date & Heure",
+      width: 180,
+      valueGetter: (params) => formatDate(params.row.timeStamp),
     },
   
     {
@@ -88,7 +81,12 @@ export const productColumns = [
     },
     {
       field: "price",
-      headerName: "Price",
+      headerName: "Prix Detail",
+      width: 100,
+    },
+    {
+      field: "priceWholesale",
+      headerName: "Prix en Gros",
       width: 100,
     },
     {
@@ -135,7 +133,12 @@ export const zonesColumns = [
   
 
 export const orderColumns = [
-    { field: "orderId", headerName: "Commande ID", width: 200 },     
+    { field: "orderId", headerName: "ID", width: 90 },     
+    {
+      field: "mail_invoice",
+      headerName: "Email",
+      width: 300, 
+    },
     {
       field: "deliverInfos.recipientName",
       headerName: "Nom du recepteur",
@@ -150,8 +153,8 @@ export const orderColumns = [
     },
     {
       field: "deliverInfos.phone",
-      headerName: "Telephone de livraison",
-      width: 180,
+      headerName: "Telephone",
+      width: 100,
       valueGetter: (params) => params.row.deliverInfos.phone,
     },
     {

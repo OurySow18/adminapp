@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
-import { Link } from "react-router-dom"; // Importez le composant Link depuis React Router
+import { Link } from "react-router-dom";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -11,33 +11,34 @@ import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
 import { format } from "date-fns";
 
-const List = () => {
+const ListCommande = ({ userId }) => {
   const [data, setData] = useState([]);
-  const [count, setCount] = useState(0);
-
-  // Récupère les données de Firestore et met à jour l'état local
+  console.log("User: ", userId)
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "orders"), (snapshot) => {
+    const unsubscribe = onSnapshot(collection(db, "archivedOrders"), (snapshot) => {
       let list = [];
       snapshot.docs.forEach((doc) => {
-        list.push({ id: doc.id, ...doc.data() });
+        const order = { id: doc.id, ...doc.data() };
+        // Filtrer selon l'userId
+        if (order.userId === userId) {
+          list.push(order);
+        }
       });
-      // Triez les données par date décroissante
-      list.sort((a, b) => b.timeStamp - a.timeStamp);
+      // Tri décroissant par date
+      list.sort((a, b) => b.timeStamp.toDate() - a.timeStamp.toDate());
       setData(list);
-      setCount(list.length);
     }, (error) => {
       console.log("Error fetching data: ", error);
     });
-    
+
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [userId]);
 
   return (
     <TableContainer component={Paper} className="table">
-      <Table sx={{ minWidth: 700 }} aria-label="customized table">
+      <Table sx={{ minWidth: 700 }} aria-label="table des commandes">
         <TableHead>
           <TableRow>
             <TableCell className="tableCell">Commande ID</TableCell>
@@ -51,22 +52,19 @@ const List = () => {
         </TableHead>
         <TableBody>
           {data.map((row) => (
-            <TableRow key={row.id} component={Link} to={`/order/${row.id}`}>
+            <TableRow key={row.id} component={Link} to={`/order/${row.id}`} hover>
               <TableCell className="tableCell">{row.orderId}</TableCell>
               <TableCell className="tableCell">
                 <div className="cellWrapper">
-                  {/* Si vous avez un champ img dans vos données, vous pouvez l'utiliser */}
-                  {/* <img src={row.img} alt="" className="image" /> */}
-                  {row.deliverInfos.recipientName}
+                  {row.deliverInfos.name}
                 </div>
               </TableCell>
-              <TableCell className="tableCell">{row.deliverInfos.adresse}</TableCell>
+              <TableCell className="tableCell">{row.deliverInfos.address}</TableCell>
               <TableCell className="tableCell">
-                {/* Assurez-vous que row.timeStamp est un objet Timestamp valide */}
                 {row.timeStamp && format(row.timeStamp.toDate(), 'dd/MM/yyyy HH:mm:ss')}
-              </TableCell>       
+              </TableCell>
               <TableCell className="tableCell">{row.total}</TableCell>
-              <TableCell className="tableCell">{row.payementMethode}</TableCell>
+              <TableCell className="tableCell">{row.paymentMethode}</TableCell>
               <TableCell className="tableCell">
                 <span className={`status ${row.delivered ? 'delivered' : 'pending'}`}>
                   {row.delivered ? "Livré" : "En attente"}
@@ -80,4 +78,4 @@ const List = () => {
   );
 };
 
-export default List;
+export default ListCommande;

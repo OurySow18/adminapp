@@ -15,10 +15,9 @@ import { db } from "../../firebase";
 const Datatable = ({ typeColumns, title }) => {
   const [data, setData] = useState([]);
   const [count, setCount] = useState(0);
- 
-  //ruft die Daten aus Firestore ab
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    //Real Time
     const unsub = onSnapshot(
       collection(db, title),
       (snapShot) => {
@@ -26,20 +25,25 @@ const Datatable = ({ typeColumns, title }) => {
         snapShot.docs.forEach((doc) => {
           list.push({ id: doc.id, ...doc.data() });
         });
+        // Trier ici après récupération
+        list.sort((a, b) => b.timeStamp.toDate() - a.timeStamp.toDate());
         setData(list);
         setCount(list.length);
+        setLoading(false);
       },
       (error) => {
         console.log(error);
       }
     );
-    return () => {
-      unsub();
-    };
+    return () => unsub();
   }, [title]);
+  
+  
 
   //löscht das entsprechende Produkte
   const handleDelete = async (id) => {
+    const confirm = window.confirm("Voulez-vous vraiment supprimer ?");
+    if (!confirm) return;
     try {
       await deleteDoc(doc(db, title, id));
       setData(data.filter((item) => item.id !== id));
@@ -47,6 +51,7 @@ const Datatable = ({ typeColumns, title }) => {
       console.log(err);
     }
   };
+  
 
   const actionColumn = [
     {
@@ -89,6 +94,7 @@ const Datatable = ({ typeColumns, title }) => {
         pageSize={9}
         rowsPerPageOptions={[9]}
         checkboxSelection
+        loading={loading}
       />
     </div>
   );

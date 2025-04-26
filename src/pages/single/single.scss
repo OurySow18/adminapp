@@ -1,86 +1,110 @@
-.single{
-   width: 100%;
-   display: flex;
-   .singleContainer{
-       flex:6;
+.single {
+    width: 100%;
+    display: flex;
 
-       .top{
-           padding: 20px;
-           display: flex;
-           gap: 20px;
+    .singleContainer {
+        flex: 6;
 
-           .left{
-               flex:1;
-               -webkit-box-shadow: 2px 4px 10px 1px #000000; 
-               box-shadow: 2px 4px 10px 1px #4b4a4a;
-               padding: 20px;
-               position: relative;
+        .top {
+            padding: 20px;
+            display: flex;
+            gap: 20px;
 
-               .editButton{
-                   position: absolute;
-                   top: 0;
-                   right: 0;
-                   padding: 5px;
-                   font-size: 12px;
-                   color:#ff6f00;
-                   background-color: #7551f818;
-                   cursor: pointer;
-                   border-radius: 0px 0px 0px 5px;
-               }
+            .left {
+                flex: 1;
+                background-color: #fff;
+                border-radius: 12px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+                padding: 20px;
+                position: relative;
+                display: flex;
+                flex-direction: column;
 
-               .item{
-                   display: flex;
-                   gap: 20px;
+                .editButton {
+                    position: absolute;
+                    top: 20px;
+                    right: 20px;
+                    padding: 8px 16px;
+                    font-size: 13px;
+                    color: #fff;
+                    background-color: #ff9800;
+                    border: none;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-weight: 500;
+                    transition: background-color 0.3s ease;
 
-                   .itemImg{
-                       width: 100px;
-                       height: 100px;
-                       border-radius: 50%;
-                       object-fit: cover;
-                   }
+                    &:hover {
+                        background-color: #fb8c00;
+                    }
+                }
 
-                   .details{
-                       .itemTitle{
-                           margin-bottom: 10px;
-                           color: #555;
-                       }
+                .title {
+                    font-size: 20px;
+                    font-weight: bold;
+                    color: #333;
+                    margin-bottom: 20px;
+                }
 
-                       .detailItem{
-                           margin-bottom: 10px;
-                           font-size: 14px;  
-                           .itemKey{
-                               font-weight: bold;
-                               color: gray;
-                               margin-right: 5px;
-                           }
+                .item {
+                    display: flex;
+                    align-items: center;
+                    gap: 20px;
 
-                           .itemValue{
-                                font-weight: bold;
-                                color: gray;
-                                font-weight: 300;
-                           }
-                       }
-                   }
-               }
-           }
+                    .itemImg {
+                        width: 100px;
+                        height: 100px;
+                        border-radius: 50%;
+                        object-fit: cover;
+                        border: 2px solid #eee;
+                    }
 
-           .right{
-               flex: 2;
-           }
-       }
-   
+                    .details {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
 
-   .bottom{
-        -webkit-box-shadow: 2px 4px 10px 1px #000000; 
-        box-shadow: 2px 4px 10px 1px #4b4a4a;
-        padding: 10px 20px;
-        margin: 20px;
-   }
+                        .itemTitle {
+                            font-size: 18px;
+                            font-weight: bold;
+                            color: #333;
+                        }
 
-   .title{
-       font-size: 16px;
-       color: lightgray;
-       margin-bottom: 20px;
-   }
- }
+                        .detailItem {
+                            font-size: 14px;
+                            color: #555;
+
+                            .itemKey {
+                                font-weight: 600;
+                                margin-right: 5px;
+                            }
+
+                            .itemValue {
+                                font-weight: 400;
+                                color: #444;
+                            }
+                        }
+                    }
+                }
+            }
+
+            .right {
+                flex: 2;
+            }
+        }
+
+
+        .bottom {
+            -webkit-box-shadow: 2px 4px 10px 1px #000000;
+            box-shadow: 2px 4px 10px 1px #4b4a4a;
+            padding: 10px 20px;
+            margin: 20px;
+        }
+
+        .title {
+            font-size: 16px;
+            color: lightgray;
+            margin-bottom: 20px;
+        }
+    }
 }

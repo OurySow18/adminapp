@@ -501,6 +501,10 @@ const DetailsOrder = ({ title, btnValidation }) => {
               <input type="text" value={orderDetails?.userId || ""} disabled />
             </div>
             <div className="formGroup">
+              <label>Email Commande: </label>
+              <input type="text" value={orderDetails?.mail_invoice || ""} disabled />
+            </div>
+            <div className="formGroup">
               <label>ID de la commande:</label>
               <input type="text" value={orderDetails?.orderId || ""} disabled />
             </div>
