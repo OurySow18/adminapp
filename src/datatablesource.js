@@ -175,4 +175,39 @@ export const orderColumns = [
       width: 150,
     },
      ];
-  
+ 
+export const gameColumns = [
+  { field: "id", headerName: "ID (Firestore)", width: 250 },
+  {
+    field: "code",
+    headerName: "Code",
+    width: 120,
+  },     
+  {
+      field: "createdByEmail",
+      headerName: "Email",
+      width: 300, 
+  },
+  {
+    field: "pseudo",
+    headerName: "Pseudo",
+    width: 180,
+  },
+  {
+    field: "points",
+    headerName: "Points",
+    width: 100,
+  },
+  {
+    field: "usedBy",
+    headerName: "Utilisateurs",
+    width: 150,
+    valueGetter: (params) => params.row.usedBy?.length || 0,
+  },
+  {
+    field: "createdAt",
+    headerName: "Créé le",
+    width: 200,
+    valueGetter: (params) => formatDate(params.row.createdAt),
+  }, 
+];

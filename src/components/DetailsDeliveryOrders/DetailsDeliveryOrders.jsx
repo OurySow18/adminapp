@@ -7,7 +7,16 @@ import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { db } from "../../firebase";
-import { doc, onSnapshot, setDoc, collection, getDoc, deleteDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import {
+  doc,
+  onSnapshot,
+  setDoc,
+  collection,
+  getDoc,
+  deleteDoc,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
 
 const DetailsDeliveryOrders = ({ title, btnValidation }) => {
   const [orderDetails, setOrderDetails] = useState({});
@@ -27,7 +36,14 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [params.id, title]);
+
+  // formatter prix
+  const formatPrice = (price) =>
+    parseFloat(price).toLocaleString("fr-FR", {
+      style: "currency",
+      currency: "GNF",
+    });
 
   const updateOrder = async () => {
     try {
@@ -36,7 +52,7 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
         delivered: true,
       });
       // Mettre à jour l'état local si nécessaire
-      // setData({ ...data, payed: true }); 
+      // setData({ ...data, payed: true });
       alert("La commande a été archivée avec succès !");
     } catch (error) {
       console.error("Erreur lors de la validation de la commande :", error);
@@ -48,17 +64,12 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
     navigate("/delivery"); // Rediriger vers la page des produits
   };
 
-  function formatPrice(price) {
-    return parseFloat(price).toLocaleString("fr-FR", {
-      style: "currency",
-      currency: "GNF",
-    });
-  }
-
   const generatePrintContent = () => {
     const currentDate = new Date();
-    const formattedDate = `${currentDate.getDate()}/${currentDate.getMonth() + 1}/${currentDate.getFullYear()}`;
-  
+    const formattedDate = `${currentDate.getDate()}/${
+      currentDate.getMonth() + 1
+    }/${currentDate.getFullYear()}`;
+
     const headerContent = `
       <div class="invoice-header">
         <div class="company-info">
@@ -106,8 +117,8 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
       </div>
     </div>
   `;
-  
-  let itemsContent = `
+
+    let itemsContent = `
   <table class="invoice-items">
     <thead>
       <tr>
@@ -148,8 +159,6 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
   </table>
 `;
 
-    
-  
     const printContent = `
       <style>
       @media print {
@@ -290,13 +299,13 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
         ${footerContent}
       </div>
     `;
-  
+
     return printContent;
   };
-   
+
   const printOrder = () => {
     const printContent = generatePrintContent();
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open("", "_blank");
     printWindow.document.write(printContent);
     printWindow.document.close();
     printWindow.print();
@@ -382,8 +391,10 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
       <div class="content">
         <h2>Merci pour votre achat !</h2>
         <p>Bonjour chèr(e) Client(e),</p>
-        <p>Nous vous informons que votre commande <strong>${orderDetails?.orderId}</strong> a été livrée avec succès à l'adresse suivante :</p>
-        <p><strong>${ orderDetails?.deliverInfos?.address }</strong></p>
+        <p>Nous vous informons que votre commande <strong>${
+          orderDetails?.orderId
+        }</strong> a été livrée avec succès à l'adresse suivante :</p>
+        <p><strong>${orderDetails?.deliverInfos?.address}</strong></p>
         <p>Nous espérons que vous êtes satisfait de votre achat.</p>
         <p>Si vous avez des questions ou des préoccupations, n'hésitez pas à nous contacter à tout moment.</p>
         <p>À très bientôt sur MonMarche !</p> 
@@ -403,34 +414,36 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
       const newEmail = doc(collection(db, "mail"));
 
       // Récupérer le document utilisateur
-      const userDoc = await getDoc(doc(db, "users", orderDetails.userId));
+      //const userDoc = await getDoc(doc(db, "users", orderDetails.userId));
 
-      if (userDoc.exists()) {
-        const userMail = userDoc.data().email;
-        console.log("User email:", userMail);
+      //  if (userDoc.exists()) {
+      //   const userMail = userDoc.data().email;
 
-        // Créer un nouveau document dans la collection "mail"
-        await setDoc(newEmail, {
-          to: userMail,
-          message: {
-            subject: "Commande livrée",
-            text: "Commande livrée avec succès",
-            html: html,
-            /* attachments: [
+      const userMail = orderDetails?.mail_invoice;
+      console.log("User email:", userMail);
+
+      // Créer un nouveau document dans la collection "mail"
+      await setDoc(newEmail, {
+        to: userMail,
+        message: {
+          subject: "Commande livrée",
+          text: "Commande livrée avec succès",
+          html: html,
+          /* attachments: [
               {
                 content: html,
                 filename: uri
               }
             ]*/
-          },
-        });
+        },
+      });
 
-        // Afficher une alerte indiquant que la confirmation a été envoyée avec succès au client
-        window.alert("La confirmation a été envoyée avec succès au client."); 
-      } else {
+      // Afficher une alerte indiquant que la confirmation a été envoyée avec succès au client
+      window.alert("La confirmation a été envoyée avec succès au client.");
+      /*} else {
         console.error("No such user document!");
         window.alert("Erreur : Utilisateur introuvable.");
-      }
+      }*/
     } catch (error) {
       console.error("Error sending email:", error);
       window.alert(
@@ -439,7 +452,6 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
     }
   };
 
-   
   const archivOrder = async () => {
     try {
       updateOrder();
@@ -452,7 +464,7 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
       const deliveryData = orderData.data();
 
       // Ajouter les données à la nouvelle collection "archivedOrders"
-       await setDoc(doc(dataRef, params.id), {
+      await setDoc(doc(dataRef, params.id), {
         ...deliveryData,
         timeStamp: serverTimestamp(),
       });
@@ -460,9 +472,49 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
       // Supprimer la commande de la collection actuelle
       await deleteDoc(doc(db, title, params.id));
 
-      console.log("La commande a été archivée avec succès !");      
+      // 4. Vérifier si l'utilisateur avait validé un code
+      const userDoc = await getDoc(doc(db, "users", orderDetails.userId));
+      if (userDoc.exists()) {
+        const validatedCode = userDoc.data().validatedCode;
+        if (validatedCode) {
+          const gameRef = doc(db, "game", validatedCode);
+          const gameSnap = await getDoc(gameRef);
+          if (gameSnap.exists()) {
+            const gameData = gameSnap.data();
+
+            // 1. on met à jour global points
+            const newPoints = (gameData.points || 0) + 10;
+            const newGivenPoints = (gameData.givenPoints || 0) + 10;
+
+            // 2. on cherche l'élément dans usedBy correspondant à l'utilisateur
+            const usedByList = gameData.usedBy || [];
+            const updatedUsedBy = usedByList.map((item) => {
+              if (item.uid === orderDetails.userId) {
+                return {
+                  ...item,
+                  givenPoint: (item.givenPoint || 0) + 10,
+                };
+              }
+              return item;
+            });
+
+            // 3. update Firestore
+            await updateDoc(gameRef, {
+              points: newPoints,
+              givenPoints: newGivenPoints,
+              usedBy: updatedUsedBy,
+            });
+
+            console.log(
+              "10 points ajoutés et givenPoint mis à jour dans usedBy"
+            );
+          }
+        }
+      }
+
+      console.log("La commande a été archivée avec succès !");
       await sendPerMail();
-      navigate("/delivery");  
+      navigate("/delivery");
     } catch (error) {
       console.error("Erreur lors de l'archivage de la commande :", error);
     }
@@ -484,12 +536,16 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
         <div className="formContainer">
           <form>
             <div className="formGroup">
-              <label>ID de l'utilisateur: </label>
-              <input type="text" value={orderDetails?.userId || ""} disabled />
-            </div>
-            <div className="formGroup">
               <label>ID de la commande:</label>
               <input type="text" value={orderDetails?.orderId || ""} disabled />
+            </div>
+            <div className="formGroup">
+              <label>Email de facturation: </label>
+              <input
+                type="text"
+                value={orderDetails?.mail_invoice || ""}
+                disabled
+              />
             </div>
             <div className="formGroup">
               <label>Nom du récepteur:</label>
@@ -537,7 +593,9 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
               <input
                 type="text"
                 value={orderDetails?.delivered ? "Livrer" : "Pas encore livrer"}
-                className={orderDetails?.delivered ? "delivered" : "notDelivered"}
+                className={
+                  orderDetails?.delivered ? "delivered" : "notDelivered"
+                }
                 disabled
               />
             </div>
@@ -570,22 +628,26 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
                     {/* Ajout des nouvelles informations ici */}
                     <div>
                       <span>
-                        Quantité en gros: {formatPrice(product.amountBulk) || "N/A"}
+                        Quantité en gros:{" "}
+                        {formatPrice(product.amountBulk) || "N/A"}
                       </span>
                     </div>
                     <div>
                       <span>
-                        Quantité en détail: {formatPrice(product.amountDetail) || "N/A"}
+                        Quantité en détail:{" "}
+                        {formatPrice(product.amountDetail) || "N/A"}
                       </span>
                     </div>
                     <div>
                       <span>
-                        Prix en gros: {formatPrice(product.priceBulk) || "N/A"} GNF
+                        Prix en gros: {formatPrice(product.priceBulk) || "N/A"}{" "}
+                        GNF
                       </span>
                     </div>
                     <div>
                       <span>
-                        Prix en détail: {formatPrice(product.priceDetail) || "N/A"} GNF
+                        Prix en détail:{" "}
+                        {formatPrice(product.priceDetail) || "N/A"} GNF
                       </span>
                     </div>
                     <div>
@@ -600,7 +662,8 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
                     </div>
                     <div>
                       <span>
-                        Montant total: {formatPrice(product.totalAmount) || "N/A"} GNF
+                        Montant total:{" "}
+                        {formatPrice(product.totalAmount) || "N/A"} GNF
                       </span>
                     </div>
                   </li>

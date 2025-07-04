@@ -19,21 +19,30 @@ import "./style/dark.scss";
 import { useContext } from "react";
 import { DarkModeContext } from "./context/darkModeContext";
 import { productInputs, userInputs, zonesInputs } from "./formSource";
-import { userColumns, productColumns, orderColumns, zonesColumns } from "./datatablesource";
+import {
+  userColumns,
+  productColumns,
+  orderColumns,
+  zonesColumns,
+  gameColumns,
+} from "./datatablesource";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { auth } from "./firebase";
-import Details from "./pages/productDetails/Details"; 
+import Details from "./pages/productDetails/Details";
+import GameDetails from "./pages/Game/GameDetails";
+import GameList from "./pages/Game/GameList"; 
 import DeliveredOrders from "./components/deliveredOrders/DeliveredOrdersInfos";
 import DetailsDeliveryOrders from "./components/DetailsDeliveryOrders/DetailsDeliveryOrders";
 import DetailsListDeliveredOrder from "./components/detailsListDeliveredOrder/DetailsListDeliveredOrders";
 import Zone from "./pages/zones/Zone";
+import GameStartScreen from "./components/game/GameStartScreen";
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
   const titleUser = "Add new User";
   const titleProduct = "Add new Product";
   const titleZone = "Add new Zone";
- 
+
   //prüft, ob der User eigeloggtist. Wenn nein bleibt man auf der login Seite
   const RequireAuth = ({ children }) => {
     return auth.currentUser?.email ? children : <Navigate to="/login" />;
@@ -89,8 +98,8 @@ function App() {
             {/*Products*/}
             <Route path="products">
               <Route
-                index 
-               // element={<ListProducts typeColumns={productColumns} title="products" />}
+                index
+                // element={<ListProducts typeColumns={productColumns} title="products" />}
                 element={<List typeColumns={productColumns} title="products" />}
               />
               <Route
@@ -105,15 +114,12 @@ function App() {
                 path="new"
                 element={
                   <RequireAuth>
-                    <NewProduct
-                      inputs={productInputs}
-                      title={titleProduct} 
-                    />
+                    <NewProduct inputs={productInputs} title={titleProduct} />
                   </RequireAuth>
                 }
               />
             </Route>
-           
+
             {/*Zones*/}
             <Route path="zones">
               <Route
@@ -156,7 +162,10 @@ function App() {
                 path=":id"
                 element={
                   <RequireAuth>
-                    <DetailsOrder title="orders" btnValidation="Valider la Commande"/>
+                    <DetailsOrder
+                      title="orders"
+                      btnValidation="Valider la Commande"
+                    />
                   </RequireAuth>
                 }
               />
@@ -176,7 +185,10 @@ function App() {
                 path=":id"
                 element={
                   <RequireAuth>
-                    <DetailsDeliveryOrders title="orders" btnValidation="Archiver la Livraison"/>
+                    <DetailsDeliveryOrders
+                      title="orders"
+                      btnValidation="Archiver la Livraison"
+                    />
                   </RequireAuth>
                 }
               />
@@ -188,7 +200,10 @@ function App() {
                 index
                 element={
                   <RequireAuth>
-                    <DeliveredOrders typeColumns={orderColumns} title="delivredOrders"/>
+                    <DeliveredOrders
+                      typeColumns={orderColumns}
+                      title="delivredOrders"
+                    />
                   </RequireAuth>
                 }
               />
@@ -196,7 +211,28 @@ function App() {
                 path=":id"
                 element={
                   <RequireAuth>
-                    <DetailsListDeliveredOrder title="archivedOrders" btnValidation="Imprimer la commande"/>
+                    <DetailsListDeliveredOrder
+                      title="archivedOrders"
+                      btnValidation="Imprimer la commande"
+                    />
+                  </RequireAuth>
+                }
+              />
+            </Route>
+            <Route path="game">
+              <Route
+                index
+                element={
+                  <RequireAuth>
+                    <GameStartScreen typeColumns={gameColumns}/>
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path=":code"
+                element={
+                  <RequireAuth>
+                    <GameDetails />
                   </RequireAuth>
                 }
               />

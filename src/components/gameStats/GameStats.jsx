@@ -1,27 +1,25 @@
-import "./listDeliveryOrder.scss";
-import { useState, useEffect } from "react";
+import "./gameStats.scss";
+import React, { useState, useEffect } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
-import { Link } from "react-router-dom"; // Importez le composant Link depuis React Router 
+import { Link, useParams } from "react-router-dom"; // Importez le composant Link depuis React Router 
 import { DataGrid } from "@mui/x-data-grid";
 
-const ListDeliveryOrder = ({ typeColumns }) => {
+const GameStats = ({typeColumns}) => {
   const [data, setData] = useState([]);
   const [count, setCount] = useState(0); 
    
   // Récupère les données de Firestore et met à jour l'état local
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "archivedOrders"), (snapshot) => {
+    const unsubscribe = onSnapshot(collection(db, "game"), (snapshot) => {
       let list = [];
       snapshot.docs.forEach((doc) => {
-        const orderData = doc.data();
-        // Vérifie si la commande n'est pas payée avant de l'ajouter à la liste
-        if (orderData.payed && orderData.delivered) {
-          list.push({ id: doc.id, ...orderData });
-        }
+        const gamers = doc.data();          
+        list.push({ id: doc.id, ...gamers });
+         
       });
       // Triez les données par date décroissante
-      list.sort((a, b) => b.timeStamp - a.timeStamp);
+      list.sort((a, b) => b.points - a.points);
       setData(list);
       setCount(list.length);
     }, (error) => {
@@ -57,7 +55,7 @@ const ListDeliveryOrder = ({ typeColumns }) => {
   return ( 
         <div className="listOrder">
         <div className="listOrderTitel">
-          Nombre de Commandes archivées: {count} 
+          Nombre de Joueurs: {count} 
         </div>
         <DataGrid
           className="datagrid"
@@ -71,4 +69,4 @@ const ListDeliveryOrder = ({ typeColumns }) => {
   );
 };
 
-export default ListDeliveryOrder;
+export default GameStats;

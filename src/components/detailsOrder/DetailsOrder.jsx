@@ -5,16 +5,14 @@ import Sidebar from "../sidebar/Sidebar";
 import Navbar from "../navbar/Navbar";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
-
-import { getAuth } from "firebase/auth";
+ 
 import { db } from "../../firebase";
 import {
   doc,
   onSnapshot,
   updateDoc,
   setDoc,
-  collection,
-  getDoc,
+  collection, 
 } from "firebase/firestore";
 
 const DetailsOrder = ({ title, btnValidation }) => {
@@ -36,7 +34,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
 
     return () => unsubscribe();
   }, [params.id, title]);
-
+  
   // Gérer le retour en arrière
   const goBack = () => {
     navigate("/orders"); // Rediriger vers la page des produits
@@ -444,11 +442,11 @@ const DetailsOrder = ({ title, btnValidation }) => {
       const newEmail = doc(collection(db, "mail"));
 
       // Récupérer le document utilisateur
-      const userDoc = await getDoc(doc(db, "users", orderDetails.userId));
+    //  const userDoc = await getDoc(doc(db, "users", orderDetails.userId));
 
-      if (userDoc.exists()) {
-        const userMail = userDoc.data().email;
+        const userMail = orderDetails?.mail_invoice;
         console.log("User email:", userMail);
+      //if (userMail) {
 
         // Créer un nouveau document dans la collection "mail"
         await setDoc(newEmail, {
@@ -469,10 +467,10 @@ const DetailsOrder = ({ title, btnValidation }) => {
         // Afficher une alerte indiquant que la confirmation a été envoyée avec succès au client
         window.alert("La confirmation a été envoyée avec succès au client.");
         navigate("/orders");
-      } else {
+     /* } else {
         console.error("No such user document!");
         window.alert("Erreur : Utilisateur introuvable.");
-      }
+      }*/
     } catch (error) {
       console.error("Error sending email:", error);
       window.alert(
@@ -498,7 +496,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
           <form>
             <div className="formGroup">
               <label>ID de l'utilisateur: </label>
-              <input type="text" value={orderDetails?.userId || ""} disabled />
+              <input type="text" value={orderDetails?.userId || ""} disabled /> 
             </div>
             <div className="formGroup">
               <label>Email Commande: </label>
