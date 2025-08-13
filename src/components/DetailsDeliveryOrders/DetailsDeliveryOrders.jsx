@@ -1,79 +1,94 @@
-import "./DetailsDeliveryOrders.scss";
-import { Link } from "react-router-dom";
-import { useState, useEffect } from "react";
+//import "./DetailsDeliveryOrders.scss";
+import "../../style/orderDetails.scss"
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
 import Sidebar from "../sidebar/Sidebar";
 import Navbar from "../navbar/Navbar";
-import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { db } from "../../firebase";
 import {
-  doc,
-  onSnapshot,
-  setDoc,
   collection,
-  getDoc,
   deleteDoc,
+  doc,
+  getDoc,
+  onSnapshot,
   serverTimestamp,
+  setDoc,
   updateDoc,
+  writeBatch,
+  increment,
 } from "firebase/firestore";
 
-const DetailsDeliveryOrders = ({ title, btnValidation }) => {
+const POINTS_PER_ORDER = 10;
+
+export default function DetailsDeliveryOrders({ title, btnValidation }) {
   const [orderDetails, setOrderDetails] = useState({});
+  const [isProcessing, setIsProcessing] = useState(false);
   const navigate = useNavigate();
   const params = useParams();
 
-  // Récupérer les détails de la commande depuis Firestore
+  // ── RÉCUPÉRER LA COMMANDE EN LIVE
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      doc(db, title, params.id),
-      (snapshot) => {
-        setOrderDetails(snapshot.data());
+    const ref = doc(db, title, params.id);
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        if (snap.exists()) setOrderDetails(snap.data());
       },
-      (error) => {
-        console.log(error);
-      }
+      (err) => console.error("Snapshot order error:", err)
     );
-
-    return () => unsubscribe();
+    return () => unsub();
   }, [params.id, title]);
 
-  // formatter prix
+  // ── UTILITAIRES
   const formatPrice = (price) =>
-    parseFloat(price).toLocaleString("fr-FR", {
+    Number(price || 0).toLocaleString("fr-FR", {
       style: "currency",
       currency: "GNF",
     });
 
-  const updateOrder = async () => {
+  // Créditer un joueur (document id = uid/code) dans la collection "game"
+  const creditPlayerPoints = async (uid, points) => {
     try {
-      // Mettez à jour la valeur payed dans la base de données
-      await updateDoc(doc(db, "orders", params.id), {
-        delivered: true,
-      });
-      // Mettre à jour l'état local si nécessaire
-      // setData({ ...data, payed: true });
-      alert("La commande a été archivée avec succès !");
-    } catch (error) {
-      console.error("Erreur lors de la validation de la commande :", error);
+      if (!uid || !points) return;
+      const ref = doc(db, "game", uid);
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) {
+        await updateDoc(ref, { points: increment(points) });
+      } else {
+        await setDoc(
+          ref,
+          { points, createdAt: serverTimestamp() },
+          { merge: true }
+        );
+      }
+      console.log(`+${points} points → "${uid}"`);
+    } catch (e) {
+      console.error("creditPlayerPoints error:", e);
     }
   };
 
-  // Gérer le retour en arrière
-  const goBack = () => {
-    navigate("/delivery"); // Rediriger vers la page des produits
+  // Flag dans "orders" (pour éviter re-traitement côté UI)
+  const flagOrderDeliveredAndArchived = async () => {
+    await updateDoc(doc(db, "orders", params.id), {
+      delivered: true,
+      archived: true,
+    });
   };
 
+  // ── IMPRESSION
   const generatePrintContent = () => {
-    const currentDate = new Date();
-    const formattedDate = `${currentDate.getDate()}/${
-      currentDate.getMonth() + 1
-    }/${currentDate.getFullYear()}`;
+    const d = orderDetails || {};
+    const di = d.deliverInfos || {};
+    const now = d?.timeStamp ? d.timeStamp.toDate() : new Date();
+    const printedDate = format(now, "dd/MM/yyyy");
 
-    const headerContent = `
+    const header = `
       <div class="invoice-header">
         <div class="company-info">
-          <img src="https://firebasestorage.googleapis.com/v0/b/monmarhe.appspot.com/o/logo%2Ficon-192.png?alt=media&token=e0038238-452c-4940-bffd-2fed309ce07e"  alt="Logo de Monmarche" class="company-logo" />
+          <img src="https://firebasestorage.googleapis.com/v0/b/monmarhe.appspot.com/o/logo%2Ficon-192.png?alt=media&token=e0038238-452c-4940-bffd-2fed309ce07e" alt="Logo Monmarche" class="company-logo" />
           <div class="company-details">
             <h1>Monmarche</h1>
             <p>Bantounka 2</p>
@@ -83,443 +98,239 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
         </div>
         <div class="invoice-info">
           <h2>Facture</h2>
-          <p>Date: ${formattedDate}</p>
+          <p>Date: ${printedDate}</p>
         </div>
       </div>
     `;
 
-    const customerInfo = `
+    const customer = `
       <div class="customer-info">
         <h3>Coordonnées du client :</h3>
-        <p>No Facture: ${orderDetails.orderId}</p>
-        <p>Nom: ${orderDetails.deliverInfos.name}</p>
-        <p>Adresse: ${orderDetails.deliverInfos.address}</p>
-        <p>Téléphone: ${orderDetails.deliverInfos.phone}</p>
-        <p>Description: ${orderDetails.deliverInfos.additionalInfo}</p>
+        <p>No Facture: ${d?.orderId ?? ""}</p>
+        <p>Nom: ${di?.name ?? ""}</p>
+        <p>Adresse: ${di?.address ?? ""}</p>
+        <p>Téléphone: ${di?.phone ?? ""}</p>
+        <p>Description: ${di?.additionalInfo ?? ""}</p>
       </div>
     `;
 
-    const footerContent = `
-    <div class="invoice-footer">
-      <p>Montant Livraison: ${formatPrice(orderDetails.deliveryFee)} GNF</p> 
-      <p>Total de la facture: ${formatPrice(orderDetails.total)} GNF</p>
-      <p>Merci de votre achat.</p>
-    </div>
-    <!-- Signatures -->
-    <div class="signatures">
-      <div class="signature">
-        <input type="text" placeholder="X" class="signature-input" />
-        <h3>Signature du client :</h3>
-      </div>
-      <div class="signature">
-        <input type="text" placeholder="X" class="signature-input" />
-        <h3>Signature du livreur :</h3>
-      </div>
-    </div>
-  `;
+    const items = Array.isArray(d.cart) ? d.cart : [];
+    const itemsTable = `
+      <table class="invoice-items">
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th>Quantité gros</th>
+            <th>Montant gros</th>
+            <th>Quantité détail</th>
+            <th>Montant détail</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items
+            .map(
+              (p) => `
+              <tr>
+                <td class="product-name">${p?.name ?? ""}</td>
+                <td class="product-quantity">${
+                  p?.quantityBulk
+                    ? `${p.quantityBulk} x ${formatPrice(p.priceBulk)}`
+                    : "0"
+                }</td>
+                <td class="product-amount">${
+                  p?.amountBulk ? formatPrice(p.amountBulk) : "0 GNF"
+                }</td>
+                <td class="product-quantity">${
+                  p?.quantityDetail
+                    ? `${p.quantityDetail} x ${formatPrice(p.priceDetail)}`
+                    : "0"
+                }</td>
+                <td class="product-amount">${
+                  p?.amountDetail ? formatPrice(p.amountDetail) : "0 GNF"
+                }</td>
+                <td class="product-total">${
+                  p?.totalAmount ? formatPrice(p.totalAmount) : "0 GNF"
+                }</td>
+              </tr>`
+            )
+            .join("")}
+        </tbody>
+      </table>
+    `;
 
-    let itemsContent = `
-  <table class="invoice-items">
-    <thead>
-      <tr>
-        <th>Produit</th> 
-        <th>Quantité en gros</th>
-        <th>Montant en gros</th> 
-        <th>Quantité détail</th>
-        <th>Montant détail</th> 
-        <th>Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${orderDetails.cart
-        .map(
-          (product) => `
-        <tr>
-          <td class="product-name">${product.name}</td> 
-          <td class="product-quantity">${
-            product.quantityBulk
-              ? product.quantityBulk + " x " + formatPrice(product.priceBulk)
-              : "0"
-          }</td> 
-          <td class="product-amount">${product.amountBulk || "0"} GNF</td>
-          <td class="product-quantity">${
-            product.quantityDetail
-              ? product.quantityDetail +
-                " x " +
-                formatPrice(product.priceDetail)
-              : "0"
-          }</td>
-          <td class="product-amount">${product.amountDetail || "0"} GNF</td> 
-          <td class="product-total">${product.totalAmount || "0"} GNF</td>
-        </tr>
-      `
-        )
-        .join("")}
-    </tbody>
-  </table>
-`;
+    const footer = `
+      <div class="invoice-footer">
+        <p>Montant Livraison: ${formatPrice(d?.deliveryFee)}</p>
+        <p>Total de la facture: ${formatPrice(d?.total)}</p>
+        <p>Merci de votre achat.</p>
+      </div>
+      <div class="signatures">
+        <div class="signature">
+          <input type="text" placeholder="X" class="signature-input" />
+          <h3>Signature du client :</h3>
+        </div>
+        <div class="signature">
+          <input type="text" placeholder="X" class="signature-input" />
+          <h3>Signature du livreur :</h3>
+        </div>
+      </div>
+    `;
 
-    const printContent = `
+    return `
       <style>
-      @media print {
-        @page {
-          size: A4;
-          margin: 0;
+        @media print {
+          @page { size: A4; margin: 0; }
+          body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #f3f3f3; }
+          .invoice { width: 100%; max-width: 800px; margin: 0 auto; padding: 20px; border: 1px solid #ccc; border-radius: 10px; background: #fff; }
+          .company-info { display: flex; align-items: center; margin-bottom: 20px; }
+          .company-logo { max-width: 100px; margin-right: 20px; }
+          .invoice-items { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          .invoice-items th, .invoice-items td { border: 1px solid #ddd; padding: 10px; font-size: 14px; }
+          .invoice-items th { background: #0b79d0; color: #fff; }
+          .signatures { display: flex; justify-content: space-between; margin-top: 40px; }
+          .signature-input { width: 100%; margin-top: 40px; border: none; border-bottom: 1px solid #000; text-align: center; }
         }
-        body {
-          margin: 0;
-          padding: 0;
-          font-family: Arial, sans-serif;
-          background-color: #f3f3f3;
-        }
-        .invoice {
-          width: 100%;
-          max-width: 800px;
-          margin: 0 auto;
-          padding: 20px;
-          border: 1px solid #ccc;
-          border-radius: 10px;
-          background-color: #fff;
-        }
-        .company-info {
-          display: flex;
-          align-items: center;
-          margin-bottom: 20px;
-        }
-        .company-logo {
-          max-width: 100px;
-          margin-right: 20px;
-        }
-        .company-details h1 {
-          font-size: 28px;
-          margin: 0;
-          color: #333;
-        }
-        .company-details p {
-          margin: 5px 0;
-          color: #555;
-        }
-        .invoice-info {
-          flex-grow: 1;
-          text-align: right;
-        }
-        .invoice-info h2 {
-          font-size: 24px;
-          margin: 0;
-          color: #444;
-        }
-        .invoice-info p {
-          margin: 5px 0;
-          color: #666;
-        }
-        .customer-info {
-          margin-bottom: 20px;
-          padding: 10px;
-          border-radius: 5px;
-          background-color: #f9f9f9;
-          border-left: 5px solid #0b79d0;
-        }
-        .customer-info h3 {
-          margin-top: 0;
-          color: #333;
-        }
-        .customer-info p {
-          margin: 5px 0;
-          color: #555;
-        }
-        .invoice-footer {
-          text-align: center;
-          margin-top: 20px;
-        }
-        .invoice-footer p {
-          margin: 5px 0;
-          color: #333;
-          font-weight: bold;
-        }
-        .invoice-items {
-          width: 100%;
-          border-collapse: collapse;
-          margin-top: 20px;
-        }
-        .invoice-items th, .invoice-items td {
-          border: 1px solid #ddd;
-          padding: 10px;
-          text-align: left;
-          font-size: 14px;
-        }
-        .invoice-items th {
-          background-color: #0b79d0;
-          color: #fff;
-          font-weight: bold;
-        }
-        .product-name {
-          font-weight: bold;
-          color: #333;
-        }
-        .product-quantity, .product-amount, .product-total {
-          color: #555;
-        }
-        .product-quantity {
-          text-align: center;
-        }
-        .product-amount, .product-total {
-          text-align: right;
-        }
-        .signatures {
-          display: flex;
-          justify-content: space-between;
-          margin-top: 40px;
-        }
-        .signature {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          page-break-inside: avoid;
-        }
-        .signature-input {
-          width: 100%;
-          margin-top: 40px;
-          margin-bottom: 10px;
-          border: none;
-          border-bottom: 1px solid #000;
-          text-align: center;
-          font-size: 14px;
-        }
-        .signature h3 {
-          margin: 0;
-          color: #333;
-        }
-      }
-    </style>
+      </style>
       <div class="invoice">
-        ${headerContent}
-        ${customerInfo}
-        ${itemsContent}
-        ${footerContent}
+        ${header}
+        ${customer}
+        ${itemsTable}
+        ${footer}
       </div>
     `;
-
-    return printContent;
   };
 
   const printOrder = () => {
-    const printContent = generatePrintContent();
-    const printWindow = window.open("", "_blank");
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.print();
+    const html = generatePrintContent();
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    win.print();
   };
 
-  const html = `
-  <!DOCTYPE html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
-    <title>Confirmation de Livraison - MonMarche</title>
-    <style>
-      body {
-        background-color: #f9f9f9;
-        color: #333;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        margin: 0;
-        padding: 0;
-        line-height: 1.6;
-      }
-      .container {
-        max-width: 600px;
-        margin: 0 auto;
-        background-color: #ffffff;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      }
-      .header {
-        background-color: #ff6f00;
-        color: #ffffff;
-        padding: 10px;
-        border-radius: 8px 8px 0 0;
-        text-align: center;
-      }
-      .header img {
-        max-width: 100px;
-        margin-bottom: 10px;
-      }
-      .header h1 {
-        margin: 0;
-        font-size: 24px;
-      }
-      .content {
-        padding: 20px;
-        text-align: center;
-      }
-      .content h2 {
-        color: #ff6f00;
-        font-size: 20px;
-      }
-      .content p {
-        margin: 15px 0;
-      }
-      .button {
-        background-color: #ff6f00;
-        color: #ffffff;
-        padding: 10px 20px;
-        text-decoration: none;
-        border-radius: 5px;
-        display: inline-block;
-        margin-top: 20px;
-      }
-      .footer {
-        background-color: #ff6f00;
-        color: #ffffff;
-        padding: 10px;
-        border-radius: 0 0 8px 8px;
-        text-align: center;
-        font-size: 12px;
-      }
-      .footer p {
-        margin: 0;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="header">
-        <img src="https://firebasestorage.googleapis.com/v0/b/monmarhe.appspot.com/o/logo%2Ficon-192.png?alt=media&token=e0038238-452c-4940-bffd-2fed309ce07e" alt="MonMarche Logo" />
-        <h1>Commande Livrée avec Succès !</h1>
+  // ── MAIL (via collection "mail")
+  const emailHtml = (d) => `
+    <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Confirmation de Livraison - MonMarche</title></head>
+    <body style="font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif">
+      <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden">
+        <div style="background:#ff6f00;color:#fff;padding:12px;text-align:center">
+          <h1 style="margin:0;font-size:22px">Commande Livrée avec Succès !</h1>
+        </div>
+        <div style="padding:20px;text-align:center">
+          <p>Votre commande <strong>${
+            d?.orderId ?? ""
+          }</strong> a été livrée.</p>
+          <p>Adresse : <strong>${d?.deliverInfos?.address ?? ""}</strong></p>
+          <p>Merci pour votre achat 🙏</p>
+        </div>
+        <div style="background:#ff6f00;color:#fff;padding:10px;text-align:center;font-size:12px">
+          &copy; ${new Date().getFullYear()} MonMarche
+        </div>
       </div>
-      <div class="content">
-        <h2>Merci pour votre achat !</h2>
-        <p>Bonjour chèr(e) Client(e),</p>
-        <p>Nous vous informons que votre commande <strong>${
-          orderDetails?.orderId
-        }</strong> a été livrée avec succès à l'adresse suivante :</p>
-        <p><strong>${orderDetails?.deliverInfos?.address}</strong></p>
-        <p>Nous espérons que vous êtes satisfait de votre achat.</p>
-        <p>Si vous avez des questions ou des préoccupations, n'hésitez pas à nous contacter à tout moment.</p>
-        <p>À très bientôt sur MonMarche !</p> 
-      </div>
-      <div class="footer">
-        <p>&copy; ${new Date().getFullYear()} MonMarche. Tous droits réservés.</p>
-        <p>Cosa rond point, immeuble Elhadj Chérif. +224 612121229.</p>
-      </div>
-    </div>
-  </body>
-</html>
-  `;
+    </body></html>`;
 
   const sendPerMail = async () => {
     try {
-      // Add a new document with a generated id
+      const to = orderDetails?.mail_invoice;
+      if (!to) return;
       const newEmail = doc(collection(db, "mail"));
-
-      // Récupérer le document utilisateur
-      //const userDoc = await getDoc(doc(db, "users", orderDetails.userId));
-
-      //  if (userDoc.exists()) {
-      //   const userMail = userDoc.data().email;
-
-      const userMail = orderDetails?.mail_invoice;
-      console.log("User email:", userMail);
-
-      // Créer un nouveau document dans la collection "mail"
       await setDoc(newEmail, {
-        to: userMail,
+        to,
         message: {
           subject: "Commande livrée",
           text: "Commande livrée avec succès",
-          html: html,
-          /* attachments: [
-              {
-                content: html,
-                filename: uri
-              }
-            ]*/
+          html: emailHtml(orderDetails),
         },
       });
-
-      // Afficher une alerte indiquant que la confirmation a été envoyée avec succès au client
-      window.alert("La confirmation a été envoyée avec succès au client.");
-      /*} else {
-        console.error("No such user document!");
-        window.alert("Erreur : Utilisateur introuvable.");
-      }*/
-    } catch (error) {
-      console.error("Error sending email:", error);
-      window.alert(
-        "Une erreur s'est produite lors de l'envoi de l'email. Veuillez réessayer."
-      );
+      console.log("Email queued:", to);
+    } catch (e) {
+      console.warn("Email non envoyé (non bloquant):", e);
     }
   };
 
+  // ── ARCHIVAGE + POINTS
   const archivOrder = async () => {
+    if (isProcessing) return;
+
+    const ok = window.confirm(
+      `Confirmer l’archivage :
+- delivered=true
+- Archive
+- +${POINTS_PER_ORDER} points parrain
+- +${POINTS_PER_ORDER} points acheteur`
+    );
+    if (!ok) return;
+
+    setIsProcessing(true);
     try {
-      updateOrder();
-      // Récupérer les données de la commande depuis la collection actuelle
-      const orderSnapshot = doc(db, title, params.id);
-      const orderData = await getDoc(orderSnapshot);
+      // A) Anti double-traitement
+      const archivedRef = doc(db, "archivedOrders", params.id);
+      const already = await getDoc(archivedRef);
+      if (already.exists()) {
+        alert("Cette commande est déjà archivée.");
+        setIsProcessing(false);
+        return;
+      }
 
-      const dataRef = collection(db, "archivedOrders");
+      // 1) Flags dans orders
+      await flagOrderDeliveredAndArchived();
 
-      const deliveryData = orderData.data();
+      // 2) Lire commande + archiver via batch (puis supprimer)
+      const orderRef = doc(db, title, params.id);
+      const orderSnap = await getDoc(orderRef);
+      if (!orderSnap.exists()) {
+        alert("Commande introuvable.");
+        setIsProcessing(false);
+        return;
+      }
+      const data = orderSnap.data();
 
-      // Ajouter les données à la nouvelle collection "archivedOrders"
-      await setDoc(doc(dataRef, params.id), {
-        ...deliveryData,
-        timeStamp: serverTimestamp(),
-      });
+      const batch = writeBatch(db);
+      batch.set(archivedRef, { ...data, timeStamp: serverTimestamp() });
+      batch.delete(orderRef);
+      await batch.commit();
 
-      // Supprimer la commande de la collection actuelle
-      await deleteDoc(doc(db, title, params.id));
+      // 3) Points parrain/acheteur
+      const buyerUid = data?.userId;
+      if (buyerUid) {
+        const buyerRef = doc(db, "users", buyerUid);
+        const buyerSnap = await getDoc(buyerRef);
+        const validatedCode = buyerSnap.exists()
+          ? buyerSnap.data()?.validatedCode
+          : null;
+        const challengeCode = buyerSnap.exists()
+          ? buyerSnap.data()?.challengeCode
+          : null;
 
-      // 4. Vérifier si l'utilisateur avait validé un code
-      const userDoc = await getDoc(doc(db, "users", orderDetails.userId));
-      if (userDoc.exists()) {
-        const validatedCode = userDoc.data().validatedCode;
         if (validatedCode) {
-          const gameRef = doc(db, "game", validatedCode);
-          const gameSnap = await getDoc(gameRef);
-          if (gameSnap.exists()) {
-            const gameData = gameSnap.data();
-
-            // 1. on met à jour global points
-            const newPoints = (gameData.points || 0) + 10;
-            const newGivenPoints = (gameData.givenPoints || 0) + 10;
-
-            // 2. on cherche l'élément dans usedBy correspondant à l'utilisateur
-            const usedByList = gameData.usedBy || [];
-            const updatedUsedBy = usedByList.map((item) => {
-              if (item.uid === orderDetails.userId) {
-                return {
-                  ...item,
-                  givenPoint: (item.givenPoint || 0) + 10,
-                };
-              }
-              return item;
-            });
-
-            // 3. update Firestore
-            await updateDoc(gameRef, {
-              points: newPoints,
-              givenPoints: newGivenPoints,
-              usedBy: updatedUsedBy,
-            });
-
-            console.log(
-              "10 points ajoutés et givenPoint mis à jour dans usedBy"
-            );
-          }
+          await creditPlayerPoints(validatedCode, POINTS_PER_ORDER);
+        }
+        if (challengeCode) {
+          await creditPlayerPoints(challengeCode, POINTS_PER_ORDER);
         }
       }
 
-      console.log("La commande a été archivée avec succès !");
+      // 4) Mail (non bloquant)
       await sendPerMail();
+
+      alert("Commande archivée & points crédités.");
       navigate("/delivery");
-    } catch (error) {
-      console.error("Erreur lors de l'archivage de la commande :", error);
+    } catch (e) {
+      console.error("Archivage error:", e);
+      alert("Une erreur est survenue pendant l’archivage.");
+    } finally {
+      setIsProcessing(false);
     }
   };
-
+  // Gérer le retour en arrière
+  const goBack = () => {
+    navigate("/delivery");
+  };
+  // ── RENDER
   return (
     <div className="details">
       <Sidebar />
@@ -528,159 +339,236 @@ const DetailsDeliveryOrders = ({ title, btnValidation }) => {
 
         <div className="top">
           <h1>Détails de la Livraison</h1>
-          <Link className="link" onClick={archivOrder}>
-            {btnValidation}
+          <Link
+            className={`link ${isProcessing ? "disabled" : ""}`}
+            onClick={archivOrder}
+          >
+            {isProcessing ? "Traitement..." : btnValidation}
           </Link>
         </div>
 
         <div className="formContainer">
-          <form>
-            <div className="formGroup">
-              <label>ID de la commande:</label>
-              <input type="text" value={orderDetails?.orderId || ""} disabled />
-            </div>
-            <div className="formGroup">
-              <label>Email de facturation: </label>
-              <input
-                type="text"
-                value={orderDetails?.mail_invoice || ""}
-                disabled
-              />
-            </div>
-            <div className="formGroup">
-              <label>Nom du récepteur:</label>
-              <input
-                type="text"
-                value={orderDetails?.deliverInfos?.name || ""}
-                disabled
-              />
-            </div>
-            <div className="formGroup">
-              <label>Adresse de livraison:</label>
-              <input
-                type="text"
-                value={orderDetails?.deliverInfos?.address || ""}
-                disabled
-              />
-            </div>
-            <div className="formGroup">
-              <label>Téléphone du receveur:</label>
-              <input
-                type="text"
-                value={orderDetails?.deliverInfos?.phone || ""}
-                disabled
-              />
-            </div>
-            <div className="formGroup">
-              <label>Description de la livraison:</label>
-              <textarea
-                value={orderDetails?.deliverInfos?.additionalInfo || ""}
-                disabled
-              ></textarea>
-            </div>
+          <div className="formGroup">
+            <label>ID de la commande:</label>
+            <input type="text" value={orderDetails?.orderId || ""} disabled />
+          </div>
 
-            <div className="formGroup">
-              <label>Status du payement:</label>
-              <input
-                type="text"
-                value={orderDetails?.payed ? "Payer" : "En attente de payement"}
-                className={orderDetails?.payed ? "paid" : "pending"}
-                disabled
-              />
-            </div>
-            <div className="formGroup">
-              <label>Status de la livraison:</label>
-              <input
-                type="text"
-                value={orderDetails?.delivered ? "Livrer" : "Pas encore livrer"}
-                className={
-                  orderDetails?.delivered ? "delivered" : "notDelivered"
-                }
-                disabled
-              />
-            </div>
-            <div className="formGroup">
-              <label>Total:</label>
-              <input type="text" value={orderDetails?.total || ""} disabled />
-            </div>
-            <div className="formGroup">
-              <label>Date et heure:</label>
-              <input
-                type="text"
-                value={
-                  orderDetails?.timeStamp &&
-                  format(
-                    orderDetails?.timeStamp.toDate(),
-                    "dd/MM/yyyy HH:mm:ss"
-                  )
-                }
-                disabled
-              />
-            </div>
-            <div className="orderItems">
-              <h2>Produits commandés</h2>
-              <ul>
-                {orderDetails?.cart?.map((product, index) => (
-                  <li key={index}>
-                    <div>
-                      <span>{product.name}</span>
+          <div className="formGroup">
+            <label>Email de facturation: </label>
+            <input
+              type="text"
+              value={orderDetails?.mail_invoice || ""}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Nom du récepteur:</label>
+            <input
+              type="text"
+              value={orderDetails?.deliverInfos?.name || ""}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Adresse de livraison:</label>
+            <input
+              type="text"
+              value={orderDetails?.deliverInfos?.address || ""}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Téléphone du receveur:</label>
+            <input
+              type="text"
+              value={orderDetails?.deliverInfos?.phone || ""}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Description de la livraison:</label>
+            <textarea
+              value={orderDetails?.deliverInfos?.additionalInfo || ""}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Status du payement:</label>
+            <input
+              type="text"
+              value={orderDetails?.payed ? "Payé" : "En attente de paiement"}
+              className={orderDetails?.payed ? "paid" : "pending"}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Status de la livraison:</label>
+            <input
+              type="text"
+              value={orderDetails?.delivered ? "Livré" : "Non livré"}
+              className={orderDetails?.delivered ? "delivered" : "notDelivered"}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Total:</label>
+            <input
+              type="text"
+              value={formatPrice(orderDetails?.total)}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Date et heure:</label>
+            <input
+              type="text"
+              value={
+                orderDetails?.timeStamp
+                  ? format(
+                      orderDetails.timeStamp.toDate(),
+                      "dd/MM/yyyy HH:mm:ss"
+                    )
+                  : ""
+              }
+              disabled
+            />
+          </div>
+
+          {/* === Produits commandés === */}
+          <div className="orderItems">
+            <h2>Produits commandés</h2>
+
+            {Array.isArray(orderDetails?.cart) &&
+            orderDetails.cart.length > 0 ? (
+              <>
+                {/* Tableau (desktop) */}
+                <div className="orderTableWrap">
+                  <table className="orderTable">
+                    <thead>
+                      <tr>
+                        <th>Produit</th>
+                        <th className="num">Qté gros</th>
+                        <th className="money">Montant gros</th>
+                        <th className="num">Qté détail</th>
+                        <th className="money">Montant détail</th>
+                        <th className="money">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orderDetails.cart.map((p, i) => (
+                        <tr key={i}>
+                          <td className="name">
+                            <span className="dot" />
+                            {p?.name ?? ""}
+                          </td>
+                          <td className="num">{p?.quantityBulk ?? 0}</td>
+                          <td className="money">
+                            {p?.amountBulk ? formatPrice(p.amountBulk) : "—"}
+                          </td>
+                          <td className="num">{p?.quantityDetail ?? 0}</td>
+                          <td className="money">
+                            {p?.amountDetail
+                              ? formatPrice(p.amountDetail)
+                              : "—"}
+                          </td>
+                          <td className="money totalCell">
+                            {p?.totalAmount ? formatPrice(p.totalAmount) : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan={5} className="tfootLabel">
+                          Total commande
+                        </td>
+                        <td className="money tfootTotal">
+                          {formatPrice(
+                            (orderDetails.cart || []).reduce(
+                              (sum, p) => sum + (Number(p?.totalAmount) || 0),
+                              0
+                            )
+                          )}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Cartes (mobile) */}
+                <div className="orderCards">
+                  {orderDetails.cart.map((p, i) => (
+                    <div className="orderCard" key={`card-${i}`}>
+                      <div className="row">
+                        <span className="label">Produit</span>
+                        <span className="value name">
+                          <span className="dot" />
+                          {p?.name ?? ""}
+                        </span>
+                      </div>
+                      <div className="row">
+                        <span className="label">Qté gros</span>
+                        <span className="value">{p?.quantityBulk ?? 0}</span>
+                      </div>
+                      <div className="row">
+                        <span className="label">Montant gros</span>
+                        <span className="value">
+                          {p?.amountBulk ? formatPrice(p.amountBulk) : "—"}
+                        </span>
+                      </div>
+                      <div className="row">
+                        <span className="label">Qté détail</span>
+                        <span className="value">{p?.quantityDetail ?? 0}</span>
+                      </div>
+                      <div className="row">
+                        <span className="label">Montant détail</span>
+                        <span className="value">
+                          {p?.amountDetail ? formatPrice(p.amountDetail) : "—"}
+                        </span>
+                      </div>
+                      <div className="divider" />
+                      <div className="row total">
+                        <span className="label">Total</span>
+                        <span className="value">
+                          {p?.totalAmount ? formatPrice(p.totalAmount) : "—"}
+                        </span>
+                      </div>
                     </div>
-                    {/* Ajout des nouvelles informations ici */}
-                    <div>
-                      <span>
-                        Quantité en gros:{" "}
-                        {formatPrice(product.amountBulk) || "N/A"}
-                      </span>
-                    </div>
-                    <div>
-                      <span>
-                        Quantité en détail:{" "}
-                        {formatPrice(product.amountDetail) || "N/A"}
-                      </span>
-                    </div>
-                    <div>
-                      <span>
-                        Prix en gros: {formatPrice(product.priceBulk) || "N/A"}{" "}
-                        GNF
-                      </span>
-                    </div>
-                    <div>
-                      <span>
-                        Prix en détail:{" "}
-                        {formatPrice(product.priceDetail) || "N/A"} GNF
-                      </span>
-                    </div>
-                    <div>
-                      <span>
-                        Quantité en détail: {product.quantityDetail || "N/A"}
-                      </span>
-                    </div>
-                    <div>
-                      <span>
-                        Seconde quantité: {product.secondQuantity || "N/A"}
-                      </span>
-                    </div>
-                    <div>
-                      <span>
-                        Montant total:{" "}
-                        {formatPrice(product.totalAmount) || "N/A"} GNF
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </form>
+                  ))}
+                  <div className="grandTotalCard">
+                    <span className="label">Total commande</span>
+                    <span className="value">
+                      {formatPrice(
+                        (orderDetails.cart || []).reduce(
+                          (sum, p) => sum + (Number(p?.totalAmount) || 0),
+                          0
+                        )
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="empty">Aucun produit dans cette commande.</p>
+            )}
+          </div>
         </div>
 
-        <div>
-          <button onClick={goBack}>Revenir en arrière</button>
-
+        <div className="actionsBar">
+          <button onClick={goBack}>
+            Revenir en arrière
+          </button>
           <button onClick={printOrder}>Imprimer la commande</button>
         </div>
       </div>
     </div>
   );
-};
-
-export default DetailsDeliveryOrders;
+}

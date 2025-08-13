@@ -1,4 +1,5 @@
-import "./detailsListDeliveredOrder.scss";
+//import "./detailsListDeliveredOrder.scss";
+import "../../style/orderDetails.scss"
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import Sidebar from "../sidebar/Sidebar";
@@ -11,6 +12,7 @@ import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 
 const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
   const [orderDetails, setOrderDetails] = useState({});
+  const [isProcessing, setIsProcessing] = useState(false);
   const navigate = useNavigate();
   const params = useParams();
 
@@ -290,154 +292,235 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
   };
 
   return (
-    <div className="details">
+   <div className="details">
       <Sidebar />
       <div className="detailsContainer">
         <Navbar />
 
         <div className="top">
-          <h1>Détails de la commande</h1>
-          <Link className="link" onClick={printOrder}>
-            {btnValidation}
+          <h1>Détails de la Livraison</h1>
+          <Link
+            className={`link ${isProcessing ? "disabled" : ""}`}
+            onClick={printOrder}
+          >
+            {isProcessing ? "Traitement..." : btnValidation}
           </Link>
         </div>
 
         <div className="formContainer">
-          <form>
-            <div className="formGroup">
-              <label>ID de l'utilisateur: </label>
-              <input type="text" value={orderDetails?.userId || ""} disabled />
-            </div>
-            <div className="formGroup">
-              <label>ID de la commande:</label>
-              <input type="text" value={orderDetails?.orderId || ""} disabled />
-            </div>
-            <div className="formGroup">
-              <label>Nom du récepteur:</label>
-              <input
-                type="text"
-                value={orderDetails?.deliverInfos?.name || ""}
-                disabled
-              />
-            </div>
-            <div className="formGroup">
-              <label>Adresse de livraison:</label>
-              <input
-                type="text"
-                value={orderDetails?.deliverInfos?.address || ""}
-                disabled
-              />
-            </div>
-            <div className="formGroup">
-              <label>Téléphone du receveur:</label>
-              <input
-                type="text"
-                value={orderDetails?.deliverInfos?.phone || ""}
-                disabled
-              />
-            </div>
-            <div className="formGroup">
-              <label>Description de la livraison:</label>
-              <textarea
-                value={orderDetails?.deliverInfos?.additionalInfo || ""}
-                disabled
-              ></textarea>
-            </div>
+          <div className="formGroup">
+            <label>ID de la commande:</label>
+            <input type="text" value={orderDetails?.orderId || ""} disabled />
+          </div>
 
-            <div className="formGroup">
-              <label>Status du payement:</label>
-              <input
-                type="text"
-                value={orderDetails?.payed ? "Payer" : "En attente de payement"}
-                className={orderDetails?.payed ? "paid" : "pending"}
-                disabled
-              />
-            </div>
-            <div className="formGroup">
-              <label>Status de la livraison:</label>
-              <input
-                type="text"
-                value={orderDetails?.delivered ? "Livrer" : "Pas encore livrer"}
-                className={
-                  orderDetails?.delivered ? "delivered" : "notDelivered"
-                }
-                disabled
-              />
-            </div>
-            <div className="formGroup">
-              <label>Total:</label>
-              <input type="text" value={orderDetails?.total || ""} disabled />
-            </div>
-            <div className="formGroup">
-              <label>Date et heure:</label>
-              <input
-                type="text"
-                value={
-                  orderDetails?.timeStamp &&
-                  format(
-                    orderDetails?.timeStamp.toDate(),
-                    "dd/MM/yyyy HH:mm:ss"
-                  )
-                }
-                disabled
-              />
-            </div>
-            <div className="orderItems">
-              <h2>Produits commandés</h2>
-              <ul>
-                {orderDetails?.cart?.map((product, index) => (
-                  <li key={index}>
-                    <div>
-                      <span>{product.name}</span>
+          <div className="formGroup">
+            <label>Email de facturation: </label>
+            <input
+              type="text"
+              value={orderDetails?.mail_invoice || ""}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Nom du récepteur:</label>
+            <input
+              type="text"
+              value={orderDetails?.deliverInfos?.name || ""}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Adresse de livraison:</label>
+            <input
+              type="text"
+              value={orderDetails?.deliverInfos?.address || ""}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Téléphone du receveur:</label>
+            <input
+              type="text"
+              value={orderDetails?.deliverInfos?.phone || ""}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Description de la livraison:</label>
+            <textarea
+              value={orderDetails?.deliverInfos?.additionalInfo || ""}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Status du payement:</label>
+            <input
+              type="text"
+              value={orderDetails?.payed ? "Payé" : "En attente de paiement"}
+              className={orderDetails?.payed ? "paid" : "pending"}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Status de la livraison:</label>
+            <input
+              type="text"
+              value={orderDetails?.delivered ? "Livré" : "Non livré"}
+              className={orderDetails?.delivered ? "delivered" : "notDelivered"}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Total:</label>
+            <input
+              type="text"
+              value={formatPrice(orderDetails?.total)}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Date et heure:</label>
+            <input
+              type="text"
+              value={
+                orderDetails?.timeStamp
+                  ? format(
+                      orderDetails.timeStamp.toDate(),
+                      "dd/MM/yyyy HH:mm:ss"
+                    )
+                  : ""
+              }
+              disabled
+            />
+          </div>
+
+          {/* === Produits commandés === */}
+          <div className="orderItems">
+            <h2>Produits commandés</h2>
+
+            {Array.isArray(orderDetails?.cart) &&
+            orderDetails.cart.length > 0 ? (
+              <>
+                {/* Tableau (desktop) */}
+                <div className="orderTableWrap">
+                  <table className="orderTable">
+                    <thead>
+                      <tr>
+                        <th>Produit</th>
+                        <th className="num">Qté gros</th>
+                        <th className="money">Montant gros</th>
+                        <th className="num">Qté détail</th>
+                        <th className="money">Montant détail</th>
+                        <th className="money">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orderDetails.cart.map((p, i) => (
+                        <tr key={i}>
+                          <td className="name">
+                            <span className="dot" />
+                            {p?.name ?? ""}
+                          </td>
+                          <td className="num">{p?.quantityBulk ?? 0}</td>
+                          <td className="money">
+                            {p?.amountBulk ? formatPrice(p.amountBulk) : "—"}
+                          </td>
+                          <td className="num">{p?.quantityDetail ?? 0}</td>
+                          <td className="money">
+                            {p?.amountDetail
+                              ? formatPrice(p.amountDetail)
+                              : "—"}
+                          </td>
+                          <td className="money totalCell">
+                            {p?.totalAmount ? formatPrice(p.totalAmount) : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan={5} className="tfootLabel">
+                          Total commande
+                        </td>
+                        <td className="money tfootTotal">
+                          {formatPrice(
+                            (orderDetails.cart || []).reduce(
+                              (sum, p) => sum + (Number(p?.totalAmount) || 0),
+                              0
+                            )
+                          )}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Cartes (mobile) */}
+                <div className="orderCards">
+                  {orderDetails.cart.map((p, i) => (
+                    <div className="orderCard" key={`card-${i}`}>
+                      <div className="row">
+                        <span className="label">Produit</span>
+                        <span className="value name">
+                          <span className="dot" />
+                          {p?.name ?? ""}
+                        </span>
+                      </div>
+                      <div className="row">
+                        <span className="label">Qté gros</span>
+                        <span className="value">{p?.quantityBulk ?? 0}</span>
+                      </div>
+                      <div className="row">
+                        <span className="label">Montant gros</span>
+                        <span className="value">
+                          {p?.amountBulk ? formatPrice(p.amountBulk) : "—"}
+                        </span>
+                      </div>
+                      <div className="row">
+                        <span className="label">Qté détail</span>
+                        <span className="value">{p?.quantityDetail ?? 0}</span>
+                      </div>
+                      <div className="row">
+                        <span className="label">Montant détail</span>
+                        <span className="value">
+                          {p?.amountDetail ? formatPrice(p.amountDetail) : "—"}
+                        </span>
+                      </div>
+                      <div className="divider" />
+                      <div className="row total">
+                        <span className="label">Total</span>
+                        <span className="value">
+                          {p?.totalAmount ? formatPrice(p.totalAmount) : "—"}
+                        </span>
+                      </div>
                     </div>
-                    {/* Ajout des nouvelles informations ici */}
-                    <div>
-                      <span>
-                        Quantité en gros:{" "}
-                        {formatPrice(product.amountBulk) || "N/A"}
-                      </span>
-                    </div>
-                    <div>
-                      <span>
-                        Quantité en détail:{" "}
-                        {formatPrice(product.amountDetail) || "N/A"}
-                      </span>
-                    </div>
-                    <div>
-                      <span>
-                        Prix en gros: {formatPrice(product.priceBulk) || "N/A"}{" "}
-                        GNF
-                      </span>
-                    </div>
-                    <div>
-                      <span>
-                        Prix en détail:{" "}
-                        {formatPrice(product.priceDetail) || "N/A"} GNF
-                      </span>
-                    </div>
-                    <div>
-                      <span>
-                        Quantité en détail: {product.quantityDetail || "N/A"}
-                      </span>
-                    </div>
-                    <div>
-                      <span>
-                        Seconde quantité: {product.secondQuantity || "N/A"}
-                      </span>
-                    </div>
-                    <div>
-                      <span>
-                        Montant total:{" "}
-                        {formatPrice(product.totalAmount) || "N/A"} GNF
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </form>
+                  ))}
+                  <div className="grandTotalCard">
+                    <span className="label">Total commande</span>
+                    <span className="value">
+                      {formatPrice(
+                        (orderDetails.cart || []).reduce(
+                          (sum, p) => sum + (Number(p?.totalAmount) || 0),
+                          0
+                        )
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="empty">Aucun produit dans cette commande.</p>
+            )}
+          </div>
         </div>
-
         <div>
           <button onClick={goBack}>Revenir en arrière</button>
 

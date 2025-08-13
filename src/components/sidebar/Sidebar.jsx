@@ -97,6 +97,12 @@ const Sidbar = () => {
               <span>Jeu Concours</span>
             </li>
           </Link>
+          {/*<Link to="/game_test" style={{ textDecoration: "none" }}>
+            <li>
+              <EmojiEventsIcon className="icon" />
+              <span>Jeu Concours Test</span>
+            </li>
+          </Link>*/}
           <p className="title">UTILES</p>
           <li>
             <CreditCardIcon className="icon" />

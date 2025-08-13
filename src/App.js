@@ -30,12 +30,14 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { auth } from "./firebase";
 import Details from "./pages/productDetails/Details";
 import GameDetails from "./pages/Game/GameDetails";
+import GameDetails_test from "./pages/Game_test/GameDetails_test";
 import GameList from "./pages/Game/GameList"; 
 import DeliveredOrders from "./components/deliveredOrders/DeliveredOrdersInfos";
 import DetailsDeliveryOrders from "./components/DetailsDeliveryOrders/DetailsDeliveryOrders";
 import DetailsListDeliveredOrder from "./components/detailsListDeliveredOrder/DetailsListDeliveredOrders";
 import Zone from "./pages/zones/Zone";
-import GameStartScreen from "./components/game/GameStartScreen";
+import GameStartScreen from "./components/game/GameStartScreen"; 
+import GameStartScreen_test from "./components/game_test/GameStartScreen_test";
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -219,6 +221,7 @@ function App() {
                 }
               />
             </Route>
+            {/*Game */}
             <Route path="game">
               <Route
                 index
@@ -233,6 +236,25 @@ function App() {
                 element={
                   <RequireAuth>
                     <GameDetails />
+                  </RequireAuth>
+                }
+              />
+            </Route>
+            {/*Game Test */}
+            <Route path="game_test">
+              <Route
+                index
+                element={
+                  <RequireAuth>
+                    <GameStartScreen_test typeColumns={gameColumns}/>
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path=":code"
+                element={
+                  <RequireAuth>
+                    <GameDetails_test />
                   </RequireAuth>
                 }
               />
