@@ -3,13 +3,20 @@
  * Author: Amadou Oury Sow
  * Date: 15.09.2022
  *
- * Listet die gegebenen Daten auf, hier products oder users
+ * Liste les données (products/users/…) avec tri robuste par timeStamp.
  */
 import "./datatable.scss";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { DataGrid } from "@mui/x-data-grid";
-import { collection, doc, deleteDoc, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  orderBy,
+} from "firebase/firestore";
 import { db } from "../../firebase";
 
 const Datatable = ({ typeColumns, title }) => {
@@ -17,48 +24,70 @@ const Datatable = ({ typeColumns, title }) => {
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  // utilitaires "safe"
+  const getTimeSafe = (ts) => {
+    if (!ts) return 0;
+    if (typeof ts === "number") return ts;
+    if (ts instanceof Date) return ts.getTime?.() ?? 0;
+    if (typeof ts?.toDate === "function") return ts.toDate().getTime();
+    return 0;
+  };
+
   useEffect(() => {
+    // On tente de trier côté Firestore si le champ existe
+    // (si certaines collections n'ont pas timeStamp, ça marche quand même)
+    const baseRef = collection(db, title);
+    const q = query(baseRef, orderBy("timeStamp", "desc"));
+
     const unsub = onSnapshot(
-      collection(db, title),
+      q,
       (snapShot) => {
-        let list = [];
-        snapShot.docs.forEach((doc) => {
-          list.push({ id: doc.id, ...doc.data() });
-        });
-        // Trier ici après récupération
-        list.sort((a, b) => b.timeStamp.toDate() - a.timeStamp.toDate());
+        const list = snapShot.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        // Fallback: re-tri côté client si certains docs n'ont pas le champ
+        list.sort((a, b) => getTimeSafe(b.timeStamp) - getTimeSafe(a.timeStamp));
+
         setData(list);
         setCount(list.length);
         setLoading(false);
       },
       (error) => {
-        console.log(error);
+        console.error("onSnapshot error:", error);
+        // Plan B: sans orderBy (si jamais la requête est refusée)
+        const unsubFallback = onSnapshot(baseRef, (snap) => {
+          const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          list.sort(
+            (a, b) => getTimeSafe(b.timeStamp) - getTimeSafe(a.timeStamp)
+          );
+          setData(list);
+          setCount(list.length);
+          setLoading(false);
+        });
+        return () => unsubFallback();
       }
     );
+
     return () => unsub();
   }, [title]);
-  
-  
 
-  //löscht das entsprechende Produkte
   const handleDelete = async (id) => {
     const confirm = window.confirm("Voulez-vous vraiment supprimer ?");
     if (!confirm) return;
     try {
       await deleteDoc(doc(db, title, id));
-      setData(data.filter((item) => item.id !== id));
+      setData((prev) => prev.filter((item) => item.id !== id));
+      setCount((c) => c - 1);
     } catch (err) {
-      console.log(err);
+      console.error(err);
     }
   };
-  
 
   const actionColumn = [
     {
       field: "action",
       headername: "Action",
       width: 200,
-      renderCell: (params) => {  
+      renderCell: (params) => {
         return (
           <div className="cellAction">
             <Link
@@ -78,7 +107,7 @@ const Datatable = ({ typeColumns, title }) => {
       },
     },
   ];
-  
+
   return (
     <div className="datatable">
       <div className="datatableTitle">
