@@ -116,6 +116,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
     <thead>
       <tr>
         <th>Produit</th> 
+        <th>Poids</th> 
         <th>Quantité en gros</th>
         <th>Montant en gros</th> 
         <th>Quantité détail</th>
@@ -129,6 +130,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
           (product) => `
         <tr>
           <td class="product-name">${product.name}</td> 
+          <td class="product-poids">${product.poids}</td> 
           <td class="product-quantity">${
             product.quantityBulk
               ? product.quantityBulk + " x " + formatPrice(product.priceBulk)
@@ -376,7 +378,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
         <tr>
           <td>
             <p><strong>No Facture:</strong> ${orderDetails.orderId}</p>
-            <p><strong>Nom:</strong> ${orderDetails.deliverInfos?.name}</p>
+            <p><strong>Nom:</strong> ${orderDetails.deliverInfos?.name} </p>
             <p><strong>Adresse:</strong> ${
               orderDetails.deliverInfos?.address
             }</p>

@@ -102,6 +102,7 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
     <thead>
       <tr>
         <th>Produit</th> 
+        <th>Poids</th> 
         <th>Quantité en gros</th>
         <th>Montant en gros</th> 
         <th>Quantité détail</th>
@@ -115,6 +116,7 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
           (product) => `
         <tr>
           <td class="product-name">${product.name}</td> 
+          <td class="product-name">${product.poids}</td> 
           <td class="product-quantity">${
             product.quantityBulk
               ? product.quantityBulk + " x " + formatPrice(product.priceBulk)

@@ -120,6 +120,7 @@ export default function DetailsDeliveryOrders({ title, btnValidation }) {
         <thead>
           <tr>
             <th>Produit</th>
+            <th>Poids</th> 
             <th>Quantité gros</th>
             <th>Montant gros</th>
             <th>Quantité détail</th>
@@ -133,6 +134,7 @@ export default function DetailsDeliveryOrders({ title, btnValidation }) {
               (p) => `
               <tr>
                 <td class="product-name">${p?.name ?? ""}</td>
+                <td class="product-poids">${p?.poids ?? ""}</td> 
                 <td class="product-quantity">${
                   p?.quantityBulk
                     ? `${p.quantityBulk} x ${formatPrice(p.priceBulk)}`
