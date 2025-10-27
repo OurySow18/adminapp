@@ -138,7 +138,7 @@ const verifyUsers = async () => {
   ];
     const exportGamePointsExcel = async () => {
       try {
-        const snapshot = await getDocs(collection(db, "gameTest"));
+        const snapshot = await getDocs(collection(db, "game"));
   
         const data = [];
   
@@ -201,14 +201,14 @@ const verifyUsers = async () => {
             const updatedUsedBy = Array.isArray(data.usedBy)
               ? data.usedBy.map((entry) => ({
                   ...entry,
-                  validatedIn: "July",
+                  validatedIn: "August",
                 }))
               : [];
     
             const ref = doc(db, "game", docSnap.id);
             await updateDoc(ref, {
               points: 0,
-              pointJuly: archivedPoints,
+              pointAugust: archivedPoints,
               usedBy: updatedUsedBy,
             });
           });
@@ -225,7 +225,7 @@ const verifyUsers = async () => {
     <div className="gameStats">
       <div className="listOrderTitel">
         Nombre de Joueurs: {count}
-      {/*  <button className="link" onClick={exportGamePointsExcel}>
+       {/* <button className="link" onClick={exportGamePointsExcel}>
           Exporter en Excel
         </button>
         <button className="link" onClick={resetGameForAugust}>

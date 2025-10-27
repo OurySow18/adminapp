@@ -7,8 +7,7 @@
  */
 import Home from "./pages/home/Home";
 import Login from "./pages/login/Login";
-import List from "./pages/list/List";
-import ListProducts from "./pages/listProducts/ListProducts";
+import List from "./pages/list/List"; 
 import Single from "./pages/single/Single";
 import New from "./pages/new/New";
 import NewProduct from "./pages/newProduct/NewProduct";
@@ -30,13 +29,12 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { auth } from "./firebase";
 import Details from "./pages/productDetails/Details";
 import GameDetails from "./pages/Game/GameDetails";
-import GameDetails_test from "./pages/Game_test/GameDetails_test";
-import GameList from "./pages/Game/GameList"; 
+import GameDetails_test from "./pages/Game_test/GameDetails_test"; 
 import DeliveredOrders from "./components/deliveredOrders/DeliveredOrdersInfos";
 import DetailsDeliveryOrders from "./components/DetailsDeliveryOrders/DetailsDeliveryOrders";
 import DetailsListDeliveredOrder from "./components/detailsListDeliveredOrder/DetailsListDeliveredOrders";
 import Zone from "./pages/zones/Zone";
-import GameStartScreen from "./components/game/GameStartScreen"; 
+import GameStartScreen from "./components/game/GameStartScreen";
 import GameStartScreen_test from "./components/game_test/GameStartScreen_test";
 
 function App() {
@@ -101,7 +99,6 @@ function App() {
             <Route path="products">
               <Route
                 index
-                // element={<ListProducts typeColumns={productColumns} title="products" />}
                 element={<List typeColumns={productColumns} title="products" />}
               />
               <Route
@@ -227,7 +224,7 @@ function App() {
                 index
                 element={
                   <RequireAuth>
-                    <GameStartScreen typeColumns={gameColumns}/>
+                    <GameStartScreen typeColumns={gameColumns} />
                   </RequireAuth>
                 }
               />
@@ -246,7 +243,7 @@ function App() {
                 index
                 element={
                   <RequireAuth>
-                    <GameStartScreen_test typeColumns={gameColumns}/>
+                    <GameStartScreen_test typeColumns={gameColumns} />
                   </RequireAuth>
                 }
               />
