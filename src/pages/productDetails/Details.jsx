@@ -73,12 +73,74 @@ const Details = ({ title }) => {
   useEffect(() => {
     const unsub = onSnapshot(
       doc(db, title, params.id),
-      (doc) => {
-        setData(doc.data());
-        setIsChecked(doc.data().status);
-        setIsActiv(doc.data().homePage);  
-        setImageObjects(doc.data().images || []); // Récupération des images du produit
-    
+      (docSnap) => {
+        if (!docSnap.exists()) {
+          setData({});
+          setIsChecked(false);
+          setIsActiv(false);
+          setImageObjects([]);
+          return;
+        }
+
+        const raw = docSnap.data() || {};
+        const resolvedImg =
+          raw.img ||
+          raw.image ||
+          (Array.isArray(raw.images) ? raw.images[0] : null) ||
+          raw.media?.cover ||
+          raw.core?.media?.cover ||
+          raw.draft?.core?.media?.cover ||
+          "";
+
+        const resolvedImages =
+          raw.images ||
+          raw.media?.gallery ||
+          raw.core?.media?.gallery ||
+          raw.draft?.core?.media?.gallery ||
+          [];
+
+        const resolvedPrice =
+          raw.price ??
+          raw.pricing?.basePrice ??
+          raw.core?.pricing?.basePrice ??
+          raw.draft?.core?.pricing?.basePrice;
+
+        const resolvedStock =
+          raw.stock ??
+          raw.inventory?.stock ??
+          raw.core?.inventory?.stock ??
+          raw.draft?.core?.inventory?.stock;
+
+        const resolvedStatus =
+          typeof raw.status === "boolean"
+            ? raw.status
+            : raw.status === "active" ||
+              raw.core?.status === "active" ||
+              raw.draft?.core?.status === "active";
+
+        const resolvedHome =
+          raw.homePage ??
+          raw.core?.homePage ??
+          raw.draft?.core?.homePage ??
+          false;
+
+        setData({
+          ...raw,
+          img: resolvedImg,
+          price: resolvedPrice,
+          stock: resolvedStock,
+          status: resolvedStatus,
+          homePage: resolvedHome,
+          images: resolvedImages,
+        });
+        setIsChecked(Boolean(resolvedStatus));
+        setIsActiv(Boolean(resolvedHome));
+        const mappedImages = Array.isArray(resolvedImages)
+          ? resolvedImages.map((url) =>
+              typeof url === "string" ? { url, ref: null } : url
+            )
+          : [];
+        setImageObjects(mappedImages);
       },
       (error) => {
         console.log(error);
@@ -146,8 +208,11 @@ const Details = ({ title }) => {
   const handleImageDelete = async (index) => {
     // Fonction de suppression d'une image du produit
     try {
-      const imageRef = ref(storage, imageObjects[index].ref);
-      //await deleteObject(imageRef);
+      const target = imageObjects[index];
+      if (target?.ref) {
+        const imageRef = ref(storage, target.ref);
+        //await deleteObject(imageRef);
+      }
       const updatedImages = [...imageObjects];
       updatedImages.splice(index, 1);
       setImageObjects(updatedImages);
@@ -191,7 +256,19 @@ const Details = ({ title }) => {
         </div>
         <div className="bottom">
           <div className="left">
-            <img src={data.img || "/default-image.png"} alt="Product" className="image" />
+            <img
+              src={
+                data.img ||
+                data.image ||
+                (Array.isArray(data.images) ? data.images[0] : null) ||
+                data.media?.cover ||
+                data.core?.media?.cover ||
+                data.draft?.core?.media?.cover ||
+                "/default-image.png"
+              }
+              alt="Product"
+              className="image"
+            />
           </div>
           <div className="right">
             <form onSubmit={handleUpdate}>

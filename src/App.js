@@ -20,6 +20,7 @@ import { DarkModeContext } from "./context/darkModeContext";
 import { productInputs, userInputs, zonesInputs } from "./formSource";
 import {
   userColumns,
+  vendorColumns,
   productColumns,
   orderColumns,
   zonesColumns,
@@ -36,6 +37,10 @@ import DetailsListDeliveredOrder from "./components/detailsListDeliveredOrder/De
 import Zone from "./pages/zones/Zone";
 import GameStartScreen from "./components/game/GameStartScreen";
 import GameStartScreen_test from "./components/game_test/GameStartScreen_test";
+import VendorsList from "./pages/vendors/VendorsList";
+import VendorDetails from "./pages/vendors/VendorDetails";
+import VendorProductsList from "./pages/vendorProducts/VendorProductsList";
+import VendorProductDetails from "./pages/vendorProducts/VendorProductDetails";
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -90,6 +95,88 @@ function App() {
                       title={titleUser}
                       typeCmp="users"
                     />
+                  </RequireAuth>
+                }
+              />
+            </Route>
+
+            {/*Vendors*/}
+            <Route path="vendors">
+              <Route
+                index
+                element={
+                  <RequireAuth>
+                    <VendorsList />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="status/:statusId"
+                element={
+                  <RequireAuth>
+                    <VendorsList />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="status/:statusId/:id"
+                element={
+                  <RequireAuth>
+                    <VendorDetails />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path=":id"
+                element={
+                  <RequireAuth>
+                    <VendorDetails />
+                  </RequireAuth>
+                }
+              />
+            </Route>
+
+            {/*Vendor Products*/}
+            <Route path="vendor-products">
+              <Route
+                index
+                element={
+                  <RequireAuth>
+                    <VendorProductsList />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path=":productId"
+                element={
+                  <RequireAuth>
+                    <VendorProductDetails />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path=":vendorId/:productId"
+                element={
+                  <RequireAuth>
+                    <VendorProductDetails />
+                  </RequireAuth>
+                }
+              />
+            </Route>
+            <Route path="VendorProductsList">
+              <Route
+                path=":productId"
+                element={
+                  <RequireAuth>
+                    <VendorProductDetails />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path=":vendorId/:productId"
+                element={
+                  <RequireAuth>
+                    <VendorProductDetails />
                   </RequireAuth>
                 }
               />

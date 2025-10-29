@@ -59,6 +59,100 @@
                     margin-left: 10px;
                 }
             }
+
+            li.menu-group{
+                flex-direction: column;
+                align-items: stretch;
+                padding: 0;
+
+                &:hover{
+                    background-color: transparent;
+                }
+            }
+
+            .menu-group__toggle{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                width: 100%;
+                background: transparent;
+                border: none;
+                padding: 5px;
+                cursor: pointer;
+                font-family: inherit;
+
+                &:hover{
+                    background-color: #ece8ff;
+                }
+
+                .menu-group__label{
+                    display: flex;
+                    align-items: center;
+
+                    span{
+                        margin-left: 10px;
+                    }
+                }
+
+                .menu-group__chevron{
+                    transition: transform 0.2s ease;
+                    color: #888;
+
+                    &--open{
+                        transform: rotate(180deg);
+                    }
+                }
+            }
+
+            .submenu{
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                padding: 2px 0 2px 35px;
+
+                .submenu__item{
+                    padding: 0;
+
+                    &.active,
+                    &:hover{
+                        background-color: #ece8ff;
+                    }
+                }
+
+                .submenu__link{
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    width: 100%;
+                    padding: 5px;
+                    color: inherit;
+
+                    .submenu__linkLabel{
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+
+                        span{
+                            margin-left: 0;
+                        }
+                    }
+                }
+
+                .submenu__badge{
+                    min-width: 28px;
+                    padding: 2px 8px;
+                    border-radius: 12px;
+                    background-color: #f1f1f1;
+                    color: #666;
+                    font-size: 11px;
+                    text-align: center;
+                }
+            }
+
+            .icon--sm{
+                font-size: 16px;
+                color: #ff6f00;
+            }
         }
     }
 
@@ -84,4 +178,42 @@
         }
         
     }
+}
+/* Compacte le groupe "Vendeurs" */
+.sidebar .center ul li.menu-group {
+  margin: 0;            /* pas d'espace externe */
+  padding: 0;           /* pas d'espace interne */
+}
+
+.sidebar .center ul .menu-group__toggle {
+  padding: 2px 6px;     /* était 5px -> plus compact */
+}
+
+/* Sous-menu plus serré et moins indenté */
+.sidebar .center ul .submenu {
+  padding: 0 0 0 18px;  /* était 2px 0 2px 35px */
+  gap: 0;               /* était 2px */
+}
+
+.sidebar .center ul .submenu .submenu__item {
+  padding: 0;           /* garde la hauteur minimale */
+}
+
+.sidebar .center ul .submenu .submenu__link {
+  padding: 3px 6px;     /* était 5px */
+  border-radius: 4px;   /* un peu moins rond = moins haut visuellement */
+}
+
+/* Badges + icônes plus denses */
+.sidebar .center ul .submenu .icon--sm { font-size: 14px; } /* était 16px */
+.sidebar .center ul .submenu .submenu__badge {
+  padding: 1px 6px;     /* était 2px 8px */
+  font-size: 10px;      /* était 11px */
+  min-width: 24px;      /* était 28px */
+}
+
+/* Optionnel : titres un poil plus compacts */
+.sidebar .center ul .title {
+  margin-top: 10px;     /* était 15px */
+  margin-bottom: 4px;   /* était 5px */
 }

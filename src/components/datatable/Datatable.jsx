@@ -3,28 +3,46 @@
  * Author: Amadou Oury Sow
  * Date: 15.09.2022
  *
- * Liste les données (products/users/…) avec tri robuste par timeStamp.
+ * Liste les donnees (products/users/...) avec tri robuste par timeStamp.
  */
 import "./datatable.scss";
 import { Link } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { DataGrid } from "@mui/x-data-grid";
 import {
   collection,
   doc,
   deleteDoc,
   onSnapshot,
-  query,
-  orderBy,
 } from "firebase/firestore";
 import { db } from "../../firebase";
 
-const Datatable = ({ typeColumns, title }) => {
+const Datatable = ({
+  typeColumns,
+  title,
+  dataFilter,
+  pageTitle,
+  disableCreate = false,
+}) => {
   const [data, setData] = useState([]);
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // utilitaires "safe"
+  const applyFilter = useMemo(() => {
+    if (!dataFilter) return null;
+    return (rows) => {
+      try {
+        return rows.filter((row) => dataFilter(row));
+      } catch (error) {
+        console.warn(
+          "Datatable filter failed, returning unfiltered dataset.",
+          error
+        );
+        return rows;
+      }
+    };
+  }, [dataFilter]);
+
   const getTimeSafe = (ts) => {
     if (!ts) return 0;
     if (typeof ts === "number") return ts;
@@ -34,41 +52,32 @@ const Datatable = ({ typeColumns, title }) => {
   };
 
   useEffect(() => {
-    // On tente de trier côté Firestore si le champ existe
-    // (si certaines collections n'ont pas timeStamp, ça marche quand même)
-    const baseRef = collection(db, title);
-    const q = query(baseRef, orderBy("timeStamp", "desc"));
+    const collectionRef = collection(db, title);
+    const unsubscribe = onSnapshot(
+      collectionRef,
+      (snapshot) => {
+        const list = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
 
-    const unsub = onSnapshot(
-      q,
-      (snapShot) => {
-        const list = snapShot.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-        // Fallback: re-tri côté client si certains docs n'ont pas le champ
         list.sort((a, b) => getTimeSafe(b.timeStamp) - getTimeSafe(a.timeStamp));
+        const filteredList = applyFilter ? applyFilter(list) : list;
 
-        setData(list);
-        setCount(list.length);
+        setData(filteredList);
+        setCount(filteredList.length);
         setLoading(false);
       },
       (error) => {
         console.error("onSnapshot error:", error);
-        // Plan B: sans orderBy (si jamais la requête est refusée)
-        const unsubFallback = onSnapshot(baseRef, (snap) => {
-          const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-          list.sort(
-            (a, b) => getTimeSafe(b.timeStamp) - getTimeSafe(a.timeStamp)
-          );
-          setData(list);
-          setCount(list.length);
-          setLoading(false);
-        });
-        return () => unsubFallback();
+        setData([]);
+        setCount(0);
+        setLoading(false);
       }
     );
 
-    return () => unsub();
-  }, [title]);
+    return () => unsubscribe();
+  }, [title, applyFilter]);
 
   const handleDelete = async (id) => {
     const confirm = window.confirm("Voulez-vous vraiment supprimer ?");
@@ -96,25 +105,31 @@ const Datatable = ({ typeColumns, title }) => {
             >
               <div className="viewButton">View</div>
             </Link>
-            <div
+         {/*   <div
               className="deleteButton"
               onClick={() => handleDelete(params.row.id)}
             >
               Delete
-            </div>
+            </div>*/}
           </div>
         );
       },
     },
   ];
 
+  const headerTitle = pageTitle ?? title;
+
   return (
     <div className="datatable">
       <div className="datatableTitle">
-        Number of {title} is {count}
-        <Link to={{ pathname: "new" }} className="link">
-          Add new
-        </Link>
+        <span>
+          Number of {headerTitle} is {count}
+        </span>
+        {!disableCreate && (
+          <Link to={{ pathname: "new" }} className="link">
+            Add new
+          </Link>
+        )}
       </div>
       <DataGrid
         className="datagrid"
