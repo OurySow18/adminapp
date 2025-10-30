@@ -41,6 +41,7 @@ import VendorsList from "./pages/vendors/VendorsList";
 import VendorDetails from "./pages/vendors/VendorDetails";
 import VendorProductsList from "./pages/vendorProducts/VendorProductsList";
 import VendorProductDetails from "./pages/vendorProducts/VendorProductDetails";
+import { SidebarProvider } from "./context/sidebarContext";
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -56,8 +57,9 @@ function App() {
   return (
     //prüft, ob der Dark Modus akiviert ist
     <div className={darkMode ? "app dark " : "app"}>
-      <BrowserRouter>
-        <Routes>
+      <SidebarProvider>
+        <BrowserRouter>
+          <Routes>
           <Route path="/">
             <Route path="login" element={<Login />} />
             <Route
@@ -140,6 +142,14 @@ function App() {
             <Route path="vendor-products">
               <Route
                 index
+                element={
+                  <RequireAuth>
+                    <VendorProductsList />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="status/:statusId"
                 element={
                   <RequireAuth>
                     <VendorProductsList />
@@ -346,6 +356,7 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      </SidebarProvider>
     </div>
   );
 }

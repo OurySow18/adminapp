@@ -3,6 +3,7 @@ import {
   resolveVendorStatus,
   getVendorStatusLabel,
 } from "./utils/vendorStatus";
+import { getVendorProductStatusLabel } from "./utils/vendorProductStatus";
 
 const toDate = (value) => {
   if (!value) return undefined;
@@ -457,12 +458,16 @@ export const vendorProductColumns = [
   {
     field: "cover",
     headerName: "Image",
-    width: 90,
+    minWidth: 96,
+    maxWidth: 110,
+    flex: 0.3,
     sortable: false,
+    filterable: false,
+    disableColumnMenu: true,
     renderCell: (params) => {
       const cover = getProductCover(params.row) || "/default-image.png";
       return (
-        <div className="cellWithImg">
+        <div className="cellWithImg cellWithImg--product">
           <img className="cellImg" src={cover} alt="cover" />
         </div>
       );
@@ -471,13 +476,15 @@ export const vendorProductColumns = [
   {
     field: "title",
     headerName: "Produit",
-    width: 220,
+    flex: 1.2,
+    minWidth: 200,
     valueGetter: (params) => getProductTitle(params.row),
   },
   {
     field: "vendorId",
     headerName: "Vendeur",
-    width: 160,
+    flex: 0.7,
+    minWidth: 160,
     valueGetter: (params) =>
       firstValue(
         params.row.vendorDisplayId,
@@ -490,28 +497,35 @@ export const vendorProductColumns = [
   {
     field: "status",
     headerName: "Statut",
-    width: 140,
+    flex: 0.6,
+    minWidth: 150,
     valueGetter: (params) => {
       const status = getProductStatus(params.row, "-");
       const active = getProductActiveFlag(params.row);
-      if (active === false) return "Bloqué";
-      if (status === "archived") return "Archivé";
-      if (status === "draft") return "Brouillon";
-      if (status === "active") return "Actif";
-      return status;
+      if (active === false) {
+        return getVendorProductStatusLabel("blocked");
+      }
+      if (params.row.statusLabel) {
+        return params.row.statusLabel;
+      }
+      if (status === "archived") return "Archive";
+      if (!status || status === "-") return "-";
+      return getVendorProductStatusLabel(status) || status;
     },
   },
   {
     field: "active",
     headerName: "Actif",
-    width: 110,
+    flex: 0.4,
+    minWidth: 120,
     valueGetter: (params) =>
       boolLabel(getProductActiveFlag(params.row), "Oui", "Non"),
   },
   {
     field: "price",
     headerName: "Prix",
-    width: 120,
+    flex: 0.6,
+    minWidth: 140,
     valueGetter: (params) => {
       const price = getProductPrice(params.row);
       if (price === undefined || price === null) return "-";
@@ -522,7 +536,8 @@ export const vendorProductColumns = [
   {
     field: "stock",
     headerName: "Stock",
-    width: 110,
+    flex: 0.4,
+    minWidth: 110,
     valueGetter: (params) => {
       const stock = getProductStock(params.row);
       return stock === undefined || stock === null ? "-" : stock;
@@ -531,13 +546,15 @@ export const vendorProductColumns = [
   {
     field: "blockedReason",
     headerName: "Motif blocage",
-    width: 200,
+    flex: 0.9,
+    minWidth: 220,
     valueGetter: (params) => getProductBlockedReason(params.row) ?? "-",
   },
   {
     field: "updatedAt",
     headerName: "MAJ",
-    width: 180,
+    flex: 0.7,
+    minWidth: 180,
     valueGetter: (params) => formatDate(getProductUpdatedAt(params.row)),
   },
 ];
@@ -654,7 +671,4 @@ export const gameColumns = [
     valueGetter: (params) => formatDate(params.row.createdAt),
   },
 ];
-
-
-
-
+ 

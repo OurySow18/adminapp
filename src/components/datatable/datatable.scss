@@ -1,78 +1,176 @@
-.datatable{
-    height: 600px;
-    padding: 20px;
+.datatable {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
 
-    .datatableTitle{
-        width: 100%;
-        font-size: 29px;
-        color: gray;
-        margin-bottom: 10px;
+  .datatableTitle {
+    width: 100%;
+    font-size: 1.5rem;
+    color: #4b5563;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+
+    .link {
+      text-decoration: none;
+      color: #047857;
+      font-size: 1rem;
+      font-weight: 500;
+      border: 1px solid #047857;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease;
+
+      &:hover {
+        background: #047857;
+        color: #fff;
+      }
+    }
+  }
+
+  .datatable__gridWrapper {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+
+    .datagrid {
+      border: none;
+      font-size: 0.95rem;
+
+      .MuiDataGrid-columnHeaders {
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+
+      .MuiDataGrid-cell {
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        gap: 8px;
+        font-size: 0.9rem;
+      }
 
-        .link{
-            text-decoration: none;
-            color: green;
-            font-size: 26px;
-            font-weight: 400;
-            border: 1px solid green;
-            padding: 5px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-    }
-
-    .cellWithImg{
+      .cellWithImg {
         display: flex;
         align-items: center;
 
-        .cellImg{
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            object-fit: cover;
-            margin-right: 20px;
+        .cellImg {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          object-fit: cover;
+          margin-right: 12px;
         }
+      }
+
+      .cellWithStatus {
+        padding: 5px 10px;
+        border-radius: 999px;
+        font-weight: 600;
+
+        &.active {
+          background-color: rgba(16, 185, 129, 0.12);
+          color: #047857;
+        }
+        &.pending {
+          background-color: rgba(251, 191, 36, 0.12);
+          color: #b45309;
+        }
+        &.passive {
+          background-color: rgba(239, 68, 68, 0.12);
+          color: #b91c1c;
+        }
+      }
+
+      .cellAction {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+
+        .viewButton {
+          padding: 2px 6px;
+          border-radius: 6px;
+          color: #1d4ed8;
+          border: 1px solid rgba(29, 78, 216, 0.35);
+          cursor: pointer;
+          font-size: 0.85rem;
+        }
+        .deleteButton {
+          padding: 2px 6px;
+          border-radius: 6px;
+          color: #dc2626;
+          border: 1px solid rgba(220, 38, 38, 0.35);
+          cursor: pointer;
+          font-size: 0.85rem;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 992px) {
+  .datatable {
+    padding: 16px;
+    border-radius: 12px;
+
+    .datatableTitle {
+      font-size: 1.25rem;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .datatable {
+    padding: 14px;
+    gap: 12px;
+
+    .datatableTitle {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 1.15rem;
+
+      .link {
+        align-self: stretch;
+        text-align: center;
+      }
     }
 
-    .cellWithStatus{
-        padding: 5px;
-        border-radius: 5px;
+    .datatable__gridWrapper .datagrid {
+      font-size: 0.85rem;
 
-        &.active{
-            background-color: rgba(0, 128, 0, 0.05);
-            color: green;
-        }
-        &.pending{
-            background-color: rgba(255, 217, 0, 0.05);
-            color: goldenrod;
-        }
-        &.passive{
-            background-color: rgba(255, 0, 0, 0.05);
-            color: crimson;
-        }
+      .MuiDataGrid-columnHeaders {
+        font-size: 0.85rem;
+      }
+    }
+  }
+}
+
+@media (max-width: 576px) {
+  .datatable {
+    padding: 12px;
+
+    .datatableTitle {
+      font-size: 1.05rem;
     }
 
-        .cellAction{
-            display: flex;
-            align-items: center;
-            gap: 15px;
+    .datatable__gridWrapper .datagrid {
+      .MuiDataGrid-cell {
+        font-size: 0.8rem;
+        min-height: 36px;
+      }
 
-            .viewButton{
-                padding: 2px 5px;
-                border-radius: 5px;
-                color: darkblue;
-                border: 1px dotted rgba(0, 0, 139, 0.596);
-                cursor: pointer;
-            }
-            .deleteButton{
-                padding: 2px 5px;
-                border-radius: 5px;
-                color: crimson;
-                border: 1px dotted rgba(220, 20, 60, 0.6);
-                cursor: pointer;
-            }
-         
+      .MuiDataGrid-row.MuiDataGrid-row--dynamicHeight {
+        min-height: 42px;
+      }
     }
+  }
 }

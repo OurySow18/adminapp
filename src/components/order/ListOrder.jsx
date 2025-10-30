@@ -1,5 +1,5 @@
 import "./ListOrder.scss";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
 import { Link, useParams } from "react-router-dom"; // Importez le composant Link depuis React Router 
@@ -8,6 +8,7 @@ import { DataGrid } from "@mui/x-data-grid";
 const ListOrder = ({ typeColumns, title }) => {
   const [data, setData] = useState([]);
   const [count, setCount] = useState(0); 
+  const [pageSize, setPageSize] = useState(9);
   
   const params = useParams();
   //console.log(params) 
@@ -55,20 +56,30 @@ const ListOrder = ({ typeColumns, title }) => {
       },
     },
   ];
+
+  const columns = useMemo(
+    () => typeColumns.concat(actionColumn),
+    [typeColumns]
+  );
   
   return ( 
         <div className="listOrder">
         <div className="listOrderTitel">
           Nombre de Commandes: {count} 
         </div>
-        <DataGrid
-          className="datagrid"
-          rows={data}
-          columns={typeColumns.concat(actionColumn)}
-          pageSize={9}
-          rowsPerPageOptions={[9]}
-          checkboxSelection
-        />
+        <div className="listOrder__gridWrapper">
+          <DataGrid
+            className="datagrid"
+            rows={data}
+            columns={columns}
+            pageSize={pageSize}
+            onPageSizeChange={(size) => setPageSize(size)}
+            rowsPerPageOptions={[5, 9, 25]}
+            checkboxSelection
+            disableSelectionOnClick
+            autoHeight
+          />
+        </div>
       </div>
   );
 };

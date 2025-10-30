@@ -27,6 +27,7 @@ const Datatable = ({
   const [data, setData] = useState([]);
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [pageSize, setPageSize] = useState(9);
 
   const applyFilter = useMemo(() => {
     if (!dataFilter) return null;
@@ -118,6 +119,10 @@ const Datatable = ({
   ];
 
   const headerTitle = pageTitle ?? title;
+  const columns = useMemo(
+    () => typeColumns.concat(actionColumn),
+    [typeColumns]
+  );
 
   return (
     <div className="datatable">
@@ -131,15 +136,20 @@ const Datatable = ({
           </Link>
         )}
       </div>
-      <DataGrid
-        className="datagrid"
-        rows={data}
-        columns={typeColumns.concat(actionColumn)}
-        pageSize={9}
-        rowsPerPageOptions={[9]}
-        checkboxSelection
-        loading={loading}
-      />
+      <div className="datatable__gridWrapper">
+        <DataGrid
+          className="datagrid"
+          rows={data}
+          columns={columns}
+          pageSize={pageSize}
+          onPageSizeChange={(newSize) => setPageSize(newSize)}
+          rowsPerPageOptions={[5, 9, 25]}
+          autoHeight
+          checkboxSelection
+          disableSelectionOnClick
+          loading={loading}
+        />
+      </div>
     </div>
   );
 };

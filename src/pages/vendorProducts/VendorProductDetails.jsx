@@ -6,6 +6,11 @@ import Navbar from "../../components/navbar/Navbar";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
 import { format } from "date-fns";
+import { transitionVendorProductStatus } from "../../utils/vendorProductsRepository";
+import {
+  getVendorProductStatusLabel,
+  normalizeVendorProductStatus,
+} from "../../utils/vendorProductStatus";
 
 const formatDateTime = (value) => {
   if (!value) return "-";
@@ -45,6 +50,11 @@ const VendorProductDetails = () => {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [statusUpdateState, setStatusUpdateState] = useState({
+    loading: false,
+    error: null,
+    success: null,
+  });
 
   useEffect(() => {
     if (!productId) return;
@@ -83,6 +93,11 @@ const VendorProductDetails = () => {
           scope: "vendor",
         });
       }
+
+      candidates.push({
+        ref: doc(db, "products_public", productId),
+        scope: "public",
+      });
 
       for (const candidate of candidates) {
         const path = candidate.ref.path;
@@ -138,6 +153,20 @@ const VendorProductDetails = () => {
       if (typeof unsub === "function") unsub();
     };
   }, [vendorId, productId, docPathFromState, stateSource]);
+
+  useEffect(() => {
+    setStatusUpdateState({ loading: false, error: null, success: null });
+  }, [product?.id]);
+
+  useEffect(() => {
+    if (!statusUpdateState.success) return undefined;
+    const timer = setTimeout(() => {
+      setStatusUpdateState((prev) =>
+        prev.success ? { ...prev, success: null } : prev
+      );
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [statusUpdateState.success]);
 
   const coverImage = useMemo(() => {
     if (!product) return "/default-image.png";
@@ -206,9 +235,13 @@ const VendorProductDetails = () => {
         active = !blocked;
       }
     }
-    if (active === false || status === "archived") return "Bloqué";
-    if (status === "draft") return "Brouillon";
-    if (status === "active") return "Actif";
+    if (active === false || status === "archived") {
+      return getVendorProductStatusLabel("blocked");
+    }
+    const normalized = normalizeVendorProductStatus(status);
+    if (normalized) {
+      return getVendorProductStatusLabel(normalized);
+    }
     return status;
   }, [product]);
 
@@ -258,6 +291,50 @@ const VendorProductDetails = () => {
       ) ?? "-",
     [product, vendorId]
   );
+
+  const handleStatusTransition = async (nextStatus, options = {}) => {
+    if (!product) return;
+    setStatusUpdateState({ loading: true, error: null, success: null });
+    try {
+      const normalizedStatus =
+        normalizeVendorProductStatus(nextStatus) ?? nextStatus;
+      const resolvedVendorId =
+        (vendorDisplayId && vendorDisplayId !== "-" && vendorDisplayId) ||
+        (vendorId && vendorId !== "_" && vendorId !== "root" ? vendorId : null);
+
+      await transitionVendorProductStatus({
+        productId,
+        vendorId: resolvedVendorId,
+        targetStatus: normalizedStatus,
+        reason: options.reason,
+        primaryDocPath: product.__docPath || docPathFromState,
+        scope: product.__scope,
+        productData: product,
+      });
+      setStatusUpdateState({
+        loading: false,
+        error: null,
+        success: `Statut mis a jour en "${getVendorProductStatusLabel(
+          normalizedStatus
+        )}".`,
+      });
+    } catch (err) {
+      const message =
+        err?.message || "Echec de la mise a jour du statut produit.";
+      setStatusUpdateState({ loading: false, error: message, success: null });
+    }
+  };
+
+  const handleSetPending = () => handleStatusTransition("pending");
+
+  const handleActivate = () => handleStatusTransition("published");
+
+  const handleBlock = () => {
+    const input = window.prompt("Motif du blocage ?", "Bloque manuellement");
+    if (input === null) return;
+    const reason = input.trim();
+    handleStatusTransition("blocked", { reason });
+  };
 
   if (loading) {
     return (
@@ -313,8 +390,46 @@ const VendorProductDetails = () => {
             </div>
             <div className="vendorProductDetails__headerRight">
               <span className="vendorProductDetails__status">{productStatus}</span>
+              <div className="vendorProductDetails__actions">
+                <button
+                  type="button"
+                  className="vendorProductDetails__actionBtn vendorProductDetails__actionBtn--pending"
+                  onClick={handleSetPending}
+                  disabled={statusUpdateState.loading}
+                >
+                  Mettre en attente
+                </button>
+                <button
+                  type="button"
+                  className="vendorProductDetails__actionBtn vendorProductDetails__actionBtn--activate"
+                  onClick={handleActivate}
+                  disabled={statusUpdateState.loading}
+                >
+                  Activer
+                </button>
+                <button
+                  type="button"
+                  className="vendorProductDetails__actionBtn vendorProductDetails__actionBtn--block"
+                  onClick={handleBlock}
+                  disabled={statusUpdateState.loading}
+                >
+                  Bloquer
+                </button>
+              </div>
             </div>
           </div>
+
+          {(statusUpdateState.error || statusUpdateState.success) && (
+            <div
+              className={`vendorProductDetails__actionFeedback ${
+                statusUpdateState.error
+                  ? "vendorProductDetails__actionFeedback--error"
+                  : "vendorProductDetails__actionFeedback--success"
+              }`}
+            >
+              {statusUpdateState.error || statusUpdateState.success}
+            </div>
+          )}
 
           <section>
             <div className="vendorProductDetails__main">
@@ -368,7 +483,12 @@ const VendorProductDetails = () => {
               <h2>Galerie</h2>
               <div className="vendorProductDetails__gallery">
                 {galleryImages.slice(1).map((url, index) => (
-                  <img src={url} alt={`Aperçu ${index}`} key={url || index} />
+                  <div
+                    className="vendorProductDetails__galleryItem"
+                    key={url || index}
+                  >
+                    <img src={url} alt={`Aperçu ${index}`} />
+                  </div>
                 ))}
               </div>
             </section>

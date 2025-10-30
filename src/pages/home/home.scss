@@ -1,30 +1,112 @@
-.home{ 
-    display:flex;
+.home {
+  display: flex;
+  min-height: 100vh;
+  background: #f5f6fa;
 
-    .homeContainer { 
-        flex: 6;
+  .homeContainer {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
 
-        .widgets, .charts{
-            display: flex;
-            padding: 20px; 
-            gap: 20px;
-        }
-
-        .charts{
-            padding: 5px 20px;
-        }
-
-        .listContainer{
-            -webkit-box-shadow: 2px 4px 10px 1px #000000; 
-            box-shadow: 2px 4px 10px 1px #4b4a4a;
-            padding: 20px;
-            margin: 20px;
-
-            .listTitle{
-                font-weight: 500;
-                color: gray;
-                margin-bottom: 15px;
-            }
-        }
+    .widgets,
+    .charts {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: stretch;
+      padding: 20px;
+      gap: 20px;
     }
+
+    .widgets > * {
+      flex: 1 1 240px;
+      min-width: 200px;
+    }
+
+    .charts {
+      padding: 5px 20px 20px;
+
+      > * {
+        flex: 1 1 320px;
+        min-width: 280px;
+      }
+    }
+
+    .listContainer {
+      -webkit-box-shadow: 2px 4px 10px 1px rgba(0, 0, 0, 0.1);
+      box-shadow: 2px 4px 10px 1px rgba(75, 74, 74, 0.25);
+      background: #fff;
+      padding: 20px;
+      margin: 20px;
+      border-radius: 12px;
+      overflow-x: auto;
+
+      .listTitle {
+        font-weight: 600;
+        color: #6b7280;
+        margin-bottom: 15px;
+      }
+    }
+  }
+}
+
+@media (max-width: 992px) {
+  .home {
+    .homeContainer {
+      .widgets > * {
+        flex: 1 1 calc(50% - 12px);
+      }
+
+      .charts {
+        flex-direction: column;
+
+        > * {
+          flex: 1 1 100%;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .home {
+    flex-direction: column;
+
+    .homeContainer {
+      width: 100%;
+      .widgets,
+      .charts {
+        flex-direction: column;
+      }
+
+      .widgets > *,
+      .charts > * {
+        flex: 1 1 100%;
+        min-width: 0;
+      }
+
+      .listContainer {
+        margin: 12px;
+        padding: 14px;
+      }
+    }
+  }
+}
+
+@media (max-width: 576px) {
+  .home {
+    .homeContainer {
+      .widgets,
+      .charts {
+        padding: 12px;
+        gap: 12px;
+      }
+
+      .listContainer {
+        margin: 12px;
+        padding: 12px;
+        border-radius: 10px;
+      }
+    }
+  }
 }

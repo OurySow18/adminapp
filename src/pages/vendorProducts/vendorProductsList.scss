@@ -1,16 +1,18 @@
-.vendorProducts {
-  display: flex;
+﻿.vendorProducts {
   width: 100%;
+  min-height: 100vh;
+  display: flex;
+  background: #f5f6fa;
 }
 
 .vendorProducts__container {
-  flex: 6;
-  background-color: #f8f9fc;
-  min-height: 100vh;
-  padding: 24px;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 24px;
+  padding: 24px;
+  min-width: 0;
+  overflow-y: auto;
 }
 
 .vendorProducts__header {
@@ -18,10 +20,11 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  flex-wrap: wrap;
 
   h1 {
     margin: 0;
-    font-size: 24px;
+    font-size: 1.75rem;
     font-weight: 700;
     color: #111827;
   }
@@ -29,22 +32,22 @@
   p {
     margin: 4px 0 0;
     color: #4b5563;
-    font-size: 14px;
+    font-size: 0.95rem;
   }
 }
 
 .vendorProducts__refresh {
-  padding: 10px 18px;
-  border-radius: 8px;
+  padding: 12px 20px;
+  border-radius: 10px;
   border: none;
   background-color: #ff6f00;
   color: #fff;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.6;
     cursor: not-allowed;
   }
 
@@ -55,23 +58,77 @@
 }
 
 .vendorProducts__error {
-  background: rgba(198, 40, 40, 0.1);
-  color: #b71c1c;
-  border-radius: 8px;
-  padding: 12px 16px;
-  font-size: 14px;
+  background: rgba(220, 38, 38, 0.12);
+  color: #991b1b;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 0.95rem;
 }
 
 .vendorProducts__table {
   background: #fff;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.vendorProducts__gridWrapper {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.vendorProducts__datagrid {
+  border: none;
+  background: transparent;
+  font-size: 0.95rem;
+  min-width: 900px;
+
+  .MuiDataGrid-columnHeaders {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .MuiDataGrid-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+  }
+
+  .MuiDataGrid-row {
+    min-height: 80px !important;
+  }
+
+  .MuiDataGrid-virtualScroller {
+    overflow-x: auto;
+  }
+}
+
+.vendorProducts__datagrid .cellWithImg--product {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  .cellImg {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    object-fit: contain;
+    background: #f9fafb;
+    padding: 6px;
+    border: 1px solid #e5e7eb;
+  }
 }
 
 .vendorProducts__actionsCell {
   display: flex;
-  gap: 8px;
+  gap: 10px;
 
   .vendorProducts__actionsLink {
     padding: 6px 12px;
@@ -79,12 +136,89 @@
     border: 1px solid rgba(255, 111, 0, 0.35);
     color: #ff6f00;
     font-weight: 600;
-    font-size: 13px;
+    font-size: 0.85rem;
     text-decoration: none;
     transition: all 0.2s ease;
 
     &:hover {
-      background: rgba(255, 111, 0, 0.08);
+      background: rgba(255, 111, 0, 0.1);
     }
   }
 }
+
+@media (max-width: 1200px) {
+  .vendorProducts__container {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 992px) {
+  .vendorProducts__container {
+    padding: 18px;
+    gap: 20px;
+  }
+
+  .vendorProducts__table {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 768px) {
+  .vendorProducts {
+    flex-direction: column;
+  }
+
+  .vendorProducts__container {
+    padding: 16px;
+  }
+
+  .vendorProducts__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+
+    h1 {
+      font-size: 1.5rem;
+    }
+
+    p {
+      font-size: 0.9rem;
+    }
+  }
+
+  .vendorProducts__refresh {
+    width: 100%;
+  }
+
+  .vendorProducts__table {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 576px) {
+  .vendorProducts__container {
+    padding: 12px;
+    gap: 16px;
+  }
+
+  .vendorProducts__table {
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .vendorProducts__header h1 {
+    font-size: 1.35rem;
+  }
+
+  .vendorProducts__datagrid {
+    font-size: 0.85rem;
+
+    .MuiDataGrid-columnHeaders {
+      font-size: 0.85rem;
+    }
+  }
+}
+
+
+
+

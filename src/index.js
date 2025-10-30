@@ -11,6 +11,33 @@ import App from './App';
 import {DarkModeContextProvider} from "./context/darkModeContext";
 import {AuthContextProvider} from "./context/AuthContext";
 
+if (typeof window !== "undefined") {
+  const resizeObserverErr = "ResizeObserver loop completed with undelivered notifications.";
+  const resizeObserverLimitErr = "ResizeObserver loop limit exceeded";
+
+  const ignoreResizeObserverError = (message = "") =>
+    typeof message === "string" &&
+    (message.includes(resizeObserverErr) ||
+      message.includes(resizeObserverLimitErr));
+
+  const handleWindowError = (message, source, lineno, colno, error) => {
+    if (ignoreResizeObserverError(message || error?.message)) {
+      return true;
+    }
+    return undefined;
+  };
+
+  window.onerror = handleWindowError;
+
+  window.onunhandledrejection = (event) => {
+    if (ignoreResizeObserverError(event?.reason?.message)) {
+      event.preventDefault?.();
+      return true;
+    }
+    return undefined;
+  };
+}
+
 ReactDOM.render(
   <React.StrictMode>
     <DarkModeContextProvider>

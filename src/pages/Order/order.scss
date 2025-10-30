@@ -1,21 +1,70 @@
-.order{ 
-    width: 100%;
+.order {
+  width: 100%;
+  display: flex;
+  min-height: 100vh;
+  background: #f5f6fa;
+
+  .orderContainer {
+    flex: 1 1 auto;
     display: flex;
+    flex-direction: column;
+    min-width: 0;
 
-    .orderContainer{
-        flex:6
+    .listContainer {
+      -webkit-box-shadow: 2px 4px 12px 1px rgba(15, 23, 42, 0.12);
+      box-shadow: 2px 4px 12px 1px rgba(15, 23, 42, 0.12);
+      background: #fff;
+      padding: 24px;
+      margin: 24px;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+
+      .listTitle {
+        font-weight: 600;
+        color: #4b5563;
+        font-size: 1.5rem;
+      }
     }
+  }
+}
 
-    .listContainer{
-        -webkit-box-shadow: 2px 4px 10px 1px #000000; 
-        box-shadow: 2px 4px 10px 1px #4b4a4a;
-        padding: 20px;
+@media (max-width: 992px) {
+  .order {
+    .orderContainer {
+      .listContainer {
         margin: 20px;
-
-        .listTitle{
-            font-weight: 500;
-            color: gray;
-            margin-bottom: 15px;
-        }
+        padding: 20px;
+        border-radius: 14px;
+      }
     }
+  }
+}
+
+@media (max-width: 768px) {
+  .order {
+    flex-direction: column;
+
+    .orderContainer {
+      width: 100%;
+
+      .listContainer {
+        margin: 16px;
+        padding: 18px;
+      }
+    }
+  }
+}
+
+@media (max-width: 576px) {
+  .order {
+    .orderContainer {
+      .listContainer {
+        margin: 12px;
+        padding: 16px;
+        border-radius: 12px;
+      }
+    }
+  }
 }
