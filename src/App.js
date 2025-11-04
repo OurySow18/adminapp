@@ -19,28 +19,23 @@ import { useContext } from "react";
 import { DarkModeContext } from "./context/darkModeContext";
 import { productInputs, userInputs, zonesInputs } from "./formSource";
 import {
-  userColumns,
-  vendorColumns,
+  userColumns, 
   productColumns,
   orderColumns,
-  zonesColumns,
-  gameColumns,
+  zonesColumns, 
 } from "./datatablesource";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { auth } from "./firebase";
-import Details from "./pages/productDetails/Details";
-import GameDetails from "./pages/Game/GameDetails";
-import GameDetails_test from "./pages/Game_test/GameDetails_test"; 
+import Details from "./pages/productDetails/Details"; 
 import DeliveredOrders from "./components/deliveredOrders/DeliveredOrdersInfos";
 import DetailsDeliveryOrders from "./components/DetailsDeliveryOrders/DetailsDeliveryOrders";
 import DetailsListDeliveredOrder from "./components/detailsListDeliveredOrder/DetailsListDeliveredOrders";
-import Zone from "./pages/zones/Zone";
-import GameStartScreen from "./components/game/GameStartScreen";
-import GameStartScreen_test from "./components/game_test/GameStartScreen_test";
+import Zone from "./pages/zones/Zone"; 
 import VendorsList from "./pages/vendors/VendorsList";
 import VendorDetails from "./pages/vendors/VendorDetails";
 import VendorProductsList from "./pages/vendorProducts/VendorProductsList";
 import VendorProductDetails from "./pages/vendorProducts/VendorProductDetails";
+import PublicCatalogList from "./pages/publicCatalog/PublicCatalogList";
 import { SidebarProvider } from "./context/sidebarContext";
 
 function App() {
@@ -173,6 +168,16 @@ function App() {
                 }
               />
             </Route>
+
+            {/*Public catalog*/}
+            <Route
+              path="catalogue-public"
+              element={
+                <RequireAuth>
+                  <PublicCatalogList />
+                </RequireAuth>
+              }
+            />
             <Route path="VendorProductsList">
               <Route
                 path=":productId"
@@ -314,45 +319,7 @@ function App() {
                   </RequireAuth>
                 }
               />
-            </Route>
-            {/*Game */}
-            <Route path="game">
-              <Route
-                index
-                element={
-                  <RequireAuth>
-                    <GameStartScreen typeColumns={gameColumns} />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path=":code"
-                element={
-                  <RequireAuth>
-                    <GameDetails />
-                  </RequireAuth>
-                }
-              />
-            </Route>
-            {/*Game Test */}
-            <Route path="game_test">
-              <Route
-                index
-                element={
-                  <RequireAuth>
-                    <GameStartScreen_test typeColumns={gameColumns} />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path=":code"
-                element={
-                  <RequireAuth>
-                    <GameDetails_test />
-                  </RequireAuth>
-                }
-              />
-            </Route>
+            </Route> 
           </Route>
         </Routes>
       </BrowserRouter>

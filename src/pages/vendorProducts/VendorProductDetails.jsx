@@ -36,6 +36,12 @@ const firstValue = (...values) => {
   return undefined;
 };
 
+const toBoolean = (value) =>
+  value === true ||
+  value === "true" ||
+  value === 1 ||
+  value === "1";
+
 const VendorProductDetails = () => {
   const { vendorId: vendorIdParam, productId: productIdParam } = useParams();
   const vendorId = decodeURIComponent(vendorIdParam || "_");
@@ -55,6 +61,8 @@ const VendorProductDetails = () => {
     error: null,
     success: null,
   });
+  const [publicProduct, setPublicProduct] = useState(null);
+  const [publicProductError, setPublicProductError] = useState(null);
 
   useEffect(() => {
     if (!productId) return;
@@ -159,6 +167,34 @@ const VendorProductDetails = () => {
   }, [product?.id]);
 
   useEffect(() => {
+    setPublicProduct(null);
+    setPublicProductError(null);
+    if (!productId) return undefined;
+
+    const publicRef = doc(db, "products_public", productId);
+    const unsubscribe = onSnapshot(
+      publicRef,
+      (snap) => {
+        if (snap.exists()) {
+          setPublicProduct({ id: snap.id, ...snap.data() });
+        } else {
+          setPublicProduct(null);
+        }
+        setPublicProductError(null);
+      },
+      (err) => {
+        console.error("Erreur verification produit public:", err);
+        setPublicProduct(null);
+        setPublicProductError(
+          "Impossible de verifier la publication Monmarche."
+        );
+      }
+    );
+
+    return () => unsubscribe();
+  }, [productId]);
+
+  useEffect(() => {
     if (!statusUpdateState.success) return undefined;
     const timer = setTimeout(() => {
       setStatusUpdateState((prev) =>
@@ -244,6 +280,27 @@ const VendorProductDetails = () => {
     }
     return status;
   }, [product]);
+
+  const monmarchePublication = useMemo(() => {
+    if (!publicProduct) {
+      return {
+        isPublished: false,
+        message: "Le produit n'est pas encore affiche sur Monmarche",
+      };
+    }
+    const statusFlag = toBoolean(publicProduct.status);
+    const mmStatusFlag = toBoolean(publicProduct.mm_status);
+    if (statusFlag && mmStatusFlag) {
+      return {
+        isPublished: true,
+        message: "Le produit est affiche sur Monmarche",
+      };
+    }
+    return {
+      isPublished: false,
+      message: "Le produit n'est pas encore affiche sur Monmarche",
+    };
+  }, [publicProduct]);
 
   const priceInfo = useMemo(() => {
     if (!product) return "-";
@@ -474,9 +531,29 @@ const VendorProductDetails = () => {
                     )}
                   </span>
                 </div>
+                <div className="vendorProductDetails__stat">
+                  <span className="vendorProductDetails__statLabel">
+                    Visibilite Monmarche
+                  </span>
+                  <span
+                    className={`vendorProductDetails__statValue ${
+                      monmarchePublication.isPublished
+                        ? "vendorProductDetails__statValue--positive"
+                        : "vendorProductDetails__statValue--negative"
+                    }`}
+                  >
+                    {monmarchePublication.message}
+                  </span>
+                </div>
               </div>
             </div>
           </section>
+
+          {publicProductError && (
+            <div className="vendorProductDetails__publicWarning">
+              {publicProductError}
+            </div>
+          )}
 
           {galleryImages.length > 1 && (
             <section>

@@ -69,8 +69,33 @@ export const normalizeVendorProductStatus = (value) => {
   return undefined;
 };
 
-export const resolveVendorProductActiveFlag = (data) => {
+const pathIncludes = (segments, target) =>
+  Array.isArray(segments) &&
+  segments.some((segment) => segment?.toLowerCase?.() === target);
+
+export const resolveVendorProductActiveFlag = (data, context = {}) => {
   if (!data || typeof data !== "object") return undefined;
+
+  const {
+    pathSegments = [],
+    source,
+    publicStatusFlag,
+    publicMmStatusFlag,
+  } = context ?? {};
+
+  const isPublicSource =
+    source === "public" || pathIncludes(pathSegments, "products_public");
+
+  if (!isPublicSource) {
+    return false;
+  }
+
+  if (
+    typeof publicStatusFlag === "boolean" ||
+    typeof publicMmStatusFlag === "boolean"
+  ) {
+    return publicStatusFlag === true && publicMmStatusFlag === true;
+  }
 
   const candidates = [
     data.active,
@@ -108,7 +133,21 @@ export const resolveVendorProductStatus = (
 ) => {
   if (!data || typeof data !== "object") return fallback;
 
-  const { pathSegments = [], active } = context ?? {};
+  const {
+    pathSegments = [],
+    active,
+    source,
+    publicActive,
+    publicStatusFlag,
+    publicMmStatusFlag,
+  } = context ?? {};
+
+  const isPublicSource =
+    source === "public" || pathIncludes(pathSegments, "products_public");
+  const derivedPublicActive =
+    typeof publicActive === "boolean"
+      ? publicActive
+      : publicStatusFlag === true && publicMmStatusFlag === true;
 
   const statusCandidates = [
     data.status,
@@ -125,7 +164,30 @@ export const resolveVendorProductStatus = (
 
   for (const candidate of statusCandidates) {
     const normalized = normalizeVendorProductStatus(candidate);
-    if (normalized) return normalized;
+    if (normalized) {
+      if (normalized === "published") {
+        if (!isPublicSource) {
+          return "blocked";
+        }
+        if (!derivedPublicActive) {
+          return "blocked";
+        }
+      }
+      return normalized;
+    }
+  }
+
+  if (isPublicSource) {
+    if (derivedPublicActive) {
+      return "published";
+    }
+    if (
+      publicStatusFlag === false ||
+      publicMmStatusFlag === false ||
+      derivedPublicActive === false
+    ) {
+      return "blocked";
+    }
   }
 
   if (
@@ -137,19 +199,15 @@ export const resolveVendorProductStatus = (
     return "draft";
   }
 
-  if (
-    Array.isArray(pathSegments) &&
-    pathSegments.some(
-      (segment) => segment?.toLowerCase?.() === "products_public"
-    )
-  ) {
-    return "published";
-  }
-
   const activeFlag =
     typeof active === "boolean"
       ? active
-      : resolveVendorProductActiveFlag(data);
+      : resolveVendorProductActiveFlag(data, {
+          pathSegments,
+          source,
+          publicStatusFlag,
+          publicMmStatusFlag,
+        });
   if (typeof activeFlag === "boolean") {
     return activeFlag ? "published" : "blocked";
   }

@@ -1,5 +1,5 @@
 //import "./DetailsDeliveryOrders.scss";
-import "../../style/orderDetails.scss"
+import "../../style/orderDetails.scss";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Sidebar from "../sidebar/Sidebar";
@@ -8,8 +8,7 @@ import { format } from "date-fns";
 
 import { db } from "../../firebase";
 import {
-  collection,
-  deleteDoc,
+  collection, 
   doc,
   getDoc,
   onSnapshot,
@@ -47,28 +46,6 @@ export default function DetailsDeliveryOrders({ title, btnValidation }) {
       style: "currency",
       currency: "GNF",
     });
-
-  // Créditer un joueur (document id = uid/code) dans la collection "game"
-  const creditPlayerPoints = async (uid, points) => {
-    try {
-      if (!uid || !points) return;
-      const ref = doc(db, "game", uid);
-      const snap = await getDoc(ref);
-
-      if (snap.exists()) {
-        await updateDoc(ref, { points: increment(points) });
-      } else {
-        await setDoc(
-          ref,
-          { points, createdAt: serverTimestamp() },
-          { merge: true }
-        );
-      }
-      console.log(`+${points} points → "${uid}"`);
-    } catch (e) {
-      console.error("creditPlayerPoints error:", e);
-    }
-  };
 
   // Flag dans "orders" (pour éviter re-traitement côté UI)
   const flagOrderDeliveredAndArchived = async () => {
@@ -296,30 +273,10 @@ export default function DetailsDeliveryOrders({ title, btnValidation }) {
       batch.delete(orderRef);
       await batch.commit();
 
-      // 3) Points parrain/acheteur
-      const buyerUid = data?.userId;
-      if (buyerUid) {
-        const buyerRef = doc(db, "users", buyerUid);
-        const buyerSnap = await getDoc(buyerRef);
-        const validatedCode = buyerSnap.exists()
-          ? buyerSnap.data()?.validatedCode
-          : null;
-        const challengeCode = buyerSnap.exists()
-          ? buyerSnap.data()?.challengeCode
-          : null;
-
-        if (validatedCode) {
-          await creditPlayerPoints(validatedCode, POINTS_PER_ORDER);
-        }
-        if (challengeCode) {
-          await creditPlayerPoints(challengeCode, POINTS_PER_ORDER);
-        }
-      }
-
       // 4) Mail (non bloquant)
       await sendPerMail();
 
-      alert("Commande archivée & points crédités.");
+      alert("Commande archivée");
       navigate("/delivery");
     } catch (e) {
       console.error("Archivage error:", e);
@@ -565,9 +522,7 @@ export default function DetailsDeliveryOrders({ title, btnValidation }) {
         </div>
 
         <div className="actionsBar">
-          <button onClick={goBack}>
-            Revenir en arrière
-          </button>
+          <button onClick={goBack}>Revenir en arrière</button>
           <button onClick={printOrder}>Imprimer la commande</button>
         </div>
       </div>

@@ -165,6 +165,10 @@ const VendorDetails = () => {
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState(null);
+  const [approvalLocation, setApprovalLocation] = useState(null);
+  const [fetchingLocation, setFetchingLocation] = useState(false);
+  const [locationError, setLocationError] = useState(null);
+  const [locationMessage, setLocationMessage] = useState(null);
 
   useEffect(() => {
     if (!id) return;
@@ -189,6 +193,13 @@ const VendorDetails = () => {
     );
 
     return () => unsub();
+  }, [id]);
+
+  useEffect(() => {
+    setApprovalLocation(null);
+    setLocationError(null);
+    setLocationMessage(null);
+    setFetchingLocation(false);
   }, [id]);
 
   const profile = useMemo(() => (vendor ? getProfileSection(vendor) : {}), [vendor]);
@@ -760,8 +771,77 @@ const VendorDetails = () => {
     [products]
   );
 
+  const handleCaptureLocation = useCallback(() => {
+    if (typeof navigator === "undefined" || !navigator?.geolocation) {
+      setLocationError(
+        "La geolocalisation n'est pas supportee sur cet appareil."
+      );
+      return;
+    }
+
+    setFetchingLocation(true);
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const {
+          accuracy,
+          altitude,
+          altitudeAccuracy,
+          heading,
+          latitude,
+          longitude,
+          speed,
+        } = position.coords;
+        setApprovalLocation({
+          latitude,
+          longitude,
+          accuracy: typeof accuracy === "number" ? accuracy : null,
+          altitude: typeof altitude === "number" ? altitude : null,
+          altitudeAccuracy:
+            typeof altitudeAccuracy === "number" ? altitudeAccuracy : null,
+          heading: typeof heading === "number" ? heading : null,
+          speed: typeof speed === "number" ? speed : null,
+          timestamp: position.timestamp || Date.now(),
+        });
+        setLocationMessage("Coordonnees recuperees.");
+        setFetchingLocation(false);
+      },
+      (error) => {
+        let message = "Impossible de récupérer la position.";
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            message =
+              "Autorisez l'acces a la localisation pour continuer.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            message = "Les informations de localisation sont indisponibles.";
+            break;
+          case error.TIMEOUT:
+            message = "La recuperation de la position a expire.";
+            break;
+          default:
+            break;
+        }
+        setFetchingLocation(false);
+        setLocationMessage(null);
+        setLocationError(message);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10000,
+      }
+    );
+  }, []);
+
   const handleApproveVendor = useCallback(async () => {
     if (!vendor?.id) return false;
+    if (!approvalLocation) {
+      setActionError(
+        "Veuillez recuperer les coordonnees avant de valider le vendeur."
+      );
+      return false;
+    }
     setActionBusy(true);
     setActionError(null);
     let success = false;
@@ -793,6 +873,31 @@ const VendorDetails = () => {
         updates.approvedByUid = auth.currentUser.uid;
       }
 
+      const locationPayload = {
+        latitude: approvalLocation.latitude,
+        longitude: approvalLocation.longitude,
+      };
+      if (typeof approvalLocation.accuracy === "number") {
+        locationPayload.accuracy = approvalLocation.accuracy;
+      }
+      if (typeof approvalLocation.altitude === "number") {
+        locationPayload.altitude = approvalLocation.altitude;
+      }
+      if (typeof approvalLocation.altitudeAccuracy === "number") {
+        locationPayload.altitudeAccuracy = approvalLocation.altitudeAccuracy;
+      }
+      if (typeof approvalLocation.heading === "number") {
+        locationPayload.heading = approvalLocation.heading;
+      }
+      if (typeof approvalLocation.speed === "number") {
+        locationPayload.speed = approvalLocation.speed;
+      }
+      if (approvalLocation.timestamp) {
+        locationPayload.capturedAt = approvalLocation.timestamp;
+      }
+
+      updates.approvedCoordinates = locationPayload;
+
       await updateDoc(vendorRef, updates);
       setActionMessage("Le vendeur a ete valide.");
       success = true;
@@ -806,7 +911,7 @@ const VendorDetails = () => {
     }
 
     return success;
-  }, [vendor]);
+  }, [vendor, approvalLocation]);
 
   const handleBlockVendor = useCallback(
     async (reason) => {
@@ -1190,6 +1295,14 @@ const VendorDetails = () => {
     return () => clearTimeout(timer);
   }, [actionError]);
 
+  useEffect(() => {
+    if (!locationMessage) return;
+    const timer = setTimeout(() => {
+      setLocationMessage(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [locationMessage]);
+
   const closeDialog = useCallback(() => {
     setDialog(null);
     setDialogReason("");
@@ -1461,8 +1574,18 @@ const VendorDetails = () => {
               <div className="vendorDetails__actionGroup vendorDetails__actionGroup--primary">
                 <button
                   type="button"
+                  className="vendorDetails__actionButton vendorDetails__actionButton--ghost"
+                  disabled={fetchingLocation}
+                  onClick={handleCaptureLocation}
+                >
+                  {fetchingLocation
+                    ? "Recuperation en cours..."
+                    : "Recuperer ma position"}
+                </button>
+                <button
+                  type="button"
                   className="vendorDetails__actionButton vendorDetails__actionButton--primary"
-                  disabled={actionBusy || isApproved}
+                  disabled={actionBusy || isApproved || !approvalLocation}
                   onClick={() => openDialog({ type: "approveVendor" })}
                 >
                   Valider le vendeur
@@ -1511,6 +1634,26 @@ const VendorDetails = () => {
 
               {actionBusy && (
                 <p className="vendorDetails__actionsMeta">Action en cours...</p>
+              )}
+              {approvalLocation && (
+                <p className="vendorDetails__actionsMeta">
+                  Coordonnees enregistrees :{" "}
+                  {approvalLocation.latitude.toFixed(5)},{" "}
+                  {approvalLocation.longitude.toFixed(5)}
+                  {typeof approvalLocation.accuracy === "number"
+                    ? ` (±${Math.round(approvalLocation.accuracy)} m)`
+                    : ""}
+                </p>
+              )}
+              {locationMessage && (
+                <p className="vendorDetails__actionsFeedback vendorDetails__actionsFeedback--success">
+                  {locationMessage}
+                </p>
+              )}
+              {locationError && (
+                <p className="vendorDetails__actionsFeedback vendorDetails__actionsFeedback--error">
+                  {locationError}
+                </p>
               )}
               {actionError && (
                 <p className="vendorDetails__actionsFeedback vendorDetails__actionsFeedback--error">
@@ -1984,12 +2127,6 @@ const VendorDetails = () => {
 };
 
 export default VendorDetails;
-
-
-
-
-
-
 
 
 

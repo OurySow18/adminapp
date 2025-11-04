@@ -148,6 +148,15 @@ const getProductStatus = (row, defaultStatus = "unknown") =>
   );
 
 const getProductActiveFlag = (row) => {
+  if (typeof row?.publicActive === "boolean") {
+    return row.publicActive;
+  }
+  if (
+    typeof row?.publicStatusFlag === "boolean" &&
+    typeof row?.publicMmStatusFlag === "boolean"
+  ) {
+    return row.publicStatusFlag && row.publicMmStatusFlag;
+  }
   const candidates = [
     row.active,
     row.isActive,
@@ -481,12 +490,13 @@ export const vendorProductColumns = [
     valueGetter: (params) => getProductTitle(params.row),
   },
   {
-    field: "vendorId",
+    field: "vendorName",
     headerName: "Vendeur",
     flex: 0.7,
     minWidth: 160,
     valueGetter: (params) =>
       firstValue(
+        params.row.vendorName,
         params.row.vendorDisplayId,
         params.row.vendorId,
         params.row.core?.vendorId,

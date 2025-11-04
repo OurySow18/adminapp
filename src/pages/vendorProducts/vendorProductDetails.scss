@@ -171,6 +171,25 @@
   color: #111827;
 }
 
+.vendorProductDetails__statValue--positive {
+  color: #166534;
+}
+
+.vendorProductDetails__statValue--negative {
+  color: #991b1b;
+}
+
+.vendorProductDetails__publicWarning {
+  margin-top: -12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  background: rgba(220, 38, 38, 0.12);
+  color: #991b1b;
+}
+
 .vendorProductDetails__card {
   background: #fff;
   border-radius: 12px;

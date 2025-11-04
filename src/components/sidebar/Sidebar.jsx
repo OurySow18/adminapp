@@ -11,6 +11,7 @@ import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined
 import StoreIcon from "@mui/icons-material/Store";
 import StorefrontIcon from "@mui/icons-material/Storefront";
 import Inventory2Icon from "@mui/icons-material/Inventory2";
+import PublicIcon from "@mui/icons-material/Public";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import LocalPrintshopSharpIcon from "@mui/icons-material/LocalPrintshopSharp";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
@@ -246,6 +247,11 @@ const Sidbar = () => {
     return null;
   }, [location.pathname]);
 
+  const isPublicCatalogActive = useMemo(
+    () => location.pathname.startsWith("/catalogue-public"),
+    [location.pathname]
+  );
+
   const vendorActiveKey = useMemo(() => {
     const normalizedPath = location.pathname.replace(/\/+$/, "");
     if (normalizedPath.startsWith("/vendors/status/")) {
@@ -431,6 +437,16 @@ return (
             <li>
               <StoreIcon className="icon" />
               <span>Produits</span>
+            </li>
+          </Link>
+          <Link
+            to="/catalogue-public"
+            style={{ textDecoration: "none" }}
+            onClick={handleNavLinkClick}
+          >
+            <li className={isPublicCatalogActive ? "active" : ""}>
+              <PublicIcon className="icon" />
+              <span>Catalogue publique</span>
             </li>
           </Link>
           <li className={`menu-group ${vendorProductsMenuOpen ? "open" : ""}`}>

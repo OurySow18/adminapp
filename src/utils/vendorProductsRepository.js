@@ -27,6 +27,74 @@ const firstValue = (...values) => {
   return undefined;
 };
 
+const toTruthyBoolean = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (
+      normalized === "true" ||
+      normalized === "1" ||
+      normalized === "oui" ||
+      normalized === "yes" ||
+      normalized === "active" ||
+      normalized === "actif" ||
+      normalized === "published"
+    ) {
+      return true;
+    }
+    if (
+      normalized === "false" ||
+      normalized === "0" ||
+      normalized === "non" ||
+      normalized === "no" ||
+      normalized === "inactive" ||
+      normalized === "inactif" ||
+      normalized === "blocked"
+    ) {
+      return false;
+    }
+  }
+  return false;
+};
+
+const resolvePublicPublicationFlags = (raw, source, pathSegments = []) => {
+  const isPublicSource =
+    source === "public" ||
+    (Array.isArray(pathSegments) &&
+      pathSegments.some(
+        (segment) => segment?.toLowerCase?.() === "products_public"
+      ));
+
+  if (!isPublicSource) {
+    return {
+      isPublicSource: false,
+      publicStatusFlag: false,
+      publicMmStatusFlag: false,
+      publicActive: false,
+    };
+  }
+
+  const statusCandidate = firstValue(
+    raw.status,
+    raw.active,
+    raw.isActive,
+    raw?.core?.status,
+    raw?.core?.active
+  );
+  const mmCandidate = firstValue(raw.mm_status, raw.mmStatus);
+
+  const publicStatusFlag = toTruthyBoolean(statusCandidate);
+  const publicMmStatusFlag = toTruthyBoolean(mmCandidate);
+
+  return {
+    isPublicSource: true,
+    publicStatusFlag,
+    publicMmStatusFlag,
+    publicActive: publicStatusFlag && publicMmStatusFlag,
+  };
+};
+
 const sanitizeProductPayload = (rawProduct) => {
   if (!rawProduct || typeof rawProduct !== "object") return {};
   const {
@@ -183,27 +251,78 @@ const resolveVendorProductCover = (raw) =>
     "/default-image.png"
   );
 
-export const buildVendorProductRow = (entry) => {
-  const { raw, vendorId, vendorDisplayId, productId, updatedAt, source, docPath, pathSegments } =
-    entry;
+const resolveVendorProductVendorName = (raw, fallback) =>
+  firstValue(
+    raw.vendorName,
+    raw.vendor?.name,
+    raw.vendor?.displayName,
+    raw.vendor?.companyName,
+    raw.vendor?.profile?.displayName,
+    raw.vendor?.profile?.company?.name,
+    raw.profile?.displayName,
+    raw.profile?.company?.name,
+    raw.company?.name,
+    raw.core?.vendorName,
+    raw.core?.vendor?.name,
+    raw.core?.vendor?.displayName,
+    raw.core?.profile?.displayName,
+    raw.core?.profile?.company?.name,
+    raw.draft?.core?.vendorName,
+    raw.draft?.core?.vendor?.name,
+    raw.draft?.core?.vendor?.displayName,
+    raw.draft?.core?.profile?.displayName,
+    raw.draft?.core?.profile?.company?.name,
+    fallback
+  );
 
-  const active = resolveVendorProductActiveFlag(raw);
+export const buildVendorProductRow = (entry) => {
+  const {
+    raw,
+    vendorId,
+    vendorDisplayId,
+    productId,
+    updatedAt,
+    source,
+    docPath,
+    pathSegments,
+  } = entry;
+
+  const vendorIdFallback = vendorId === "_" ? "-" : vendorId;
+  const resolvedVendorDisplayId =
+    vendorDisplayId ??
+    firstValue(
+      raw.vendorId,
+      raw.core?.vendorId,
+      raw.draft?.core?.vendorId,
+      vendorIdFallback
+    ) ??
+    vendorIdFallback;
+  const vendorName = resolveVendorProductVendorName(
+    raw,
+    resolvedVendorDisplayId
+  );
+
+  const publicFlags = resolvePublicPublicationFlags(raw, source, pathSegments);
+  const active = resolveVendorProductActiveFlag(raw, {
+    source,
+    pathSegments,
+    publicStatusFlag: publicFlags.publicStatusFlag,
+    publicMmStatusFlag: publicFlags.publicMmStatusFlag,
+  });
   const status = resolveVendorProductStatus(raw, "unknown", {
     pathSegments,
     active,
+    source,
+    publicActive: publicFlags.publicActive,
+    publicStatusFlag: publicFlags.publicStatusFlag,
+    publicMmStatusFlag: publicFlags.publicMmStatusFlag,
   });
 
   return {
     id: entry.id,
     vendorId,
-    vendorDisplayId:
-      vendorDisplayId ??
-      firstValue(
-        raw.vendorId,
-        raw.core?.vendorId,
-        raw.draft?.core?.vendorId,
-        vendorId === "_" ? "-" : vendorId
-      ),
+    vendorDisplayId: resolvedVendorDisplayId,
+    vendorName,
     productId,
     title: resolveVendorProductTitle(raw, productId),
     status,
@@ -219,6 +338,9 @@ export const buildVendorProductRow = (entry) => {
     source,
     pathSegments,
     raw,
+    publicStatusFlag: publicFlags.publicStatusFlag,
+    publicMmStatusFlag: publicFlags.publicMmStatusFlag,
+    publicActive: publicFlags.publicActive,
   };
 };
 
@@ -246,19 +368,13 @@ const fetchVendorProductEntries = async () => {
   const vendorSnapshots = await getDocs(collectionGroup(db, "products"));
   vendorSnapshots.forEach((docSnap) => {
     const segments = docSnap.ref.path.split("/").filter(Boolean);
-    const vendorIdFromPath =
-      segments.length >= 4 ? segments[segments.length - 3] : undefined;
+    if (segments.length < 4 || segments[0] !== "vendor_products") {
+      return;
+    }
+    const vendorIdFromPath = segments[segments.length - 3];
     const entry = normalizeVendorProductDoc(docSnap, {
       source: "nested",
       vendorIdFromPath,
-    });
-    mergeVendorProductEntry(aggregate, entry);
-  });
-
-  const publicSnapshot = await getDocs(collection(db, "products_public"));
-  publicSnapshot.forEach((docSnap) => {
-    const entry = normalizeVendorProductDoc(docSnap, {
-      source: "public",
     });
     mergeVendorProductEntry(aggregate, entry);
   });
@@ -268,6 +384,17 @@ const fetchVendorProductEntries = async () => {
 
 export const loadVendorProductRows = async () => {
   const entries = await fetchVendorProductEntries();
+  const rows = entries.map(buildVendorProductRow);
+  rows.sort((a, b) => toTime(b.updatedAt) - toTime(a.updatedAt));
+  return rows;
+};
+
+export const loadPublicCatalogRows = async () => {
+  const snapshot = await getDocs(collection(db, "products_public"));
+  const entries = [];
+  snapshot.forEach((docSnap) => {
+    entries.push(normalizeVendorProductDoc(docSnap, { source: "public" }));
+  });
   const rows = entries.map(buildVendorProductRow);
   rows.sort((a, b) => toTime(b.updatedAt) - toTime(a.updatedAt));
   return rows;
@@ -298,10 +425,24 @@ export const loadVendorProductStats = async () => {
   const stats = createEmptyVendorProductStats();
   for (const entry of entries) {
     stats.total += 1;
-    const active = resolveVendorProductActiveFlag(entry.raw);
+    const publicFlags = resolvePublicPublicationFlags(
+      entry.raw,
+      entry.source,
+      entry.pathSegments
+    );
+    const active = resolveVendorProductActiveFlag(entry.raw, {
+      source: entry.source,
+      pathSegments: entry.pathSegments,
+      publicStatusFlag: publicFlags.publicStatusFlag,
+      publicMmStatusFlag: publicFlags.publicMmStatusFlag,
+    });
     const status = resolveVendorProductStatus(entry.raw, "unknown", {
       pathSegments: entry.pathSegments,
       active,
+      source: entry.source,
+      publicActive: publicFlags.publicActive,
+      publicStatusFlag: publicFlags.publicStatusFlag,
+      publicMmStatusFlag: publicFlags.publicMmStatusFlag,
     });
     const normalized =
       normalizeVendorProductStatus(status) ??
@@ -423,10 +564,24 @@ export const transitionVendorProductStatus = async ({
   const writePromises = [];
   refs.forEach((ref) => {
     const isPublic = ref.path.startsWith("products_public/");
-    const payload =
-      isPublic && hydratePublicDoc && sanitizedProduct
-        ? { ...sanitizedProduct, ...updates }
-        : updates;
+    let payload = updates;
+
+    if (isPublic) {
+      const publicPayload = {
+        ...updates,
+        mm_status: normalized === "published",
+      };
+
+      payload =
+        hydratePublicDoc && sanitizedProduct
+          ? {
+              ...sanitizedProduct,
+              ...publicPayload,
+              mm_status: normalized === "published",
+            }
+          : publicPayload;
+    }
+
     writePromises.push(setDoc(ref, payload, { merge: true }));
   });
 
