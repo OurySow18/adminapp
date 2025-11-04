@@ -15,8 +15,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
-  writeBatch,
-  increment,
+  writeBatch, 
 } from "firebase/firestore";
 
 const POINTS_PER_ORDER = 10;
