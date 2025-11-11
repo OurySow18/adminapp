@@ -5,10 +5,34 @@
   flex-direction: column;
   gap: 16px;
 
+  .listOrder__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
   .listOrderTitel {
     font-size: 1.5rem;
     font-weight: 600;
     color: #4b5563;
+  }
+
+  .listOrder__searchInput {
+    flex: 1 1 260px;
+    max-width: 360px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #d1d5db;
+    font-size: 0.95rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+    &:focus {
+      outline: none;
+      border-color: #ff6f00;
+      box-shadow: 0 0 0 2px rgba(255, 111, 0, 0.2);
+    }
   }
 
   .listOrder__gridWrapper {
@@ -78,6 +102,17 @@
 
     .listOrderTitel {
       font-size: 1.2rem;
+    }
+
+    .listOrder__header {
+      flex-direction: column;
+      align-items: flex-start;
+      width: 100%;
+    }
+
+    .listOrder__searchInput {
+      width: 100%;
+      max-width: none;
     }
 
     .listOrder__gridWrapper .datagrid {

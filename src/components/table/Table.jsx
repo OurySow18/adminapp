@@ -1,5 +1,11 @@
-import React, { useState, useEffect } from "react";
-import { collection, onSnapshot } from "firebase/firestore";
+import React, { useEffect, useState } from "react";
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  limit as limitDocs,
+} from "firebase/firestore";
 import { db } from "../../firebase";
 import { Link } from "react-router-dom";
 import Table from "@mui/material/Table";
@@ -10,31 +16,61 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
 import { format } from "date-fns";
+import "./table.scss";
 
-const ListCommande = ({ userId }) => {
-  const [data, setData] = useState([]);
-  console.log("User: ", userId)
+const formatDateTime = (value) => {
+  if (!value) return "-";
+  if (typeof value?.toDate === "function") {
+    const date = value.toDate();
+    return format(date, "dd/MM/yyyy HH:mm");
+  }
+  if (value instanceof Date) return format(value, "dd/MM/yyyy HH:mm");
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? "-"
+    : format(parsed, "dd/MM/yyyy HH:mm");
+};
+
+const formatCurrency = (amount, currency = "GNF") => {
+  if (amount === undefined || amount === null) return "-";
+  const numeric = Number(amount);
+  if (Number.isNaN(numeric)) return `${amount} ${currency}`;
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency,
+    currencyDisplay: "code",
+    maximumFractionDigits: 0,
+  }).format(numeric);
+};
+
+const ListCommande = ({ limit = 10 }) => {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "archivedOrders"), (snapshot) => {
-      let list = [];
-      snapshot.docs.forEach((doc) => {
-        const order = { id: doc.id, ...doc.data() };
-        // Filtrer selon l'userId
-        if (order.userId === userId) {
-          list.push(order);
-        }
-      });
-      // Tri décroissant par date
-      list.sort((a, b) => b.timeStamp.toDate() - a.timeStamp.toDate());
-      setData(list);
-    }, (error) => {
-      console.log("Error fetching data: ", error);
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [userId]);
+    const ordersQuery = query(
+      collection(db, "orders"),
+      orderBy("timeStamp", "desc"),
+      limitDocs(limit)
+    );
+    const unsubscribe = onSnapshot(
+      ordersQuery,
+      (snapshot) => {
+        const list = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+        setOrders(list);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Erreur chargement commandes:", error);
+        setOrders([]);
+        setLoading(false);
+      }
+    );
+    return () => unsubscribe();
+  }, [limit]);
 
   return (
     <TableContainer component={Paper} className="table">
@@ -42,7 +78,7 @@ const ListCommande = ({ userId }) => {
         <TableHead>
           <TableRow>
             <TableCell className="tableCell">Commande ID</TableCell>
-            <TableCell className="tableCell">Nom du récepteur</TableCell>
+            <TableCell className="tableCell">Nom du client</TableCell>
             <TableCell className="tableCell">Adresse</TableCell>
             <TableCell className="tableCell">Date et Heure</TableCell>
             <TableCell className="tableCell">Total</TableCell>
@@ -51,27 +87,53 @@ const ListCommande = ({ userId }) => {
           </TableRow>
         </TableHead>
         <TableBody>
-          {data.map((row) => (
-            <TableRow key={row.id} component={Link} to={`/order/${row.id}`} hover>
-              <TableCell className="tableCell">{row.orderId}</TableCell>
-              <TableCell className="tableCell">
-                <div className="cellWrapper">
-                  {row.deliverInfos.name}
-                </div>
-              </TableCell>
-              <TableCell className="tableCell">{row.deliverInfos.address}</TableCell>
-              <TableCell className="tableCell">
-                {row.timeStamp && format(row.timeStamp.toDate(), 'dd/MM/yyyy HH:mm:ss')}
-              </TableCell>
-              <TableCell className="tableCell">{row.total}</TableCell>
-              <TableCell className="tableCell">{row.paymentMethode}</TableCell>
-              <TableCell className="tableCell">
-                <span className={`status ${row.delivered ? 'delivered' : 'pending'}`}>
-                  {row.delivered ? "Livré" : "En attente"}
-                </span>
+          {loading && (
+            <TableRow>
+              <TableCell colSpan={7} className="tableCell">
+                Chargement des commandes...
               </TableCell>
             </TableRow>
-          ))}
+          )}
+          {!loading &&
+            orders.map((row) => {
+              const receiver = row.deliverInfos ?? {};
+              return (
+                <TableRow key={row.id} hover component={Link} to={`/orders/${row.id}`}>
+                  <TableCell className="tableCell">{row.orderId || row.id}</TableCell>
+                  <TableCell className="tableCell">
+                    <div className="cellWrapper">
+                      {receiver.name || row.customerName || "-"}
+                    </div>
+                  </TableCell>
+                  <TableCell className="tableCell">
+                    {receiver.address || row.customerAddress || "-"}
+                  </TableCell>
+                  <TableCell className="tableCell">
+                    {formatDateTime(row.timeStamp)}
+                  </TableCell>
+                  <TableCell className="tableCell">
+                    {formatCurrency(row.total)}
+                  </TableCell>
+                  <TableCell className="tableCell">
+                    {row.paymentMethode || row.paymentMethod || "-"}
+                  </TableCell>
+                  <TableCell className="tableCell">
+                    <span
+                      className={`status ${row.delivered ? "delivered" : "pending"}`}
+                    >
+                      {row.delivered ? "Livré" : "En attente"}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          {!loading && orders.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={7} className="tableCell">
+                Aucune commande trouv�e.�e.
+              </TableCell>
+            </TableRow>
+          )}
         </TableBody>
       </Table>
     </TableContainer>
@@ -79,3 +141,6 @@ const ListCommande = ({ userId }) => {
 };
 
 export default ListCommande;
+
+
+

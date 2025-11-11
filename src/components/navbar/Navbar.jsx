@@ -54,10 +54,10 @@ const Navbar = () => {
           >
             <ToggleIcon className="navbar__menuIcon" />
           </button>
-          <div className="search">
+         {/* <div className="search">
             <input type="text" placeholder="Search..." />
             <SearchOutlinedIcon />
-          </div>
+          </div>*/}
         </div>
         <div className="items">
           <div className="item item--language">

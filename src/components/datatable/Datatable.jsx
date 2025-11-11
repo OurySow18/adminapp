@@ -17,6 +17,45 @@ import {
 } from "firebase/firestore";
 import { db } from "../../firebase";
 
+const firstValue = (...values) => {
+  for (const value of values) {
+    if (value !== undefined && value !== null && value !== "") {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const toDateValue = (value) => {
+  if (!value) return undefined;
+  if (typeof value?.toDate === "function") return value.toDate();
+  if (value instanceof Date) return value;
+  if (typeof value === "number") return new Date(value);
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  if (
+    typeof value === "object" &&
+    typeof value.seconds === "number" &&
+    typeof value.nanoseconds === "number"
+  ) {
+    return new Date(value.seconds * 1000 + Math.floor(value.nanoseconds / 1e6));
+  }
+  return undefined;
+};
+
+const formatDateForSearch = (value) => {
+  const date = toDateValue(value);
+  return date
+    ? date.toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : "";
+};
+
 const Datatable = ({
   typeColumns,
   title,
@@ -25,9 +64,16 @@ const Datatable = ({
   disableCreate = false,
 }) => {
   const [data, setData] = useState([]);
-  const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [pageSize, setPageSize] = useState(9);
+  const [searchQuery, setSearchQuery] = useState("");
+  const enableSearch = ["products", "users", "vendors"].includes(title);
+
+  useEffect(() => {
+    if (!enableSearch && searchQuery) {
+      setSearchQuery("");
+    }
+  }, [enableSearch, searchQuery]);
 
   const applyFilter = useMemo(() => {
     if (!dataFilter) return null;
@@ -66,13 +112,11 @@ const Datatable = ({
         const filteredList = applyFilter ? applyFilter(list) : list;
 
         setData(filteredList);
-        setCount(filteredList.length);
         setLoading(false);
       },
       (error) => {
         console.error("onSnapshot error:", error);
         setData([]);
-        setCount(0);
         setLoading(false);
       }
     );
@@ -86,7 +130,6 @@ const Datatable = ({
     try {
       await deleteDoc(doc(db, title, id));
       setData((prev) => prev.filter((item) => item.id !== id));
-      setCount((c) => c - 1);
     } catch (err) {
       console.error(err);
     }
@@ -96,7 +139,7 @@ const Datatable = ({
     {
       field: "action",
       headername: "Action",
-      width: 200,
+      width: 90,
       renderCell: (params) => {
         return (
           <div className="cellAction">
@@ -124,22 +167,128 @@ const Datatable = ({
     [typeColumns]
   );
 
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  const displayedRows = useMemo(() => {
+    if (!enableSearch || !normalizedSearch) return data;
+    return data.filter((row) => {
+      const titleCandidate = firstValue(
+        row.name,
+        row.title,
+        row.product,
+        row.core?.title,
+        row.draft?.core?.title,
+        row.profile?.displayName,
+        row.profile?.company?.name
+      );
+      const descriptionCandidate = firstValue(
+        row.description,
+        row.core?.description,
+        row.draft?.core?.description,
+        row.profile?.bio
+      );
+      const categoryCandidate = firstValue(
+        row.category,
+        row.categoryId,
+        row.core?.categoryId,
+        row.draft?.core?.categoryId,
+        row.role,
+        row.profile?.role
+      );
+      const createdAtCandidate = formatDateForSearch(
+        firstValue(
+          row.createdAt,
+          row.core?.createdAt,
+          row.draft?.core?.createdAt,
+          row.profile?.createdAt,
+          row.timeStamp,
+          row.created_at
+        )
+      );
+      const userEmailCandidate = firstValue(
+        row.email,
+        row.profile?.email,
+        row.account?.email
+      );
+      const vendorEmailCandidate = firstValue(
+        row.vendorEmail,
+        row.company?.email,
+        row.profile?.vendorEmail
+      );
+      const identifierCandidate = firstValue(
+        row.product_id,
+        row.vendorId,
+        row.profile?.vendorId,
+        row.id,
+        row.uid
+      );
+      const vendorNameCandidate = firstValue(
+        row.vendorName,
+        row.displayName,
+        row.profile?.displayName,
+        row.profile?.company?.name,
+        row.company?.name,
+        row.vendor?.name
+      );
+      const vendorPhoneCandidate = firstValue(
+        row.phone,
+        row.profile?.phone,
+        row.contact?.phone,
+        row.company?.phone
+      );
+      const vendorStatusCandidate = firstValue(
+        row.vendorStatus,
+        row.status,
+        row.profile?.status
+      );
+
+      const candidates = [
+        identifierCandidate,
+        titleCandidate,
+        descriptionCandidate,
+        categoryCandidate,
+        createdAtCandidate,
+        userEmailCandidate,
+        vendorEmailCandidate,
+        vendorNameCandidate,
+        vendorPhoneCandidate,
+        vendorStatusCandidate,
+      ];
+      return candidates
+        .filter((value) => typeof value === "string" && value.trim())
+        .some((value) => value.toLowerCase().includes(normalizedSearch));
+    });
+  }, [data, enableSearch, normalizedSearch]);
+
+  const displayedCount = displayedRows.length;
+
   return (
     <div className="datatable">
       <div className="datatableTitle">
-        <span>
-          Number of {headerTitle} is {count}
-        </span>
-        {!disableCreate && (
-          <Link to={{ pathname: "new" }} className="link">
-            Add new
-          </Link>
+        <div className="datatableTitle__info">
+          <span>
+            Number of {headerTitle} is {displayedCount}
+          </span>
+          {!disableCreate && (
+            <Link to={{ pathname: "new" }} className="link">
+              Add new
+            </Link>
+          )}
+        </div>
+        {enableSearch && (
+          <input
+            type="search"
+            className="datatableTitle__search"
+            placeholder="Rechercher..."
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+          />
         )}
       </div>
       <div className="datatable__gridWrapper">
         <DataGrid
           className="datagrid"
-          rows={data}
+          rows={displayedRows}
           columns={columns}
           pageSize={pageSize}
           onPageSizeChange={(newSize) => setPageSize(newSize)}
@@ -155,3 +304,5 @@ const Datatable = ({
 };
 
 export default Datatable;
+
+

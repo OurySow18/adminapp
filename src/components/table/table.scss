@@ -1,4 +1,5 @@
 .table {
+    width: 100%;
     .cellWrapper {
         display: flex;
         align-items: center;
@@ -15,14 +16,16 @@
     .status {
         padding: 5px;
         border-radius: 5px;
+        font-weight: 600;
+        font-size: 0.85rem;
 
         &.delivered {
-            color: green;
-            background-color: rgba(0, 128, 0, 0.151);
+            color: #047857;
+            background-color: rgba(16, 185, 129, 0.15);
         }
         &.pending {
-            color: goldenrod;
-            background-color: rgba(189, 189, 3, 0.103);
+            color: #b45309;
+            background-color: rgba(249, 115, 22, 0.15);
         }
     }
 }

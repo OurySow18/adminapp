@@ -12,6 +12,45 @@ import {
   normalizeVendorProductFilterKey,
 } from "../../utils/vendorProductsRepository";
 
+const firstValue = (...values) => {
+  for (const value of values) {
+    if (value !== undefined && value !== null && value !== "") {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const toDate = (value) => {
+  if (!value) return undefined;
+  if (typeof value?.toDate === "function") return value.toDate();
+  if (value instanceof Date) return value;
+  if (typeof value === "number") return new Date(value);
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  if (
+    typeof value === "object" &&
+    typeof value.seconds === "number" &&
+    typeof value.nanoseconds === "number"
+  ) {
+    return new Date(value.seconds * 1000 + Math.floor(value.nanoseconds / 1e6));
+  }
+  return undefined;
+};
+
+const formatDateForSearch = (value) => {
+  const date = toDate(value);
+  return date
+    ? date.toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : "";
+};
+
 const VendorProductsList = () => {
   const { statusId } = useParams();
 
@@ -24,13 +63,51 @@ const VendorProductsList = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [pageSize, setPageSize] = useState(25);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredRows = useMemo(() => {
+  const statusFilteredRows = useMemo(() => {
     if (!normalizedStatus) return rows;
     return rows.filter((row) =>
       doesProductMatchFilter(row, normalizedStatus)
     );
   }, [rows, normalizedStatus]);
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  const displayedRows = useMemo(() => {
+    if (!normalizedSearch) return statusFilteredRows;
+    return statusFilteredRows.filter((row) => {
+      const categoryId = firstValue(
+        row.categoryId,
+        row.raw?.categoryId,
+        row.raw?.core?.categoryId,
+        row.raw?.draft?.core?.categoryId
+      );
+      const createdAt = formatDateForSearch(
+        firstValue(
+          row.raw?.createdAt,
+          row.raw?.core?.createdAt,
+          row.raw?.draft?.core?.createdAt,
+          row.timeStamp,
+          row.createdAt,
+          row.updatedAt
+        )
+      );
+      const candidates = [
+        row.title,
+        row.productId,
+        row.vendorName,
+        row.vendorDisplayId,
+        row.vendorId,
+        categoryId,
+        row.statusLabel,
+        createdAt,
+      ];
+      return candidates
+        .filter((value) => typeof value === "string" && value.trim())
+        .some((value) => value.toLowerCase().includes(normalizedSearch));
+    });
+  }, [statusFilteredRows, normalizedSearch]);
 
   const loadProducts = useCallback(async () => {
     setLoading(true);
@@ -104,17 +181,26 @@ const VendorProductsList = () => {
             </h1>
             <p>
               Gestion des articles issus du catalogue vendeur.{" "}
-              {filteredRows.length} element(s) trouves.
+              {displayedRows.length} élément(s) affiché(s).
             </p>
           </div>
-          <button
-            type="button"
-            className="vendorProducts__refresh"
-            onClick={loadProducts}
-            disabled={loading}
-          >
-            Rafraichir
-          </button>
+          <div className="vendorProducts__actions">
+            <input
+              type="search"
+              className="vendorProducts__searchInput"
+              placeholder="Rechercher par produit, vendeur, catégorie, date..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+            <button
+              type="button"
+              className="vendorProducts__refresh"
+              onClick={loadProducts}
+              disabled={loading}
+            >
+              Rafraichir
+            </button>
+          </div>
         </div>
         {error && (
           <div className="vendorProducts__error">
@@ -125,7 +211,7 @@ const VendorProductsList = () => {
           <div className="vendorProducts__gridWrapper">
             <DataGrid
               className="vendorProducts__datagrid"
-              rows={filteredRows}
+              rows={displayedRows}
               columns={columns}
               pageSize={pageSize}
               onPageSizeChange={(size) => setPageSize(size)}
