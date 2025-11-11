@@ -41,13 +41,12 @@ import {
   isVendorStatus,
 } from "../../utils/vendorStatus";
 import {
-  getVendorProductStatusLabel,
-  isVendorProductStatus,
-  normalizeVendorProductStatus,
-} from "../../utils/vendorProductStatus";
-import {
   createEmptyVendorProductStats,
+  getVendorProductFilterLabel,
   loadVendorProductStats,
+  normalizeVendorProductFilterKey,
+  VENDOR_PRODUCT_FILTERS,
+  VENDOR_PRODUCT_FILTER_ORDER,
 } from "../../utils/vendorProductsRepository";
 import { useSidebar } from "../../context/sidebarContext";
 
@@ -141,40 +140,38 @@ const Sidbar = () => {
     []
   );
 
-  const vendorProductMenuItems = useMemo(
-    () => [
-      {
-        key: "all",
-        label: "Tous les produits",
-        to: "/vendor-products",
-        Icon: Inventory2Icon,
-      },
-      {
-        key: "draft",
-        label: getVendorProductStatusLabel("draft"),
-        to: "/vendor-products/status/draft",
-        Icon: EditNoteIcon,
-      },
-      {
-        key: "pending",
-        label: getVendorProductStatusLabel("pending"),
-        to: "/vendor-products/status/pending",
-        Icon: ManageSearchIcon,
-      },
-      {
-        key: "published",
-        label: getVendorProductStatusLabel("published"),
-        to: "/vendor-products/status/published",
-        Icon: TaskAltIcon,
-      },
-      {
-        key: "blocked",
-        label: getVendorProductStatusLabel("blocked"),
-        to: "/vendor-products/status/blocked",
-        Icon: BlockIcon,
-      },
-    ],
+  const vendorProductFilterIcons = useMemo(
+    () => ({
+      draft: EditNoteIcon,
+      admin_inactive: BlockIcon,
+      vendor_inactive: ManageSearchIcon,
+      visible: TaskAltIcon,
+    }),
     []
+  );
+
+  const vendorProductMenuItems = useMemo(
+    () =>
+      [
+        {
+          key: "all",
+          label: "Tous les produits",
+          to: "/vendor-products",
+          Icon: Inventory2Icon,
+        },
+        ...VENDOR_PRODUCT_FILTER_ORDER.map((key) => {
+          const IconComponent =
+            vendorProductFilterIcons[key] ?? Inventory2Icon;
+          return {
+            key,
+            label: getVendorProductFilterLabel(key),
+            description: VENDOR_PRODUCT_FILTERS[key]?.description,
+            to: `/vendor-products/status/${key}`,
+            Icon: IconComponent,
+          };
+        }),
+      ],
+    [vendorProductFilterIcons]
   );
 
   useEffect(() => {
@@ -237,9 +234,9 @@ const Sidbar = () => {
       const statusFromPath = normalizedPath
         .split("/vendor-products/status/")[1]
         .split("/")[0];
-      const normalizedStatus = normalizeVendorProductStatus(statusFromPath);
-      if (normalizedStatus && isVendorProductStatus(normalizedStatus))
-        return normalizedStatus;
+      const normalizedStatus =
+        normalizeVendorProductFilterKey(statusFromPath);
+      if (normalizedStatus) return normalizedStatus;
     }
     if (normalizedPath === "/vendor-products") {
       return "all";

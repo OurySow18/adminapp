@@ -1,16 +1,15 @@
-import "./vendorProductDetails.scss";
-import { useEffect, useMemo, useState } from "react";
+﻿import "./vendorProductDetails.scss";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
 import { format } from "date-fns";
-import { transitionVendorProductStatus } from "../../utils/vendorProductsRepository";
 import {
-  getVendorProductStatusLabel,
-  normalizeVendorProductStatus,
-} from "../../utils/vendorProductStatus";
+  applyVendorProductDraftChanges,
+  updateVendorProductAdminStatus,
+} from "../../utils/vendorProductsRepository";
 
 const formatDateTime = (value) => {
   if (!value) return "-";
@@ -41,6 +40,55 @@ const toBoolean = (value) =>
   value === "true" ||
   value === 1 ||
   value === "1";
+
+const FIELD_LABELS = {
+  description: "Description",
+  brandRelationship: "Relation marque",
+  pricing: "Tarification",
+  "pricing.basePrice": "Prix (HT)",
+  "pricing.currency": "Devise",
+  "pricing.taxes": "Taxes",
+  stock: "Stock",
+  "inventory.stock": "Stock",
+  brand: "Marque",
+  category: "Catégorie",
+  categoryId: "Catégorie",
+  topCategory: "Top catégorie",
+};
+
+const splitFieldPath = (path) =>
+  typeof path === "string"
+    ? path
+        .split(".")
+        .map((segment) => segment.trim())
+        .filter(Boolean)
+    : [];
+
+const humanizeSegment = (segment) => {
+  if (!segment) return "";
+  return segment
+    .replace(/_/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .replace(/^\w/, (char) => char.toUpperCase());
+};
+
+const getFieldLabel = (path) => {
+  if (!path) return "-";
+  if (FIELD_LABELS[path]) return FIELD_LABELS[path];
+  return splitFieldPath(path).map(humanizeSegment).join(" > ");
+};
+
+const getNestedValue = (source, path) => {
+  if (!source || typeof source !== "object") return undefined;
+  const segments = splitFieldPath(path);
+  if (!segments.length) return undefined;
+  return segments.reduce((cursor, segment) => {
+    if (cursor === undefined || cursor === null) return undefined;
+    if (typeof cursor !== "object") return undefined;
+    return cursor[segment];
+  }, source);
+};
 
 const VendorProductDetails = () => {
   const { vendorId: vendorIdParam, productId: productIdParam } = useParams();
@@ -240,65 +288,102 @@ const VendorProductDetails = () => {
     );
   }, [product, productId]);
 
-  const productStatus = useMemo(() => {
-    if (!product) return "-";
-    const status =
-      product.status ??
-      product.core?.status ??
-      product.draft?.core?.status ??
-      "-";
-    const activeCandidates = [
-      product.active,
-      product.isActive,
-      product.core?.active,
-      product.core?.isActive,
-      product.draft?.core?.active,
-      product.draft?.core?.isActive,
-    ];
-    let active;
-    for (const value of activeCandidates) {
-      if (typeof value === "boolean") {
-        active = value;
-        break;
-      }
-    }
-    if (active === undefined) {
-      const blocked =
-        product.blocked ??
-        product.core?.blocked ??
-        product.draft?.core?.blocked;
-      if (typeof blocked === "boolean") {
-        active = !blocked;
-      }
-    }
-    if (active === false || status === "archived") {
-      return getVendorProductStatusLabel("blocked");
-    }
-    const normalized = normalizeVendorProductStatus(status);
-    if (normalized) {
-      return getVendorProductStatusLabel(normalized);
-    }
-    return status;
+  const mmStatus = useMemo(() => {
+    if (!product) return false;
+    return toBoolean(
+      firstValue(
+        product.mm_status,
+        product.mmStatus,
+        product.core?.mm_status,
+        product.draft?.core?.mm_status
+      )
+    );
   }, [product]);
+
+  const vmStatus = useMemo(() => {
+    if (!product) return false;
+    return toBoolean(
+      firstValue(
+        product.vm_status,
+        product.vmStatus,
+        product.core?.vm_status,
+        product.draft?.core?.vm_status
+      )
+    );
+  }, [product]);
+
+  const draftStatus = useMemo(() => {
+    if (!product) return false;
+    return toBoolean(
+      firstValue(
+        product.draft_status,
+        product.draftStatus,
+        product.core?.draft_status,
+        product.draft?.core?.draft_status
+      )
+    );
+  }, [product]);
+
+  const draftChanges = useMemo(() => {
+    if (!product) return [];
+    if (Array.isArray(product.draftChanges)) return product.draftChanges;
+    if (Array.isArray(product.core?.draftChanges)) return product.core.draftChanges;
+    if (Array.isArray(product.draft?.core?.draftChanges))
+      return product.draft.core.draftChanges;
+    return [];
+  }, [product]);
+
+  const pendingDraftChanges = draftStatus && draftChanges.length > 0;
+
+  const hasDraftChange = useCallback(
+    (...paths) => {
+      if (!pendingDraftChanges) return false;
+      const normalizedChanges = draftChanges
+        .map((value) =>
+          typeof value === "string" ? value.trim().toLowerCase() : ""
+        )
+        .filter(Boolean);
+      if (!normalizedChanges.length) return false;
+      return paths
+        .map((path) =>
+          typeof path === "string" ? path.trim().toLowerCase() : ""
+        )
+        .filter(Boolean)
+        .some((candidate) => normalizedChanges.includes(candidate));
+    },
+    [draftChanges, pendingDraftChanges]
+  );
 
   const monmarchePublication = useMemo(() => {
     if (!publicProduct) {
       return {
         isPublished: false,
-        message: "Le produit n'est pas encore affiche sur Monmarche",
+        message: "Aucune entrée dans products_public",
       };
     }
-    const statusFlag = toBoolean(publicProduct.status);
+    const statusFlag = toBoolean(
+      firstValue(
+        publicProduct.status,
+        publicProduct.active,
+        publicProduct.isActive
+      )
+    );
     const mmStatusFlag = toBoolean(publicProduct.mm_status);
     if (statusFlag && mmStatusFlag) {
       return {
         isPublished: true,
-        message: "Le produit est affiche sur Monmarche",
+        message: "Le produit est affiché sur Monmarché",
+      };
+    }
+    if (!mmStatusFlag) {
+      return {
+        isPublished: false,
+        message: "Masqué côté Monmarché (mm_status=false)",
       };
     }
     return {
       isPublished: false,
-      message: "Le produit n'est pas encore affiche sur Monmarche",
+      message: "Statut public inactif dans products_public",
     };
   }, [publicProduct]);
 
@@ -315,7 +400,22 @@ const VendorProductDetails = () => {
       product.core?.pricing?.currency ??
       product.draft?.core?.pricing?.currency ??
       "";
-    return currency ? `${price} ${currency}` : `${price}`;
+    const displayCurrency =
+      typeof currency === "string" && currency.trim() && currency !== "-"
+        ? currency
+        : "GNF";
+    const numericPrice = Number(price);
+    if (Number.isNaN(numericPrice)) {
+      return `${price} ${displayCurrency}`;
+    }
+    const formatter = new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: displayCurrency,
+      currencyDisplay: "code",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+    return formatter.format(numericPrice);
   }, [product]);
 
   const stockInfo = useMemo(() => {
@@ -338,6 +438,92 @@ const VendorProductDetails = () => {
     return Object.entries(base);
   }, [product]);
 
+  const getFieldClass = useCallback(
+    (...paths) =>
+      hasDraftChange(...paths)
+        ? "vendorProductDetails__value vendorProductDetails__value--changed"
+        : "vendorProductDetails__value",
+    [hasDraftChange]
+  );
+
+  const getStatClass = useCallback(
+    (...paths) =>
+      hasDraftChange(...paths)
+        ? "vendorProductDetails__statValue vendorProductDetails__statValue--changed"
+        : "vendorProductDetails__statValue",
+    [hasDraftChange]
+  );
+
+  const resolveDraftValue = useCallback(
+    (path) =>
+      getNestedValue(product?.draft?.core, path) ??
+      getNestedValue(product?.draft, path) ??
+      getNestedValue(product, path),
+    [product]
+  );
+
+  const resolveCurrentValue = useCallback(
+    (path) =>
+      getNestedValue(publicProduct, path) ??
+      getNestedValue(product?.core, path) ??
+      getNestedValue(product, path),
+    [publicProduct, product]
+  );
+
+  const draftChangeDetails = useMemo(() => {
+    if (!pendingDraftChanges) return [];
+    return draftChanges
+      .map((rawPath) => {
+        const path =
+          typeof rawPath === "string" ? rawPath.trim() : "";
+        if (!path) return null;
+        return {
+          path,
+          label: getFieldLabel(path),
+          vendorValue: resolveDraftValue(path),
+          publishedValue: resolveCurrentValue(path),
+        };
+      })
+      .filter(Boolean);
+  }, [
+    draftChanges,
+    pendingDraftChanges,
+    resolveCurrentValue,
+    resolveDraftValue,
+  ]);
+
+  const renderChangeValue = useCallback((value) => {
+    if (
+      value === undefined ||
+      value === null ||
+      (typeof value === "string" && value.trim() === "")
+    ) {
+      return (
+        <span className="vendorProductDetails__draftValue vendorProductDetails__draftValue--empty">
+          -
+        </span>
+      );
+    }
+    if (typeof value === "object") {
+      let serialized = "";
+      try {
+        serialized = JSON.stringify(value, null, 2);
+      } catch (err) {
+        serialized = String(value);
+      }
+      return (
+        <pre className="vendorProductDetails__draftValue vendorProductDetails__draftValue--code">
+          {serialized}
+        </pre>
+      );
+    }
+    return (
+      <span className="vendorProductDetails__draftValue">
+        {String(value)}
+      </span>
+    );
+  }, []);
+
   const vendorDisplayId = useMemo(
     () =>
       firstValue(
@@ -349,49 +535,66 @@ const VendorProductDetails = () => {
     [product, vendorId]
   );
 
-  const handleStatusTransition = async (nextStatus, options = {}) => {
+  const resolvedVendorId = useMemo(() => {
+    if (vendorDisplayId && vendorDisplayId !== "-" && vendorDisplayId !== "_") {
+      return vendorDisplayId;
+    }
+    if (vendorId && vendorId !== "_" && vendorId !== "root") {
+      return vendorId;
+    }
+    return null;
+  }, [vendorDisplayId, vendorId]);
+
+  const handleAdminToggle = async (enabled) => {
     if (!product) return;
     setStatusUpdateState({ loading: true, error: null, success: null });
     try {
-      const normalizedStatus =
-        normalizeVendorProductStatus(nextStatus) ?? nextStatus;
-      const resolvedVendorId =
-        (vendorDisplayId && vendorDisplayId !== "-" && vendorDisplayId) ||
-        (vendorId && vendorId !== "_" && vendorId !== "root" ? vendorId : null);
-
-      await transitionVendorProductStatus({
+      await updateVendorProductAdminStatus({
         productId,
         vendorId: resolvedVendorId,
-        targetStatus: normalizedStatus,
-        reason: options.reason,
+        enabled,
         primaryDocPath: product.__docPath || docPathFromState,
-        scope: product.__scope,
         productData: product,
       });
       setStatusUpdateState({
         loading: false,
         error: null,
-        success: `Statut mis a jour en "${getVendorProductStatusLabel(
-          normalizedStatus
-        )}".`,
+        success: enabled
+          ? "Le produit est désormais visible pour l'admin."
+          : "Le produit a été masqué sur Monmarché.",
       });
     } catch (err) {
       const message =
-        err?.message || "Echec de la mise a jour du statut produit.";
+        err?.message || "Impossible de mettre à jour le statut admin.";
       setStatusUpdateState({ loading: false, error: message, success: null });
     }
   };
 
-  const handleSetPending = () => handleStatusTransition("pending");
-
-  const handleActivate = () => handleStatusTransition("published");
-
-  const handleBlock = () => {
-    const input = window.prompt("Motif du blocage ?", "Bloque manuellement");
-    if (input === null) return;
-    const reason = input.trim();
-    handleStatusTransition("blocked", { reason });
+  const handleValidateChanges = async () => {
+    if (!product || !pendingDraftChanges) return;
+    setStatusUpdateState({ loading: true, error: null, success: null });
+    try {
+      await applyVendorProductDraftChanges({
+        productId,
+        vendorId: resolvedVendorId,
+        primaryDocPath: product.__docPath || docPathFromState,
+        productData: product,
+      });
+      setStatusUpdateState({
+        loading: false,
+        error: null,
+        success: "Modifications validées et appliquées au catalogue public.",
+      });
+    } catch (err) {
+      const message =
+        err?.message || "Impossible de valider les modifications.";
+      setStatusUpdateState({ loading: false, error: message, success: null });
+    }
   };
+
+  const handleActivate = () => handleAdminToggle(true);
+
+  const handleBlock = () => handleAdminToggle(false);
 
   if (loading) {
     return (
@@ -446,31 +649,57 @@ const VendorProductDetails = () => {
               </p>
             </div>
             <div className="vendorProductDetails__headerRight">
-              <span className="vendorProductDetails__status">{productStatus}</span>
-              <div className="vendorProductDetails__actions">
-                <button
-                  type="button"
-                  className="vendorProductDetails__actionBtn vendorProductDetails__actionBtn--pending"
-                  onClick={handleSetPending}
-                  disabled={statusUpdateState.loading}
+              <div className="vendorProductDetails__chips">
+                <span
+                  className={`vendorProductDetails__chip ${
+                    mmStatus
+                      ? "vendorProductDetails__chip--positive"
+                      : "vendorProductDetails__chip--negative"
+                  }`}
                 >
-                  Mettre en attente
-                </button>
+                  Admin : {mmStatus ? "Actif" : "Inactif"}
+                </span>
+                <span
+                  className={`vendorProductDetails__chip ${
+                    vmStatus
+                      ? "vendorProductDetails__chip--positive"
+                      : "vendorProductDetails__chip--negative"
+                  }`}
+                >
+                  Vendeur : {vmStatus ? "Actif" : "Inactif"}
+                </span>
+                {pendingDraftChanges && (
+                  <span className="vendorProductDetails__chip vendorProductDetails__chip--warning">
+                    Modifications en attente
+                  </span>
+                )}
+              </div>
+              <div className="vendorProductDetails__actions">
+                {pendingDraftChanges && (
+                  <button
+                    type="button"
+                    className="vendorProductDetails__actionBtn vendorProductDetails__actionBtn--pending"
+                    onClick={handleValidateChanges}
+                    disabled={statusUpdateState.loading}
+                  >
+                    Valider les modifications
+                  </button>
+                )}
                 <button
                   type="button"
                   className="vendorProductDetails__actionBtn vendorProductDetails__actionBtn--activate"
                   onClick={handleActivate}
-                  disabled={statusUpdateState.loading}
+                  disabled={statusUpdateState.loading || mmStatus}
                 >
-                  Activer
+                  Afficher Monmarché
                 </button>
                 <button
                   type="button"
                   className="vendorProductDetails__actionBtn vendorProductDetails__actionBtn--block"
                   onClick={handleBlock}
-                  disabled={statusUpdateState.loading}
+                  disabled={statusUpdateState.loading || !mmStatus}
                 >
-                  Bloquer
+                  Masquer Monmarché
                 </button>
               </div>
             </div>
@@ -496,13 +725,27 @@ const VendorProductDetails = () => {
               <div className="vendorProductDetails__summary">
                 <div className="vendorProductDetails__stat">
                   <span className="vendorProductDetails__statLabel">Prix</span>
-                  <span className="vendorProductDetails__statValue">
+                  <span
+                    className={getStatClass(
+                      "price",
+                      "pricing.basePrice",
+                      "core.pricing.basePrice",
+                      "draft.core.pricing.basePrice"
+                    )}
+                  >
                     {priceInfo}
                   </span>
                 </div>
                 <div className="vendorProductDetails__stat">
                   <span className="vendorProductDetails__statLabel">Stock</span>
-                  <span className="vendorProductDetails__statValue">
+                  <span
+                    className={getStatClass(
+                      "stock",
+                      "inventory.stock",
+                      "core.inventory.stock",
+                      "draft.core.inventory.stock"
+                    )}
+                  >
                     {stockInfo}
                   </span>
                 </div>
@@ -522,7 +765,13 @@ const VendorProductDetails = () => {
                   <span className="vendorProductDetails__statLabel">
                     Motif blocage
                   </span>
-                  <span className="vendorProductDetails__statValue">
+                  <span
+                    className={getStatClass(
+                      "blockedReason",
+                      "core.blockedReason",
+                      "draft.core.blockedReason"
+                    )}
+                  >
                     {firstValue(
                       product.blockedReason,
                       product.core?.blockedReason,
@@ -548,6 +797,44 @@ const VendorProductDetails = () => {
               </div>
             </div>
           </section>
+
+          {draftChangeDetails.length > 0 && (
+            <section>
+              <h2>Champs modifiés</h2>
+              <div className="vendorProductDetails__card">
+                <p>
+                  Ces champs ont été modifiés par le vendeur. Comparez la
+                  proposition à la version publiée avant de valider.
+                </p>
+                <ul className="vendorProductDetails__draftList vendorProductDetails__draftList--detailed">
+                  {draftChangeDetails.map((change) => (
+                    <li key={change.path}>
+                      <div className="vendorProductDetails__draftField">
+                        <strong>{change.label}</strong>
+                        <span className="vendorProductDetails__draftPath">
+                          {change.path}
+                        </span>
+                      </div>
+                      <div className="vendorProductDetails__draftValues">
+                        <div>
+                          <span className="vendorProductDetails__draftValuesLabel">
+                            Proposition vendeur
+                          </span>
+                          {renderChangeValue(change.vendorValue)}
+                        </div>
+                        <div>
+                          <span className="vendorProductDetails__draftValuesLabel">
+                            Version publiée
+                          </span>
+                          {renderChangeValue(change.publishedValue)}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          )}
 
           {publicProductError && (
             <div className="vendorProductDetails__publicWarning">
@@ -583,32 +870,38 @@ const VendorProductDetails = () => {
                   <strong>Product ID :</strong> {productId}
                 </li>
                 <li>
-                  <strong>Catégorie :</strong>{" "}
-                  {firstValue(
-                    product.categoryId,
-                    product.category,
-                    product.core?.categoryId,
-                    product.draft?.core?.categoryId,
-                    "-"
-                  )}
+                  <strong>Cat?gorie :</strong>{" "}
+                  <span className={getFieldClass("categoryId", "category", "core.categoryId", "draft.core.categoryId")}>
+                    {firstValue(
+                      product.categoryId,
+                      product.category,
+                      product.core?.categoryId,
+                      product.draft?.core?.categoryId,
+                      "-"
+                    )}
+                  </span>
                 </li>
                 <li>
-                  <strong>Top catégorie :</strong>{" "}
-                  {firstValue(
-                    product.topCategory,
-                    product.core?.topCategory,
-                    product.draft?.core?.topCategory,
-                    "-"
-                  )}
+                  <strong>Top cat?gorie :</strong>{" "}
+                  <span className={getFieldClass("topCategory", "core.topCategory", "draft.core.topCategory")}>
+                    {firstValue(
+                      product.topCategory,
+                      product.core?.topCategory,
+                      product.draft?.core?.topCategory,
+                      "-"
+                    )}
+                  </span>
                 </li>
                 <li>
                   <strong>Marque :</strong>{" "}
-                  {firstValue(
-                    product.brand,
-                    product.core?.brand,
-                    product.draft?.core?.brand,
-                    "-"
-                  )}
+                  <span className={getFieldClass("brand", "core.brand", "draft.core.brand")}>
+                    {firstValue(
+                      product.brand,
+                      product.core?.brand,
+                      product.draft?.core?.brand,
+                      "-"
+                    )}
+                  </span>
                 </li>
               </ul>
             </div>
@@ -617,7 +910,13 @@ const VendorProductDetails = () => {
           <section>
             <h2>Description</h2>
             <div className="vendorProductDetails__card">
-              <p>
+              <p
+                className={getFieldClass(
+                  "description",
+                  "core.description",
+                  "draft.core.description"
+                )}
+              >
                 {firstValue(
                   product.description,
                   product.core?.description,
@@ -636,7 +935,13 @@ const VendorProductDetails = () => {
                   {attributes.map(([key, value]) => (
                     <li key={key}>
                       <strong>{key} :</strong>{" "}
-                      <span>
+                      <span
+                        className={getFieldClass(
+                          `attributes.${key}`,
+                          `core.attributes.${key}`,
+                          `draft.core.attributes.${key}`
+                        )}
+                      >
                         {typeof value === "object"
                           ? JSON.stringify(value)
                           : String(value)}
@@ -671,3 +976,5 @@ const VendorProductDetails = () => {
 };
 
 export default VendorProductDetails;
+
+

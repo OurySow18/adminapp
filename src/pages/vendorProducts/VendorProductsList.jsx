@@ -6,19 +6,18 @@ import { DataGrid } from "@mui/x-data-grid";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { vendorProductColumns } from "../../datatablesource";
 import {
-  getVendorProductStatusLabel,
-  isVendorProductStatus,
-  normalizeVendorProductStatus,
-} from "../../utils/vendorProductStatus";
-import { loadVendorProductRows } from "../../utils/vendorProductsRepository";
+  doesProductMatchFilter,
+  getVendorProductFilterLabel,
+  loadVendorProductRows,
+  normalizeVendorProductFilterKey,
+} from "../../utils/vendorProductsRepository";
 
 const VendorProductsList = () => {
   const { statusId } = useParams();
 
   const normalizedStatus = useMemo(() => {
     if (!statusId) return null;
-    const normalized = normalizeVendorProductStatus(statusId);
-    return normalized && isVendorProductStatus(normalized) ? normalized : null;
+    return normalizeVendorProductFilterKey(statusId);
   }, [statusId]);
 
   const [rows, setRows] = useState([]);
@@ -28,7 +27,9 @@ const VendorProductsList = () => {
 
   const filteredRows = useMemo(() => {
     if (!normalizedStatus) return rows;
-    return rows.filter((row) => row.status === normalizedStatus);
+    return rows.filter((row) =>
+      doesProductMatchFilter(row, normalizedStatus)
+    );
   }, [rows, normalizedStatus]);
 
   const loadProducts = useCallback(async () => {
@@ -86,7 +87,7 @@ const VendorProductsList = () => {
   }
 
   const statusLabel = normalizedStatus
-    ? getVendorProductStatusLabel(normalizedStatus)
+    ? getVendorProductFilterLabel(normalizedStatus)
     : null;
 
   return (

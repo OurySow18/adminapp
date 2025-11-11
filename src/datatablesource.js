@@ -3,8 +3,6 @@ import {
   resolveVendorStatus,
   getVendorStatusLabel,
 } from "./utils/vendorStatus";
-import { getVendorProductStatusLabel } from "./utils/vendorProductStatus";
-
 const toDate = (value) => {
   if (!value) return undefined;
   if (typeof value?.toDate === "function") return value.toDate();
@@ -139,23 +137,15 @@ const getProductTitle = (row) =>
     row.draft?.core?.title
   );
 
-const getProductStatus = (row, defaultStatus = "unknown") =>
-  firstValue(
-    row.status,
-    row.core?.status,
-    row.draft?.core?.status,
-    defaultStatus
-  );
-
 const getProductActiveFlag = (row) => {
+  if (
+    typeof row?.mmStatus === "boolean" &&
+    typeof row?.vmStatus === "boolean"
+  ) {
+    return row.mmStatus && row.vmStatus;
+  }
   if (typeof row?.publicActive === "boolean") {
     return row.publicActive;
-  }
-  if (
-    typeof row?.publicStatusFlag === "boolean" &&
-    typeof row?.publicMmStatusFlag === "boolean"
-  ) {
-    return row.publicStatusFlag && row.publicMmStatusFlag;
   }
   const candidates = [
     row.active,
@@ -393,19 +383,11 @@ export const productColumns = [
         row.media?.cover ||
         row.core?.media?.cover ||
         row.draft?.core?.media?.cover ||
-        "/default-image.png";
-      const title =
-        firstValue(
-          row.title,
-          row.name,
-          row.core?.title,
-          row.draft?.core?.title,
-          row.product
-        ) || "Produit";
+        "/default-image.png"; 
       return (
         <div className="cellWithImg">
           <img className="cellImg" src={cover} alt="product" />
-          {title}
+           
         </div>
       );
     },
@@ -505,31 +487,48 @@ export const vendorProductColumns = [
       ),
   },
   {
-    field: "status",
-    headerName: "Statut",
-    flex: 0.6,
-    minWidth: 150,
+    field: "visibility",
+    headerName: "Visibilité",
+    flex: 0.7,
+    minWidth: 170,
     valueGetter: (params) => {
-      const status = getProductStatus(params.row, "-");
-      const active = getProductActiveFlag(params.row);
-      if (active === false) {
-        return getVendorProductStatusLabel("blocked");
+      const { mmStatus, vmStatus } = params.row;
+      if (mmStatus && vmStatus) {
+        return "Visible sur Monmarché";
       }
-      if (params.row.statusLabel) {
-        return params.row.statusLabel;
-      }
-      if (status === "archived") return "Archive";
-      if (!status || status === "-") return "-";
-      return getVendorProductStatusLabel(status) || status;
+      if (mmStatus === false) return "Masqué par l'admin";
+      if (vmStatus === false) return "Désactivé vendeur";
+      return "-";
     },
   },
   {
-    field: "active",
-    headerName: "Actif",
+    field: "mmStatus",
+    headerName: "Admin",
     flex: 0.4,
-    minWidth: 120,
+    minWidth: 130,
     valueGetter: (params) =>
-      boolLabel(getProductActiveFlag(params.row), "Oui", "Non"),
+      boolLabel(params.row.mmStatus, "Actif", "Inactif"),
+  },
+  {
+    field: "vmStatus",
+    headerName: "Vendeur",
+    flex: 0.5,
+    minWidth: 140,
+    valueGetter: (params) =>
+      boolLabel(params.row.vmStatus, "Actif", "Inactif"),
+  },
+  {
+    field: "draftStatus",
+    headerName: "Modifs",
+    flex: 0.5,
+    minWidth: 130,
+    valueGetter: (params) => {
+      const pendingChanges =
+        Array.isArray(params.row.draftChanges) &&
+        params.row.draftChanges.length > 0;
+      if (!pendingChanges) return "-";
+      return `${params.row.draftChanges.length} champ(s)`;
+    },
   },
   {
     field: "price",
@@ -539,8 +538,24 @@ export const vendorProductColumns = [
     valueGetter: (params) => {
       const price = getProductPrice(params.row);
       if (price === undefined || price === null) return "-";
-      const currency = getProductCurrency(params.row);
-      return currency ? `${price} ${currency}` : price;
+      const numericPrice = Number(price);
+      const safePrice = Number.isNaN(numericPrice) ? price : numericPrice;
+      const baseCurrency = getProductCurrency(params.row);
+      const resolvedCurrency =
+        typeof baseCurrency === "string" && baseCurrency.trim() && baseCurrency !== "-"
+          ? baseCurrency
+          : "GNF";
+      if (typeof safePrice === "number") {
+        const formatter = new Intl.NumberFormat("fr-FR", {
+          style: "currency",
+          currency: resolvedCurrency,
+          currencyDisplay: "code",
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2,
+        });
+        return formatter.format(safePrice);
+      }
+      return `${safePrice} ${resolvedCurrency}`;
     },
   },
   {

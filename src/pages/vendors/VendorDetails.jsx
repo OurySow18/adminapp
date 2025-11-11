@@ -128,6 +128,34 @@ const getPrimaryProductDocRef = (product, dbInstance) => {
   return doc(dbInstance, "vendor_products", product.id);
 };
 
+const toStatusFlag = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return false;
+    if (
+      [
+        "true",
+        "1",
+        "oui",
+        "yes",
+        "active",
+        "actif",
+        "published",
+        "enabled",
+        "visible",
+      ].includes(normalized)
+    ) {
+      return true;
+    }
+    if (["false", "0", "non", "no", "inactive", "bloque", "blocked"].includes(normalized)) {
+      return false;
+    }
+  }
+  return false;
+};
+
 const getProductLabel = (product) => {
   if (!product || typeof product !== "object") return "";
   return (
@@ -853,17 +881,27 @@ const VendorDetails = () => {
         status: "approved",
         approved: true,
         vendorStatus: "approved",
+        "profile.status": "approved",
         approvedAt: timestamp,
         blocked: false,
+        "profile.blocked": false,
         active: true,
         isActive: true,
+        "profile.active": true,
+        "profile.isActive": true,
         lockCatalog: false,
         lockEdits: false,
+        "profile.lockCatalog": false,
+        "profile.lockEdits": false,
         blockedAt: deleteField(),
         blockedReason: deleteField(),
         blockedBy: deleteField(),
         blockedByUid: deleteField(),
         updatedAt: timestamp,
+        "profile.blockedAt": deleteField(),
+        "profile.blockedReason": deleteField(),
+        "profile.blockedBy": deleteField(),
+        "profile.blockedByUid": deleteField(),
       };
 
       if (auth.currentUser?.email) {
@@ -1800,17 +1838,33 @@ const VendorDetails = () => {
                           product?.blocked === true ||
                           productStatus === "archived" ||
                           productActive === false;
-                        let statusLabel = "Actif";
+                        let vendorStatusLabel = "Actif vendeur";
                         if (isProductBlocked) {
-                          statusLabel = "Bloqu\u00e9";
+                          vendorStatusLabel = "Inactif vendeur";
                         } else if (productStatus === "draft") {
-                          statusLabel = "Brouillon";
-                        } else if (productStatus && productStatus !== "active") {
-                          statusLabel = String(productStatus);
+                          vendorStatusLabel = "Brouillon vendeur";
+                        } else if (productStatus === "pending") {
+                          vendorStatusLabel = "En attente vendeur";
+                        } else if (
+                          productStatus &&
+                          !["active", "published"].includes(productStatus)
+                        ) {
+                          vendorStatusLabel = `${String(productStatus)} vendeur`;
                         }
-                        const statusClass = isProductBlocked
+                        const vendorStatusClass = isProductBlocked
                           ? "vendorDetails__statusChip--blocked"
                           : "vendorDetails__statusChip--active";
+                        const adminStatusFlag = toStatusFlag(
+                          product?.mm_status ??
+                            product?.core?.mm_status ??
+                            product?.draft?.core?.mm_status
+                        );
+                        const adminStatusLabel = adminStatusFlag
+                          ? "Actif admin"
+                          : "Inactif admin";
+                        const adminStatusClass = adminStatusFlag
+                          ? "vendorDetails__statusChip--active"
+                          : "vendorDetails__statusChip--blocked";
                         const blockedReason =
                           product?.blockedReason ??
                           product?.core?.blockedReason ??
@@ -1866,11 +1920,18 @@ const VendorDetails = () => {
                               </div>
                             </td>
                             <td>
-                              <span
-                                className={`vendorDetails__statusChip ${statusClass}`}
-                              >
-                                {statusLabel}
-                              </span>
+                              <div className="vendorDetails__statusColumn">
+                                <span
+                                  className={`vendorDetails__statusChip ${vendorStatusClass}`}
+                                >
+                                  {vendorStatusLabel}
+                                </span>
+                                <span
+                                  className={`vendorDetails__statusChip ${adminStatusClass}`}
+                                >
+                                  {adminStatusLabel}
+                                </span>
+                              </div>
                               {blockedReason && (
                                 <span className="vendorDetails__productReason">
                                   {blockedReason}
@@ -2127,9 +2188,6 @@ const VendorDetails = () => {
 };
 
 export default VendorDetails;
-
-
-
 
 
 

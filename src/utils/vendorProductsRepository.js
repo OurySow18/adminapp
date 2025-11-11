@@ -1,4 +1,4 @@
-import {
+﻿import {
   collection,
   collectionGroup,
   deleteField,
@@ -9,15 +9,6 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import {
-  getVendorProductStatusLabel,
-  isVendorProductStatus,
-  normalizeVendorProductStatus,
-  resolveVendorProductActiveFlag,
-  resolveVendorProductStatus,
-  VENDOR_PRODUCT_STATUS_VALUES,
-} from "./vendorProductStatus";
-
 const firstValue = (...values) => {
   for (const value of values) {
     if (value !== undefined && value !== null && value !== "") {
@@ -27,72 +18,190 @@ const firstValue = (...values) => {
   return undefined;
 };
 
-const toTruthyBoolean = (value) => {
+const BOOLEAN_TRUE_VALUES = new Set([
+  "true",
+  "1",
+  "oui",
+  "yes",
+  "active",
+  "actif",
+  "published",
+  "visible",
+  "enabled",
+]);
+
+const BOOLEAN_FALSE_VALUES = new Set([
+  "false",
+  "0",
+  "non",
+  "no",
+  "inactive",
+  "inactif",
+  "blocked",
+  "hidden",
+  "disabled",
+]);
+
+const toBooleanFlag = (value, fallback = false) => {
   if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value === 1;
+  if (typeof value === "number") {
+    if (Number.isNaN(value)) return fallback;
+    return value !== 0;
+  }
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
-    if (
-      normalized === "true" ||
-      normalized === "1" ||
-      normalized === "oui" ||
-      normalized === "yes" ||
-      normalized === "active" ||
-      normalized === "actif" ||
-      normalized === "published"
-    ) {
-      return true;
-    }
-    if (
-      normalized === "false" ||
-      normalized === "0" ||
-      normalized === "non" ||
-      normalized === "no" ||
-      normalized === "inactive" ||
-      normalized === "inactif" ||
-      normalized === "blocked"
-    ) {
-      return false;
-    }
+    if (!normalized) return fallback;
+    if (BOOLEAN_TRUE_VALUES.has(normalized)) return true;
+    if (BOOLEAN_FALSE_VALUES.has(normalized)) return false;
   }
-  return false;
+  return fallback;
 };
 
-const resolvePublicPublicationFlags = (raw, source, pathSegments = []) => {
-  const isPublicSource =
-    source === "public" ||
-    (Array.isArray(pathSegments) &&
-      pathSegments.some(
-        (segment) => segment?.toLowerCase?.() === "products_public"
-      ));
+const splitPath = (path) =>
+  typeof path === "string"
+    ? path
+        .split(".")
+        .map((segment) => segment.trim())
+        .filter(Boolean)
+    : [];
 
-  if (!isPublicSource) {
-    return {
-      isPublicSource: false,
-      publicStatusFlag: false,
-      publicMmStatusFlag: false,
-      publicActive: false,
-    };
+const getValueAtPath = (source, path) => {
+  if (!source || typeof source !== "object" || !path) return undefined;
+  return splitPath(path).reduce((acc, segment) => {
+    if (acc && typeof acc === "object") {
+      return acc[segment];
+    }
+    return undefined;
+  }, source);
+};
+
+const setValueAtPath = (target, path, value) => {
+  if (!target || typeof target !== "object") return;
+  const segments = splitPath(path);
+  if (!segments.length) return;
+  let cursor = target;
+  segments.forEach((segment, index) => {
+    if (index === segments.length - 1) {
+      cursor[segment] = value;
+      return;
+    }
+    if (!cursor[segment] || typeof cursor[segment] !== "object") {
+      cursor[segment] = {};
+    }
+    cursor = cursor[segment];
+  });
+};
+
+const resolveFlagFromPaths = (raw, paths, fallback = false) => {
+  for (const path of paths) {
+    const candidate = getValueAtPath(raw, path);
+    if (typeof candidate === "boolean") return candidate;
+    if (candidate !== undefined && candidate !== null) {
+      return toBooleanFlag(candidate, fallback);
+    }
   }
+  return fallback;
+};
 
-  const statusCandidate = firstValue(
-    raw.status,
-    raw.active,
-    raw.isActive,
-    raw?.core?.status,
-    raw?.core?.active
-  );
-  const mmCandidate = firstValue(raw.mm_status, raw.mmStatus);
-
-  const publicStatusFlag = toTruthyBoolean(statusCandidate);
-  const publicMmStatusFlag = toTruthyBoolean(mmCandidate);
+const extractVendorProductFlags = (raw = {}) => {
+  const mmStatus = resolveFlagFromPaths(raw, [
+    "mm_status",
+    "mmStatus",
+    "core.mm_status",
+    "draft.core.mm_status",
+  ]);
+  const vmStatus = resolveFlagFromPaths(raw, [
+    "vm_status",
+    "vmStatus",
+    "core.vm_status",
+    "draft.core.vm_status",
+  ]);
+  const draftStatus = resolveFlagFromPaths(raw, [
+    "draft_status",
+    "draftStatus",
+    "core.draft_status",
+    "draft.core.draft_status",
+  ]);
+  const draftChanges = Array.isArray(raw.draftChanges)
+    ? raw.draftChanges
+    : Array.isArray(raw.core?.draftChanges)
+    ? raw.core.draftChanges
+    : Array.isArray(raw.draft?.core?.draftChanges)
+    ? raw.draft.core.draftChanges
+    : [];
 
   return {
-    isPublicSource: true,
-    publicStatusFlag,
-    publicMmStatusFlag,
-    publicActive: publicStatusFlag && publicMmStatusFlag,
+    mmStatus,
+    vmStatus,
+    draftStatus,
+    draftChanges,
   };
+};
+
+const derivePrimaryFilterKey = (flags) => {
+  if (flags.draftStatus && (flags.draftChanges?.length ?? 0) > 0) return "draft";
+  if (flags.mmStatus === false) return "admin_inactive";
+  if (flags.vmStatus === false) return "vendor_inactive";
+  if (flags.mmStatus && flags.vmStatus) return "visible";
+  return null;
+};
+
+const buildUpdatePayloadFromPaths = (source, paths) => {
+  if (!source || typeof source !== "object") return {};
+  const payload = {};
+  paths.forEach((path) => {
+    if (typeof path !== "string" || !path.trim()) return;
+    const value = getValueAtPath(source, path);
+    if (value === undefined) return;
+    setValueAtPath(payload, path, value);
+  });
+  return payload;
+};
+
+export const VENDOR_PRODUCT_FILTERS = {
+  visible: {
+    label: "Visibles Monmarché",
+    description: "mm_status et vm_status sont actifs.",
+    predicate: (item) => toBooleanFlag(item?.mmStatus) && toBooleanFlag(item?.vmStatus),
+  },
+  admin_inactive: {
+    label: "Masqués par l'admin",
+    description: "mm_status est désactivé.",
+    predicate: (item) => toBooleanFlag(item?.mmStatus) === false,
+  },
+  vendor_inactive: {
+    label: "Désactivés par le vendeur",
+    description: "vm_status est désactivé.",
+    predicate: (item) => toBooleanFlag(item?.vmStatus) === false,
+  },
+  draft: {
+    label: "Modifications à valider",
+    description: "draft_status true avec des champs à vérifier.",
+    predicate: (item) =>
+      toBooleanFlag(item?.draftStatus) &&
+      Array.isArray(item?.draftChanges) &&
+      item.draftChanges.length > 0,
+  },
+};
+
+export const VENDOR_PRODUCT_FILTER_ORDER = Object.keys(VENDOR_PRODUCT_FILTERS);
+
+export const normalizeVendorProductFilterKey = (value) => {
+  if (typeof value !== "string") return null;
+  const candidate = value.trim().toLowerCase();
+  return VENDOR_PRODUCT_FILTER_ORDER.includes(candidate) ? candidate : null;
+};
+
+export const getVendorProductFilterLabel = (key) =>
+  VENDOR_PRODUCT_FILTERS[key]?.label ?? "";
+
+export const getVendorProductFilterDescription = (key) =>
+  VENDOR_PRODUCT_FILTERS[key]?.description ?? "";
+
+export const doesProductMatchFilter = (product, key) => {
+  const predicate = VENDOR_PRODUCT_FILTERS[key]?.predicate;
+  if (typeof predicate !== "function") return false;
+  return Boolean(predicate(product));
 };
 
 const sanitizeProductPayload = (rawProduct) => {
@@ -101,12 +210,24 @@ const sanitizeProductPayload = (rawProduct) => {
     __docPath,
     __scope,
     id,
+    draftChanges,
+    draft_status,
     ...rest
   } = rawProduct;
-  return {
+  const sanitized = {
     ...(typeof id === "string" ? { id } : {}),
     ...rest,
   };
+  delete sanitized.draftChanges;
+  delete sanitized.draft_status;
+  if (sanitized.core) {
+    delete sanitized.core?.draftChanges;
+    delete sanitized.core?.draft_status;
+  }
+  if (sanitized.draft) {
+    delete sanitized.draft;
+  }
+  return sanitized;
 };
 
 const createRowKey = (vendorId, productId) =>
@@ -302,21 +423,9 @@ export const buildVendorProductRow = (entry) => {
     resolvedVendorDisplayId
   );
 
-  const publicFlags = resolvePublicPublicationFlags(raw, source, pathSegments);
-  const active = resolveVendorProductActiveFlag(raw, {
-    source,
-    pathSegments,
-    publicStatusFlag: publicFlags.publicStatusFlag,
-    publicMmStatusFlag: publicFlags.publicMmStatusFlag,
-  });
-  const status = resolveVendorProductStatus(raw, "unknown", {
-    pathSegments,
-    active,
-    source,
-    publicActive: publicFlags.publicActive,
-    publicStatusFlag: publicFlags.publicStatusFlag,
-    publicMmStatusFlag: publicFlags.publicMmStatusFlag,
-  });
+  const flags = extractVendorProductFlags(raw);
+  const statusKey = derivePrimaryFilterKey(flags);
+  const visibility = Boolean(flags.mmStatus && flags.vmStatus);
 
   return {
     id: entry.id,
@@ -325,9 +434,9 @@ export const buildVendorProductRow = (entry) => {
     vendorName,
     productId,
     title: resolveVendorProductTitle(raw, productId),
-    status,
-    statusLabel: getVendorProductStatusLabel(status),
-    active,
+    status: statusKey,
+    statusLabel: statusKey ? getVendorProductFilterLabel(statusKey) : "-",
+    active: visibility,
     cover: resolveVendorProductCover(raw),
     price: resolveVendorProductPrice(raw),
     currency: resolveVendorProductCurrency(raw),
@@ -338,9 +447,13 @@ export const buildVendorProductRow = (entry) => {
     source,
     pathSegments,
     raw,
-    publicStatusFlag: publicFlags.publicStatusFlag,
-    publicMmStatusFlag: publicFlags.publicMmStatusFlag,
-    publicActive: publicFlags.publicActive,
+    mmStatus: flags.mmStatus,
+    vmStatus: flags.vmStatus,
+    draftStatus: flags.draftStatus,
+    draftChanges: Array.isArray(flags.draftChanges)
+      ? [...flags.draftChanges]
+      : [],
+    isVisibleOnMonmarche: visibility,
   };
 };
 
@@ -402,20 +515,21 @@ export const loadPublicCatalogRows = async () => {
 
 export const createEmptyVendorProductStats = () => ({
   total: 0,
-  byStatus: VENDOR_PRODUCT_STATUS_VALUES.reduce((acc, status) => {
-    acc[status] = 0;
+  byStatus: VENDOR_PRODUCT_FILTER_ORDER.reduce((acc, key) => {
+    acc[key] = 0;
     return acc;
   }, {}),
 });
 
-export const summarizeVendorProductRows = (rows) => {
+export const summarizeVendorProductRows = (rows = []) => {
   const stats = createEmptyVendorProductStats();
   for (const row of rows) {
     stats.total += 1;
-    const normalized = normalizeVendorProductStatus(row.status);
-    const status =
-      normalized ?? (isVendorProductStatus(row.status) ? row.status : "unknown");
-    stats.byStatus[status] = (stats.byStatus[status] || 0) + 1;
+    VENDOR_PRODUCT_FILTER_ORDER.forEach((key) => {
+      if (doesProductMatchFilter(row, key)) {
+        stats.byStatus[key] = (stats.byStatus[key] || 0) + 1;
+      }
+    });
   }
   return stats;
 };
@@ -425,69 +539,20 @@ export const loadVendorProductStats = async () => {
   const stats = createEmptyVendorProductStats();
   for (const entry of entries) {
     stats.total += 1;
-    const publicFlags = resolvePublicPublicationFlags(
-      entry.raw,
-      entry.source,
-      entry.pathSegments
-    );
-    const active = resolveVendorProductActiveFlag(entry.raw, {
-      source: entry.source,
-      pathSegments: entry.pathSegments,
-      publicStatusFlag: publicFlags.publicStatusFlag,
-      publicMmStatusFlag: publicFlags.publicMmStatusFlag,
+    const flags = extractVendorProductFlags(entry.raw);
+    const candidate = {
+      mmStatus: flags.mmStatus,
+      vmStatus: flags.vmStatus,
+      draftStatus: flags.draftStatus,
+      draftChanges: flags.draftChanges,
+    };
+    VENDOR_PRODUCT_FILTER_ORDER.forEach((key) => {
+      if (doesProductMatchFilter(candidate, key)) {
+        stats.byStatus[key] = (stats.byStatus[key] || 0) + 1;
+      }
     });
-    const status = resolveVendorProductStatus(entry.raw, "unknown", {
-      pathSegments: entry.pathSegments,
-      active,
-      source: entry.source,
-      publicActive: publicFlags.publicActive,
-      publicStatusFlag: publicFlags.publicStatusFlag,
-      publicMmStatusFlag: publicFlags.publicMmStatusFlag,
-    });
-    const normalized =
-      normalizeVendorProductStatus(status) ??
-      (isVendorProductStatus(status) ? status : "unknown");
-    stats.byStatus[normalized] = (stats.byStatus[normalized] || 0) + 1;
   }
   return stats;
-};
-
-const buildStatusUpdatePayload = (status, reason) => {
-  const normalized = normalizeVendorProductStatus(status) ?? status;
-  const active = normalized === "published";
-  const blocked = normalized === "blocked";
-  const timestamp = serverTimestamp();
-  const updates = {
-    status: normalized,
-    lifecycleStatus: normalized,
-    workflowStatus: normalized,
-    state: normalized,
-    active,
-    isActive: active,
-    blocked,
-    isBlocked: blocked,
-    updatedAt: timestamp,
-    "core.status": normalized,
-    "core.lifecycleStatus": normalized,
-    "core.workflowStatus": normalized,
-    "core.state": normalized,
-    "core.active": active,
-    "core.isActive": active,
-    "core.blocked": blocked,
-    "core.isBlocked": blocked,
-    "core.updatedAt": timestamp,
-  };
-
-  if (blocked) {
-    const reasonValue = reason?.trim?.() || "Bloque manuellement";
-    updates.blockedReason = reasonValue;
-    updates["core.blockedReason"] = reasonValue;
-  } else {
-    updates.blockedReason = deleteField();
-    updates["core.blockedReason"] = deleteField();
-  }
-
-  return updates;
 };
 
 const toDocRef = (path) => {
@@ -500,90 +565,173 @@ const toDocRef = (path) => {
 const shouldIncludeVendorScopedRef = (value) =>
   value && value !== "_" && value !== "root";
 
-export const transitionVendorProductStatus = async ({
+const collectVendorProductRefs = async ({
   productId,
   vendorId,
-  targetStatus,
-  reason,
   primaryDocPath,
-  scope,
-  productData,
 }) => {
-  const normalized = normalizeVendorProductStatus(targetStatus);
-  if (!normalized || !isVendorProductStatus(normalized)) {
+  if (typeof productId !== "string" || !productId) {
+    throw new Error("Identifiant produit manquant pour la mise � jour.");
+  }
+  const refs = new Map();
+  const registerRef = (ref, { requiresExisting = false } = {}) => {
+    if (!ref) return;
+    const existing = refs.get(ref.path);
+    if (existing) {
+      existing.requiresExisting =
+        existing.requiresExisting && requiresExisting;
+      return;
+    }
+    refs.set(ref.path, { ref, requiresExisting });
+  };
+
+  const primaryRef = toDocRef(primaryDocPath);
+  if (primaryRef) {
+    registerRef(primaryRef);
+  }
+
+  const rootRef = doc(db, "vendor_products", productId);
+  registerRef(rootRef, {
+    requiresExisting: primaryRef ? primaryRef.path !== rootRef.path : false,
+  });
+
+  if (shouldIncludeVendorScopedRef(vendorId)) {
+    const vendorScopedRef = doc(
+      db,
+      "vendor_products",
+      vendorId,
+      "products",
+      productId
+    );
+    registerRef(vendorScopedRef, {
+      requiresExisting:
+        !primaryRef || vendorScopedRef.path !== primaryRef.path,
+    });
+  }
+
+  const refsToWrite = [];
+  for (const entry of refs.values()) {
+    if (entry.requiresExisting) {
+      const snap = await getDoc(entry.ref);
+      if (!snap.exists()) continue;
+    }
+    refsToWrite.push(entry.ref);
+  }
+
+  if (!refsToWrite.length) {
     throw new Error(
-      `Statut "${targetStatus}" invalide. Valeurs autorisees: ${VENDOR_PRODUCT_STATUS_VALUES.join(
-        ", "
-      )}`
+      "Aucune r�f�rence valide trouv�e pour mettre � jour le produit vendeur."
     );
   }
 
-  if (typeof productId !== "string" || productId.length === 0) {
-    throw new Error("Identifiant produit manquant pour la mise a jour.");
+  return refsToWrite;
+};
+
+export const updateVendorProductAdminStatus = async ({
+  productId,
+  vendorId,
+  enabled,
+  primaryDocPath,
+  productData,
+}) => {
+  if (typeof enabled !== "boolean") {
+    throw new Error("Valeur de mm_status invalide.");
   }
 
-  const updates = buildStatusUpdatePayload(normalized, reason);
+  const refsToWrite = await collectVendorProductRefs({
+    productId,
+    vendorId,
+    primaryDocPath,
+  });
 
-  const refs = new Map();
-  const registerRef = (ref) => {
-    if (ref) {
-      refs.set(ref.path, ref);
-    }
+  const timestamp = serverTimestamp();
+  const sharedPayload = {
+    mm_status: enabled,
+    "core.mm_status": enabled,
+    "draft.core.mm_status": enabled,
+    updatedAt: timestamp,
+    "core.updatedAt": timestamp,
+    "draft.core.updatedAt": timestamp,
   };
 
-  registerRef(toDocRef(primaryDocPath));
-  registerRef(doc(db, "vendor_products", productId));
+  const writes = refsToWrite.map((ref) =>
+    setDoc(ref, sharedPayload, { merge: true })
+  );
 
-  if (shouldIncludeVendorScopedRef(vendorId)) {
-    registerRef(doc(db, "vendor_products", vendorId, "products", productId));
+  const publicRef = doc(db, "products_public", productId);
+  const publicSnap = await getDoc(publicRef);
+  const shouldHydrate = enabled && !publicSnap.exists();
+  if (shouldHydrate && !productData) {
+    throw new Error(
+      "Impossible de publier le produit : donn�es source manquantes."
+    );
+  }
+  if (shouldHydrate || publicSnap.exists()) {
+    const basePayload = { mm_status: enabled };
+    const payload = shouldHydrate
+      ? { ...sanitizeProductPayload(productData), ...basePayload }
+      : basePayload;
+    writes.push(setDoc(publicRef, payload, { merge: true }));
+  }
+
+  await Promise.all(writes);
+};
+
+export const applyVendorProductDraftChanges = async ({
+  productId,
+  vendorId,
+  primaryDocPath,
+  productData,
+}) => {
+  if (!productData || typeof productData !== "object") {
+    throw new Error("Donn�es produit indisponibles pour la validation.");
+  }
+  const draftChanges = Array.isArray(productData.draftChanges)
+    ? productData.draftChanges.filter(
+        (field) => typeof field === "string" && field.trim().length > 0
+      )
+    : [];
+  if (!draftChanges.length) {
+    throw new Error("Aucune modification � valider.");
+  }
+
+  const valuesPayload = buildUpdatePayloadFromPaths(productData, draftChanges);
+  if (!Object.keys(valuesPayload).length) {
+    throw new Error(
+      "Impossible de construire la mise � jour � partir des modifications."
+    );
   }
 
   const publicRef = doc(db, "products_public", productId);
-  let includePublicWrite = false;
-  let hydratePublicDoc = false;
-
-  if (normalized === "published") {
-    includePublicWrite = true;
-    hydratePublicDoc = true;
-  } else if (scope === "public") {
-    includePublicWrite = true;
-  } else {
-    const publicSnapshot = await getDoc(publicRef);
-    includePublicWrite = publicSnapshot.exists();
-  }
-
-  if (includePublicWrite) {
-    registerRef(publicRef);
-  }
-
-  const sanitizedProduct =
-    hydratePublicDoc && productData
-      ? sanitizeProductPayload(productData)
-      : null;
-
-  const writePromises = [];
-  refs.forEach((ref) => {
-    const isPublic = ref.path.startsWith("products_public/");
-    let payload = updates;
-
-    if (isPublic) {
-      const publicPayload = {
-        ...updates,
-        mm_status: normalized === "published",
+  const publicSnap = await getDoc(publicRef);
+  const publicPayload = publicSnap.exists()
+    ? valuesPayload
+    : {
+        ...sanitizeProductPayload(productData),
+        ...valuesPayload,
       };
+  await setDoc(publicRef, publicPayload, { merge: true });
 
-      payload =
-        hydratePublicDoc && sanitizedProduct
-          ? {
-              ...sanitizedProduct,
-              ...publicPayload,
-              mm_status: normalized === "published",
-            }
-          : publicPayload;
-    }
-
-    writePromises.push(setDoc(ref, payload, { merge: true }));
+  const refsToWrite = await collectVendorProductRefs({
+    productId,
+    vendorId,
+    primaryDocPath,
   });
+  const timestamp = serverTimestamp();
+  const cleanupPayload = {
+    draft_status: false,
+    draftChanges: deleteField(),
+    updatedAt: timestamp,
+    "core.draft_status": false,
+    "core.draftChanges": deleteField(),
+    "core.updatedAt": timestamp,
+    "draft.core.draft_status": false,
+    "draft.core.draftChanges": deleteField(),
+    "draft.core.updatedAt": timestamp,
+  };
 
-  await Promise.all(writePromises);
+  await Promise.all(
+    refsToWrite.map((ref) => setDoc(ref, cleanupPayload, { merge: true }))
+  );
 };
+
