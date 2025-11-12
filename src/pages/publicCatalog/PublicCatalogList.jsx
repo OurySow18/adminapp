@@ -144,9 +144,7 @@ const PublicCatalogList = () => {
         <div className="vendorProducts__header">
           <div>
             <h1>Catalogue publique</h1>
-            <p>
-              Catalogue issu de la collection Firestore{" "}
-              <code>products_public</code>. {filteredRows.length} element(s) trouves.
+            <p>  {filteredRows.length} element(s) trouves.
             </p>
           </div>
           <div className="vendorProducts__actions">

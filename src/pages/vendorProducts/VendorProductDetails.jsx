@@ -90,6 +90,59 @@ const getNestedValue = (source, path) => {
   }, source);
 };
 
+const isLikelyImageUrl = (value = "", path = "") => {
+  if (typeof value !== "string") return false;
+  const candidate = value.trim().toLowerCase();
+  if (!candidate.startsWith("http")) return false;
+  if (/\.(png|jpe?g|gif|webp|svg)$/i.test(candidate)) return true;
+  if (candidate.includes("firebasestorage")) return true;
+  if (!path) return false;
+  const normalizedPath = path.toLowerCase();
+  return (
+    normalizedPath.includes("image") ||
+    normalizedPath.includes("media") ||
+    normalizedPath.includes("cover") ||
+    normalizedPath.includes("gallery")
+  );
+};
+
+const DiffImagePreview = ({ src, label }) => {
+  const [dimensions, setDimensions] = useState(null);
+  const [error, setError] = useState(false);
+
+  const handleLoad = (event) => {
+    setDimensions({
+      width: event.currentTarget.naturalWidth,
+      height: event.currentTarget.naturalHeight,
+    });
+  };
+
+  const handleError = () => {
+    setError(true);
+  };
+
+  return (
+    <figure className="vendorProductDetails__diffImage">
+      <img
+        src={src}
+        alt={label || "Aperçu média"}
+        onLoad={handleLoad}
+        onError={handleError}
+      />
+      <figcaption>
+        {label && <strong>{label}</strong>}
+        <span>
+          {error
+            ? "Impossible de charger l'image"
+            : dimensions
+            ? `${dimensions.width} × ${dimensions.height} px`
+            : "Taille en cours de chargement"}
+        </span>
+      </figcaption>
+    </figure>
+  );
+};
+
 const VendorProductDetails = () => {
   const { vendorId: vendorIdParam, productId: productIdParam } = useParams();
   const vendorId = decodeURIComponent(vendorIdParam || "_");
@@ -363,7 +416,7 @@ const VendorProductDetails = () => {
     }
     const statusFlag = toBoolean(
       firstValue(
-        publicProduct.status,
+        publicProduct.vm_status,
         publicProduct.active,
         publicProduct.isActive
       )
@@ -378,14 +431,33 @@ const VendorProductDetails = () => {
     if (!mmStatusFlag) {
       return {
         isPublished: false,
-        message: "Masqué côté Monmarché (mm_status=false)",
+        message: "Masqué côté Monmarché",
       };
     }
     return {
       isPublished: false,
-      message: "Statut public inactif dans products_public",
+      message: "Statut public inactif",
     };
   }, [publicProduct]);
+
+  const visibilityStatus = useMemo(() => {
+    if (mmStatus && vmStatus) {
+      return { tone: "positive", message: "Produit actif côté Monmarché" };
+    }
+    if (!mmStatus && !vmStatus) {
+      return {
+        tone: "negative",
+        message: "Masqué par l'admin et le vendeur",
+      };
+    }
+    if (!mmStatus) {
+      return { tone: "negative", message: "Masqué par l'admin" };
+    }
+    if (!vmStatus) {
+      return { tone: "warning", message: "Désactivé par le vendeur" };
+    }
+    return { tone: "neutral", message: "Visibilité inconnue" };
+  }, [mmStatus, vmStatus]);
 
   const priceInfo = useMemo(() => {
     if (!product) return "-";
@@ -437,6 +509,63 @@ const VendorProductDetails = () => {
       {};
     return Object.entries(base);
   }, [product]);
+
+  const lastUpdated = useMemo(() => {
+    if (!product) return "-";
+    const source = firstValue(
+      product.updatedAt,
+      product.core?.updatedAt,
+      product.draft?.core?.updatedAt
+    );
+    return formatDateTime(source);
+  }, [product]);
+
+  const blockedReason = useMemo(
+    () =>
+      firstValue(
+        product?.blockedReason,
+        product?.core?.blockedReason,
+        product?.draft?.core?.blockedReason,
+        "-"
+      ),
+    [product]
+  );
+
+  const categoryValue = useMemo(
+    () =>
+      firstValue(
+        product?.categoryId,
+        product?.category,
+        product?.core?.categoryId,
+        product?.draft?.core?.categoryId,
+        "-"
+      ),
+    [product]
+  );
+
+  const topCategoryValue = useMemo(
+    () =>
+      firstValue(
+        product?.topCategory,
+        product?.core?.topCategory,
+        product?.draft?.core?.topCategory,
+        "-"
+      ),
+    [product]
+  );
+
+  const brandValue = useMemo(
+    () =>
+      firstValue(
+        product?.brand,
+        product?.core?.brand,
+        product?.draft?.core?.brand,
+        "-"
+      ),
+    [product]
+  );
+
+
 
   const getFieldClass = useCallback(
     (...paths) =>
@@ -492,37 +621,129 @@ const VendorProductDetails = () => {
     resolveDraftValue,
   ]);
 
-  const renderChangeValue = useCallback((value) => {
-    if (
-      value === undefined ||
-      value === null ||
-      (typeof value === "string" && value.trim() === "")
-    ) {
-      return (
+  const renderChangeValue = useCallback(
+    (value, path = "") => {
+      const renderEmpty = () => (
         <span className="vendorProductDetails__draftValue vendorProductDetails__draftValue--empty">
           -
         </span>
       );
-    }
-    if (typeof value === "object") {
-      let serialized = "";
-      try {
-        serialized = JSON.stringify(value, null, 2);
-      } catch (err) {
-        serialized = String(value);
+
+      if (
+        value === undefined ||
+        value === null ||
+        (typeof value === "string" && value.trim() === "")
+      ) {
+        return renderEmpty();
       }
-      return (
-        <pre className="vendorProductDetails__draftValue vendorProductDetails__draftValue--code">
-          {serialized}
-        </pre>
-      );
-    }
-    return (
-      <span className="vendorProductDetails__draftValue">
-        {String(value)}
-      </span>
-    );
-  }, []);
+
+      if (typeof value === "boolean") {
+        return (
+          <span className="vendorProductDetails__draftValue">
+            {value ? "Oui" : "Non"}
+          </span>
+        );
+      }
+
+      if (typeof value === "number") {
+        return (
+          <span className="vendorProductDetails__draftValue">
+            {value}
+          </span>
+        );
+      }
+
+      if (typeof value === "string") {
+        if (isLikelyImageUrl(value, path)) {
+          return (
+            <div className="vendorProductDetails__diffImages">
+              <DiffImagePreview src={value} label="Image" />
+            </div>
+          );
+        }
+        if (/^https?:\/\//i.test(value.trim())) {
+          return (
+            <a
+              href={value}
+              target="_blank"
+              rel="noreferrer"
+              className="vendorProductDetails__draftLink"
+            >
+              {value}
+            </a>
+          );
+        }
+        return (
+          <span className="vendorProductDetails__draftValue">
+            {value}
+          </span>
+        );
+      }
+
+      if (Array.isArray(value)) {
+        const cleaned = value.filter(
+          (entry) =>
+            entry !== undefined &&
+            entry !== null &&
+            !(typeof entry === "string" && entry.trim() === "")
+        );
+        if (!cleaned.length) return renderEmpty();
+
+        if (
+          cleaned.every(
+            (entry) =>
+              typeof entry === "string" && isLikelyImageUrl(entry, path || "gallery")
+          )
+        ) {
+          return (
+            <div className="vendorProductDetails__diffImages">
+              {cleaned.map((url, index) => (
+                <DiffImagePreview
+                  key={`${url}-${index}`}
+                  src={url}
+                  label={`Image ${index + 1}`}
+                />
+              ))}
+            </div>
+          );
+        }
+
+        return (
+          <ul className="vendorProductDetails__diffList vendorProductDetails__diffList--bullets">
+            {cleaned.map((entry, index) => (
+              <li key={`${path}-${index}`}>
+                {renderChangeValue(entry, `${path || ""}[${index}]`)}
+              </li>
+            ))}
+          </ul>
+        );
+      }
+
+      if (typeof value === "object") {
+        const entries = Object.entries(value);
+        if (!entries.length) return renderEmpty();
+        return (
+          <dl className="vendorProductDetails__diffDefinition">
+            {entries.map(([key, val]) => {
+              const childPath = path ? `${path}.${key}` : key;
+              return (
+                <div
+                  key={childPath}
+                  className="vendorProductDetails__diffDefinitionRow"
+                >
+                  <dt>{getFieldLabel(childPath)}</dt>
+                  <dd>{renderChangeValue(val, childPath)}</dd>
+                </div>
+              );
+            })}
+          </dl>
+        );
+      }
+
+      return renderEmpty();
+    },
+    []
+  );
 
   const vendorDisplayId = useMemo(
     () =>
@@ -533,6 +754,22 @@ const VendorProductDetails = () => {
         vendorId === "_" ? null : vendorId
       ) ?? "-",
     [product, vendorId]
+  );
+
+  const vendorName = useMemo(
+    () =>
+      firstValue(
+        product?.vendorName,
+        product?.vendor?.name,
+        product?.vendor?.displayName,
+        product?.core?.vendorName,
+        product?.core?.vendor?.name,
+        product?.core?.vendor?.displayName,
+        product?.draft?.core?.vendorName,
+        product?.draft?.core?.vendor?.name,
+        product?.draft?.core?.vendor?.displayName
+      ) ?? (vendorDisplayId !== "-" && vendorDisplayId !== "_" ? vendorDisplayId : "Vendeur non renseigné"),
+    [product, vendorDisplayId]
   );
 
   const resolvedVendorId = useMemo(() => {
@@ -640,40 +877,21 @@ const VendorProductDetails = () => {
                 className="vendorProductDetails__back"
                 onClick={() => navigate(-1)}
               >
-                ← Retour
+                &larr; Retour
               </button>
               <h1>{title}</h1>
               <p>
-                Produit #{productId} — Vendeur :{" "}
-                {vendorId === "_" ? "N/A" : vendorId}
+                Produit #{productId} · Vendeur :{" "}
+                <span className="vendorProductDetails__metaHighlight">
+                  {vendorName}
+                </span>{" "}
+                ·{" "}
+                {lastUpdated === "-"
+                  ? "Dernière actualisation indisponible"
+                  : `Actualisé le ${lastUpdated}`}
               </p>
             </div>
             <div className="vendorProductDetails__headerRight">
-              <div className="vendorProductDetails__chips">
-                <span
-                  className={`vendorProductDetails__chip ${
-                    mmStatus
-                      ? "vendorProductDetails__chip--positive"
-                      : "vendorProductDetails__chip--negative"
-                  }`}
-                >
-                  Admin : {mmStatus ? "Actif" : "Inactif"}
-                </span>
-                <span
-                  className={`vendorProductDetails__chip ${
-                    vmStatus
-                      ? "vendorProductDetails__chip--positive"
-                      : "vendorProductDetails__chip--negative"
-                  }`}
-                >
-                  Vendeur : {vmStatus ? "Actif" : "Inactif"}
-                </span>
-                {pendingDraftChanges && (
-                  <span className="vendorProductDetails__chip vendorProductDetails__chip--warning">
-                    Modifications en attente
-                  </span>
-                )}
-              </div>
               <div className="vendorProductDetails__actions">
                 {pendingDraftChanges && (
                   <button
@@ -717,258 +935,395 @@ const VendorProductDetails = () => {
             </div>
           )}
 
-          <section>
-            <div className="vendorProductDetails__main">
-              <div className="vendorProductDetails__cover">
-                <img src={coverImage} alt={title} />
-              </div>
-              <div className="vendorProductDetails__summary">
-                <div className="vendorProductDetails__stat">
-                  <span className="vendorProductDetails__statLabel">Prix</span>
-                  <span
-                    className={getStatClass(
-                      "price",
-                      "pricing.basePrice",
-                      "core.pricing.basePrice",
-                      "draft.core.pricing.basePrice"
-                    )}
-                  >
-                    {priceInfo}
-                  </span>
+          <section className="vendorProductDetails__spotlightSection">
+            <div className="vendorProductDetails__sectionHeading">
+              <h2>Vue d'ensemble</h2>
+              <p>Résumé des indicateurs clés et du média principal.</p>
+            </div>
+            <div className="vendorProductDetails__card vendorProductDetails__card--section vendorProductDetails__spotlightCard">
+              <div className="vendorProductDetails__spotlightGrid">
+                <div className="vendorProductDetails__cover">
+                  {pendingDraftChanges && (
+                    <span className="vendorProductDetails__coverBadge">
+                      Brouillon vendeur en attente
+                    </span>
+                  )}
+                  <img src={coverImage} alt={title} />
                 </div>
-                <div className="vendorProductDetails__stat">
-                  <span className="vendorProductDetails__statLabel">Stock</span>
-                  <span
-                    className={getStatClass(
-                      "stock",
-                      "inventory.stock",
-                      "core.inventory.stock",
-                      "draft.core.inventory.stock"
-                    )}
-                  >
-                    {stockInfo}
-                  </span>
-                </div>
-                <div className="vendorProductDetails__stat">
-                  <span className="vendorProductDetails__statLabel">
-                    Dernière mise à jour
-                  </span>
-                  <span className="vendorProductDetails__statValue">
-                    {formatDateTime(
-                      product.updatedAt ??
-                        product.core?.updatedAt ??
-                        product.draft?.core?.updatedAt
-                    )}
-                  </span>
-                </div>
-                <div className="vendorProductDetails__stat">
-                  <span className="vendorProductDetails__statLabel">
-                    Motif blocage
-                  </span>
-                  <span
-                    className={getStatClass(
-                      "blockedReason",
-                      "core.blockedReason",
-                      "draft.core.blockedReason"
-                    )}
-                  >
-                    {firstValue(
-                      product.blockedReason,
-                      product.core?.blockedReason,
-                      product.draft?.core?.blockedReason,
-                      "-"
-                    )}
-                  </span>
-                </div>
-                <div className="vendorProductDetails__stat">
-                  <span className="vendorProductDetails__statLabel">
-                    Visibilite Monmarche
-                  </span>
-                  <span
-                    className={`vendorProductDetails__statValue ${
-                      monmarchePublication.isPublished
-                        ? "vendorProductDetails__statValue--positive"
-                        : "vendorProductDetails__statValue--negative"
-                    }`}
-                  >
-                    {monmarchePublication.message}
-                  </span>
+                <div className="vendorProductDetails__summary">
+                  <div className="vendorProductDetails__statGrid">
+                    <div className="vendorProductDetails__stat">
+                      <span className="vendorProductDetails__statLabel">
+                        Prix
+                      </span>
+                      <span
+                        className={getStatClass(
+                          "price",
+                          "pricing.basePrice",
+                          "core.pricing.basePrice",
+                          "draft.core.pricing.basePrice"
+                        )}
+                      >
+                        {priceInfo}
+                      </span>
+                    </div>
+                    <div className="vendorProductDetails__stat">
+                      <span className="vendorProductDetails__statLabel">
+                        Stock
+                      </span>
+                      <span
+                        className={getStatClass(
+                          "stock",
+                          "inventory.stock",
+                          "core.inventory.stock",
+                          "draft.core.inventory.stock"
+                        )}
+                      >
+                        {stockInfo}
+                      </span>
+                    </div>
+                    <div className="vendorProductDetails__stat">
+                      <span className="vendorProductDetails__statLabel">
+                        Visibilité Monmarché
+                      </span>
+                      <span
+                        className={`vendorProductDetails__statValue ${
+                          visibilityStatus.tone === "positive"
+                            ? "vendorProductDetails__statValue--positive"
+                            : visibilityStatus.tone === "negative"
+                            ? "vendorProductDetails__statValue--negative"
+                            : visibilityStatus.tone === "warning"
+                            ? "vendorProductDetails__statValue--warning"
+                            : ""
+                        }`}
+                      >
+                        {visibilityStatus.message}
+                      </span>
+                    </div>
+                    <div className="vendorProductDetails__stat">
+                      <span className="vendorProductDetails__statLabel">
+                        Motif blocage
+                      </span>
+                      <span
+                        className={getStatClass(
+                          "blockedReason",
+                          "core.blockedReason",
+                          "draft.core.blockedReason"
+                        )}
+                      >
+                        {blockedReason}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="vendorProductDetails__metaBar">
+                    <div className="vendorProductDetails__metaDetails">
+                      <span>Produit #{productId}</span>
+                      <span>
+                        Vendeur :{" "}
+                        <span className="vendorProductDetails__metaHighlight">
+                          {vendorName}
+                        </span>
+                      </span>
+                      <span>Dernière mise à jour : {lastUpdated}</span>
+                    </div>
+                    <div className="vendorProductDetails__chips vendorProductDetails__chips--inline">
+                      <span
+                        className={`vendorProductDetails__chip ${
+                          mmStatus
+                            ? "vendorProductDetails__chip--positive"
+                            : "vendorProductDetails__chip--negative"
+                        }`}
+                      >
+                        Admin : {mmStatus ? "Actif" : "Inactif"}
+                      </span>
+                      <span
+                        className={`vendorProductDetails__chip ${
+                          vmStatus
+                            ? "vendorProductDetails__chip--positive"
+                            : "vendorProductDetails__chip--negative"
+                        }`}
+                      >
+                        Vendeur : {vmStatus ? "Actif" : "Inactif"}
+                      </span>
+                      {pendingDraftChanges && (
+                        <span className="vendorProductDetails__chip vendorProductDetails__chip--warning">
+                          Modifications en attente
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </section>
 
-          {draftChangeDetails.length > 0 && (
-            <section>
-              <h2>Champs modifiés</h2>
-              <div className="vendorProductDetails__card">
-                <p>
-                  Ces champs ont été modifiés par le vendeur. Comparez la
-                  proposition à la version publiée avant de valider.
-                </p>
-                <ul className="vendorProductDetails__draftList vendorProductDetails__draftList--detailed">
-                  {draftChangeDetails.map((change) => (
-                    <li key={change.path}>
-                      <div className="vendorProductDetails__draftField">
-                        <strong>{change.label}</strong>
-                        <span className="vendorProductDetails__draftPath">
-                          {change.path}
-                        </span>
-                      </div>
+          <div className="vendorProductDetails__layout">
+            <div className="vendorProductDetails__primaryColumn">
+              {draftChangeDetails.length > 0 && (
+                <section className="vendorProductDetails__card vendorProductDetails__card--section">
+                  <div className="vendorProductDetails__cardHeader">
+                    <h2>Champs modifiés</h2>
+                    <p>
+                      Ces champs ont été modifiés par le vendeur. Comparez la
+                      proposition à la version publiée avant de valider.
+                    </p>
+                  </div>
+                  <ul className="vendorProductDetails__draftList vendorProductDetails__draftList--detailed">
+                    {draftChangeDetails.map((change) => (
+                      <li key={change.path}>
+                        <div className="vendorProductDetails__draftField">
+                          <strong>{change.label}</strong>
+                          <span className="vendorProductDetails__draftPath">
+                            {change.path}
+                          </span>
+                        </div>
                       <div className="vendorProductDetails__draftValues">
                         <div>
                           <span className="vendorProductDetails__draftValuesLabel">
                             Proposition vendeur
                           </span>
-                          {renderChangeValue(change.vendorValue)}
+                          {renderChangeValue(change.vendorValue, change.path)}
                         </div>
                         <div>
                           <span className="vendorProductDetails__draftValuesLabel">
                             Version publiée
                           </span>
-                          {renderChangeValue(change.publishedValue)}
+                          {renderChangeValue(
+                            change.publishedValue,
+                            change.path
+                          )}
                         </div>
                       </div>
                     </li>
                   ))}
                 </ul>
-              </div>
-            </section>
-          )}
+                </section>
+              )}
 
-          {publicProductError && (
-            <div className="vendorProductDetails__publicWarning">
-              {publicProductError}
-            </div>
-          )}
-
-          {galleryImages.length > 1 && (
-            <section>
-              <h2>Galerie</h2>
-              <div className="vendorProductDetails__gallery">
-                {galleryImages.slice(1).map((url, index) => (
-                  <div
-                    className="vendorProductDetails__galleryItem"
-                    key={url || index}
-                  >
-                    <img src={url} alt={`Aperçu ${index}`} />
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <section>
-            <h2>Informations générales</h2>
-            <div className="vendorProductDetails__card">
-              <ul>
-                <li>
-                  <strong>Vendor ID :</strong>{" "}
-                  {vendorDisplayId}
-                </li>
-                <li>
-                  <strong>Product ID :</strong> {productId}
-                </li>
-                <li>
-                  <strong>Cat?gorie :</strong>{" "}
-                  <span className={getFieldClass("categoryId", "category", "core.categoryId", "draft.core.categoryId")}>
-                    {firstValue(
-                      product.categoryId,
-                      product.category,
-                      product.core?.categoryId,
-                      product.draft?.core?.categoryId,
-                      "-"
-                    )}
-                  </span>
-                </li>
-                <li>
-                  <strong>Top cat?gorie :</strong>{" "}
-                  <span className={getFieldClass("topCategory", "core.topCategory", "draft.core.topCategory")}>
-                    {firstValue(
-                      product.topCategory,
-                      product.core?.topCategory,
-                      product.draft?.core?.topCategory,
-                      "-"
-                    )}
-                  </span>
-                </li>
-                <li>
-                  <strong>Marque :</strong>{" "}
-                  <span className={getFieldClass("brand", "core.brand", "draft.core.brand")}>
-                    {firstValue(
-                      product.brand,
-                      product.core?.brand,
-                      product.draft?.core?.brand,
-                      "-"
-                    )}
-                  </span>
-                </li>
-              </ul>
-            </div>
-          </section>
-
-          <section>
-            <h2>Description</h2>
-            <div className="vendorProductDetails__card">
-              <p
-                className={getFieldClass(
-                  "description",
-                  "core.description",
-                  "draft.core.description"
-                )}
-              >
-                {firstValue(
-                  product.description,
-                  product.core?.description,
-                  product.draft?.core?.description,
-                  "Aucune description fournie."
-                )}
-              </p>
-            </div>
-          </section>
-
-          {attributes.length > 0 && (
-            <section>
-              <h2>Attributs</h2>
-              <div className="vendorProductDetails__card">
-                <ul>
-                  {attributes.map(([key, value]) => (
-                    <li key={key}>
-                      <strong>{key} :</strong>{" "}
-                      <span
-                        className={getFieldClass(
-                          `attributes.${key}`,
-                          `core.attributes.${key}`,
-                          `draft.core.attributes.${key}`
-                        )}
-                      >
-                        {typeof value === "object"
-                          ? JSON.stringify(value)
-                          : String(value)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </section>
-          )}
-
-          <section>
-            <h2>Liens rapides</h2>
-            <div className="vendorProductDetails__card vendorProductDetails__links">
-              <Link to="/vendor-products" className="vendorProductDetails__link">
-                Retour à la liste des produits vendeurs
-              </Link>
-              {vendorDisplayId && vendorDisplayId !== "-" && vendorDisplayId !== "_" && (
-                <Link
-                  to={`/vendors/${encodeURIComponent(vendorDisplayId)}`}
-                  className="vendorProductDetails__link"
+              <section className="vendorProductDetails__card vendorProductDetails__card--section">
+                <div className="vendorProductDetails__cardHeader">
+                  <h2>Description</h2>
+                  <p>Résumé fonctionnel partagé par le vendeur.</p>
+                </div>
+                <p
+                  className={`vendorProductDetails__description ${getFieldClass(
+                    "description",
+                    "core.description",
+                    "draft.core.description"
+                  )}`}
                 >
-                  Consulter le vendeur
-                </Link>
+                  {firstValue(
+                    product.description,
+                    product.core?.description,
+                    product.draft?.core?.description,
+                    "Aucune description fournie."
+                  )}
+                </p>
+              </section>
+
+              {attributes.length > 0 && (
+                <section className="vendorProductDetails__card vendorProductDetails__card--section">
+                  <div className="vendorProductDetails__cardHeader">
+                    <h2>Attributs</h2>
+                    <p>Données déclaratives fournies par le vendeur.</p>
+                  </div>
+                  <div className="vendorProductDetails__attributes">
+                    {attributes.map(([key, value]) => (
+                      <div className="vendorProductDetails__attributeRow" key={key}>
+                        <span className="vendorProductDetails__attributeKey">{key}</span>
+                        <span
+                          className={`vendorProductDetails__attributeValue ${getFieldClass(
+                            `attributes.${key}`,
+                            `core.attributes.${key}`,
+                            `draft.core.attributes.${key}`
+                          )}`}
+                        >
+                          {typeof value === "object"
+                            ? JSON.stringify(value)
+                            : String(value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {galleryImages.length > 1 && (
+                <section className="vendorProductDetails__card vendorProductDetails__card--section">
+                  <div className="vendorProductDetails__cardHeader">
+                    <h2>Galerie</h2>
+                    <p>Visuels complémentaires soumis par le vendeur.</p>
+                  </div>
+                  <div className="vendorProductDetails__gallery">
+                    {galleryImages.slice(1).map((url, index) => (
+                      <div
+                        className="vendorProductDetails__galleryItem"
+                        key={url || index}
+                      >
+                        <img src={url} alt={`Aperçu ${index}`} />
+                      </div>
+                    ))}
+                  </div>
+                </section>
               )}
             </div>
-          </section>
+
+            <aside className="vendorProductDetails__sideColumn">
+              <section className="vendorProductDetails__card vendorProductDetails__card--section">
+                <div className="vendorProductDetails__cardHeader">
+                  <h2>Informations essentielles</h2>
+                  <p>Identification et classification du produit.</p>
+                </div>
+                <div className="vendorProductDetails__infoGrid">
+                  <div className="vendorProductDetails__infoItem">
+                    <span className="vendorProductDetails__infoLabel">Vendeur</span>
+                    <span className="vendorProductDetails__infoValue vendorProductDetails__infoValue--accent">
+                      {vendorName}
+                    </span>
+                  </div>
+                  <div className="vendorProductDetails__infoItem">
+                    <span className="vendorProductDetails__infoLabel">Product ID</span>
+                    <span className="vendorProductDetails__infoValue">{productId}</span>
+                  </div>
+                  <div className="vendorProductDetails__infoItem">
+                    <span className="vendorProductDetails__infoLabel">Catégorie</span>
+                    <span
+                      className={`vendorProductDetails__infoValue ${getFieldClass(
+                        "categoryId",
+                        "category",
+                        "core.categoryId",
+                        "draft.core.categoryId"
+                      )}`}
+                    >
+                      {categoryValue}
+                    </span>
+                  </div>
+                  <div className="vendorProductDetails__infoItem">
+                    <span className="vendorProductDetails__infoLabel">Top catégorie</span>
+                    <span
+                      className={`vendorProductDetails__infoValue ${getFieldClass(
+                        "topCategory",
+                        "core.topCategory",
+                        "draft.core.topCategory"
+                      )}`}
+                    >
+                      {topCategoryValue}
+                    </span>
+                  </div>
+                  <div className="vendorProductDetails__infoItem">
+                    <span className="vendorProductDetails__infoLabel">Marque</span>
+                    <span
+                      className={`vendorProductDetails__infoValue ${getFieldClass(
+                        "brand",
+                        "core.brand",
+                        "draft.core.brand"
+                      )}`}
+                    >
+                      {brandValue}
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              <section className="vendorProductDetails__card vendorProductDetails__card--section">
+                <div className="vendorProductDetails__cardHeader">
+                  <h2>Publication & conformité</h2>
+                  <p>Suivi des statuts visibles sur Monmarché.</p>
+                </div>
+                <div className="vendorProductDetails__publication">
+                  <div
+                    className={`vendorProductDetails__badge ${
+                      monmarchePublication.isPublished
+                        ? "vendorProductDetails__badge--positive"
+                        : "vendorProductDetails__badge--negative"
+                    }`}
+                  >
+                    {monmarchePublication.message}
+                  </div>
+                  <ul className="vendorProductDetails__statusList">
+                    <li>
+                      <span>Statut admin</span>
+                      <span
+                        className={`vendorProductDetails__statusValue ${
+                          mmStatus
+                            ? "vendorProductDetails__statusValue--positive"
+                            : "vendorProductDetails__statusValue--negative"
+                        }`}
+                      >
+                        {mmStatus ? "Actif" : "Inactif"}
+                      </span>
+                    </li>
+                    <li>
+                      <span>Statut vendeur</span>
+                      <span
+                        className={`vendorProductDetails__statusValue ${
+                          vmStatus
+                            ? "vendorProductDetails__statusValue--positive"
+                            : "vendorProductDetails__statusValue--negative"
+                        }`}
+                      >
+                        {vmStatus ? "Actif" : "Inactif"}
+                      </span>
+                    </li>
+                    <li>
+                      <span>Propositions vendeur</span>
+                      <span
+                        className={`vendorProductDetails__statusValue ${
+                          pendingDraftChanges
+                            ? "vendorProductDetails__statusValue--warning"
+                            : ""
+                        }`}
+                      >
+                        {pendingDraftChanges
+                          ? "En attente de validation"
+                          : "Aucune modification"}
+                      </span>
+                    </li>
+                    <li>
+                      <span>Blocage</span>
+                      <span
+                        className={getStatClass(
+                          "blockedReason",
+                          "core.blockedReason",
+                          "draft.core.blockedReason"
+                        )}
+                      >
+                        {blockedReason}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+                {publicProductError && (
+                  <div className="vendorProductDetails__publicWarning vendorProductDetails__publicWarning--compact">
+                    {publicProductError}
+                  </div>
+                )}
+              </section>
+
+              <section className="vendorProductDetails__card vendorProductDetails__card--section">
+                <div className="vendorProductDetails__cardHeader">
+                  <h2>Raccourcis</h2>
+                  <p>Actions rapides autour de ce produit.</p>
+                </div>
+                <div className="vendorProductDetails__links">
+                  <Link to="/vendor-products" className="vendorProductDetails__linkButton">
+                    Retour à la liste des produits vendeurs
+                  </Link>
+                  {vendorDisplayId &&
+                    vendorDisplayId !== "-" &&
+                    vendorDisplayId !== "_" && (
+                    <Link
+                      to={`/vendors/${encodeURIComponent(vendorDisplayId)}`}
+                      className="vendorProductDetails__linkButton"
+                    >
+                      Consulter le vendeur
+                    </Link>
+                  )}
+                </div>
+              </section>
+            </aside>
+          </div>
+
         </div>
       </div>
     </div>
@@ -976,5 +1331,11 @@ const VendorProductDetails = () => {
 };
 
 export default VendorProductDetails;
+
+
+
+
+
+
 
 

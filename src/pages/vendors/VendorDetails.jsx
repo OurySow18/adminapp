@@ -616,14 +616,11 @@ const VendorDetails = () => {
   }, []);
 
   const blockProductsForVendor = useCallback(
-    async (targetProducts, reason) => {
+    async (targetProducts) => {
       if (!Array.isArray(targetProducts) || targetProducts.length === 0) {
         return 0;
       }
 
-      const adminEmail = auth.currentUser?.email ?? null;
-      const adminUid = auth.currentUser?.uid ?? null;
-      const normalizedReason = reason?.trim();
       const chunkSize = 400;
       let processed = 0;
 
@@ -637,65 +634,13 @@ const VendorDetails = () => {
         chunk.forEach((product) => {
           const productRef = getPrimaryProductDocRef(product, db);
           const payload = {
-            status: "archived",
-            blocked: true,
-            published: false,
-            homePage: false,
-            blockedAt: timestamp,
+            mm_status: false,
+            "core.mm_status": false,
+            "draft.core.mm_status": false,
             updatedAt: timestamp,
+            "core.updatedAt": timestamp,
+            "draft.core.updatedAt": timestamp,
           };
-
-          payload.active = false;
-          payload.isActive = false;
-          payload["profile.blocked"] = true;
-          payload["profile.active"] = false;
-          payload["profile.isActive"] = false;
-          payload["core.status"] = "archived";
-          payload["core.active"] = false;
-          payload["core.isActive"] = false;
-          payload["core.blocked"] = true;
-          payload["draft.core.status"] = "archived";
-          payload["draft.core.active"] = false;
-          payload["draft.core.isActive"] = false;
-          payload["draft.core.blocked"] = true;
-          payload["draft.core.published"] = false;
-          payload["core.updatedAt"] = timestamp;
-          payload["draft.core.updatedAt"] = timestamp;
-          payload["draft.updatedAt"] = timestamp;
-
-          if (adminEmail) {
-            payload.blockedBy = adminEmail;
-            payload["profile.blockedBy"] = adminEmail;
-            payload["core.blockedBy"] = adminEmail;
-            payload["draft.core.blockedBy"] = adminEmail;
-          } else {
-            payload.blockedBy = "admin";
-            payload["profile.blockedBy"] = "admin";
-            payload["core.blockedBy"] = "admin";
-            payload["draft.core.blockedBy"] = "admin";
-          }
-
-          if (adminUid) {
-            payload.blockedByUid = adminUid;
-            payload["profile.blockedByUid"] = adminUid;
-            payload["core.blockedByUid"] = adminUid;
-            payload["draft.core.blockedByUid"] = adminUid;
-          }
-
-          if (normalizedReason) {
-            payload.blockedReason = normalizedReason;
-            payload["profile.blockedReason"] = normalizedReason;
-            payload["core.blockedReason"] = normalizedReason;
-            payload["draft.core.blockedReason"] = normalizedReason;
-          } else {
-            payload.blockedReason = deleteField();
-            payload["profile.blockedReason"] = deleteField();
-            payload["core.blockedReason"] = deleteField();
-            payload["draft.core.blockedReason"] = deleteField();
-            payload["profile.blockedByUid"] = deleteField();
-            payload["core.blockedByUid"] = deleteField();
-            payload["draft.core.blockedByUid"] = deleteField();
-          }
 
           batch.update(productRef, payload);
           legacyUpdates.push({ product, payload });
@@ -733,33 +678,13 @@ const VendorDetails = () => {
         const productRef = getPrimaryProductDocRef(product, db);
         const updateTimestamp = serverTimestamp();
         const payload = {
-          status: "active",
+          mm_status: true,
+          "core.mm_status": true,
+          "draft.core.mm_status": true,
           updatedAt: updateTimestamp,
-          blocked: false,
-          published: true,
-          blockedAt: deleteField(),
-          blockedBy: deleteField(),
-          blockedByUid: deleteField(),
-          blockedReason: deleteField(),
+          "core.updatedAt": updateTimestamp,
+          "draft.core.updatedAt": updateTimestamp,
         };
-
-        payload.active = true;
-        payload.isActive = true;
-        payload["profile.blocked"] = false;
-        payload["profile.active"] = true;
-        payload["profile.isActive"] = true;
-        payload["core.status"] = "active";
-        payload["core.active"] = true;
-        payload["core.isActive"] = true;
-        payload["core.blocked"] = false;
-        payload["draft.core.status"] = "active";
-        payload["draft.core.active"] = true;
-        payload["draft.core.isActive"] = true;
-        payload["draft.core.blocked"] = false;
-        payload["draft.core.published"] = true;
-        payload["core.updatedAt"] = updateTimestamp;
-        payload["draft.core.updatedAt"] = updateTimestamp;
-        payload["draft.updatedAt"] = updateTimestamp;
 
         batch.update(productRef, payload);
         legacyUpdates.push({ product, payload });
@@ -794,7 +719,10 @@ const VendorDetails = () => {
           product?.core?.active === false ||
           product?.core?.isActive === false ||
           product?.draft?.core?.active === false ||
-          product?.draft?.core?.isActive === false
+          product?.draft?.core?.isActive === false ||
+          product?.mm_status === false ||
+          product?.core?.mm_status === false ||
+          product?.draft?.core?.mm_status === false
       ),
     [products]
   );
@@ -2188,9 +2116,6 @@ const VendorDetails = () => {
 };
 
 export default VendorDetails;
-
-
-
 
 
 
