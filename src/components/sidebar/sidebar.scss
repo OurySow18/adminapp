@@ -3,13 +3,16 @@
   --sidebar-collapsed-width: 78px;
   flex: 0 0 var(--sidebar-width);
   width: var(--sidebar-width);
-  min-height: 100vh;
+  height: 100vh;
+  align-self: flex-start;
+  position: sticky;
+  top: 0;
   border-right: 0.5px solid rgb(230, 227, 227);
   background-color: #fff;
   display: flex;
   flex-direction: column;
   transition: transform 0.25s ease;
-  position: relative;
+  overflow: hidden;
   z-index: 1001;
 
   .top {
@@ -310,4 +313,5 @@
     --sidebar-width: 240px;
   }
 }
+
 
