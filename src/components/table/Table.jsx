@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import {
   collection,
   onSnapshot,
@@ -7,7 +7,7 @@ import {
   limit as limitDocs,
 } from "firebase/firestore";
 import { db } from "../../firebase";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -44,6 +44,7 @@ const formatCurrency = (amount, currency = "GNF") => {
 };
 
 const ListCommande = ({ limit = 10 }) => {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -82,7 +83,7 @@ const ListCommande = ({ limit = 10 }) => {
             <TableCell className="tableCell">Adresse</TableCell>
             <TableCell className="tableCell">Date et Heure</TableCell>
             <TableCell className="tableCell">Total</TableCell>
-            <TableCell className="tableCell">Méthode de Paiement</TableCell>
+            <TableCell className="tableCell">MÃ©thode de Paiement</TableCell>
             <TableCell className="tableCell">Statut</TableCell>
           </TableRow>
         </TableHead>
@@ -98,7 +99,12 @@ const ListCommande = ({ limit = 10 }) => {
             orders.map((row) => {
               const receiver = row.deliverInfos ?? {};
               return (
-                <TableRow key={row.id} hover component={Link} to={`/orders/${row.id}`}>
+                <TableRow
+                  key={row.id}
+                  hover
+                  sx={{ cursor: "pointer" }}
+                  onClick={() => navigate(`/orders/${row.id}`)}
+                >
                   <TableCell className="tableCell">{row.orderId || row.id}</TableCell>
                   <TableCell className="tableCell">
                     <div className="cellWrapper">
@@ -121,7 +127,7 @@ const ListCommande = ({ limit = 10 }) => {
                     <span
                       className={`status ${row.delivered ? "delivered" : "pending"}`}
                     >
-                      {row.delivered ? "Livré" : "En attente"}
+                      {row.delivered ? "LivrÃ©" : "En attente"}
                     </span>
                   </TableCell>
                 </TableRow>
@@ -130,7 +136,7 @@ const ListCommande = ({ limit = 10 }) => {
           {!loading && orders.length === 0 && (
             <TableRow>
               <TableCell colSpan={7} className="tableCell">
-                Aucune commande trouv�e.�e.
+                Aucune commande trouvée.©e.
               </TableCell>
             </TableRow>
           )}
@@ -141,6 +147,8 @@ const ListCommande = ({ limit = 10 }) => {
 };
 
 export default ListCommande;
+
+
 
 
 

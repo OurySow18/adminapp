@@ -11,6 +11,50 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../../firebase";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
+const X_AXIS_DEFAULTS = {
+  allowDecimals: true,
+  hide: false,
+  orientation: "bottom",
+  width: 0,
+  height: 30,
+  mirror: false,
+  xAxisId: 0,
+  tickCount: 5,
+  type: "category",
+  allowDataOverflow: false,
+  scale: "auto",
+  reversed: false,
+  allowDuplicatedCategory: true,
+};
+
+const Y_AXIS_DEFAULTS = {
+  allowDuplicatedCategory: true,
+  allowDecimals: true,
+  hide: false,
+  orientation: "left",
+  width: 60,
+  height: 0,
+  mirror: false,
+  yAxisId: 0,
+  tickCount: 5,
+  type: "number",
+  allowDataOverflow: false,
+  scale: "auto",
+  reversed: false,
+};
+
+if (XAxis?.defaultProps) {
+  // React 18 warns about defaultProps on function components; we mirror needed defaults manually instead.
+  XAxis.defaultProps = undefined;
+}
+
+if (YAxis?.defaultProps) {
+  YAxis.defaultProps = undefined;
+}
+
+const getXAxisPadding = () => ({ left: 0, right: 0 });
+const getYAxisPadding = () => ({ top: 0, bottom: 0 });
+
 const dataMonth = [
     {name: "Janvier", Total: 1200},
     {name: "Fevrier", Total: 2500},
@@ -86,8 +130,16 @@ const Chart = ({aspect, title}) => {
                 <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
                 </linearGradient>               
             </defs>
-            <XAxis dataKey="name" stroke="gray" />
-            <YAxis />
+            <XAxis
+              {...X_AXIS_DEFAULTS}
+              padding={getXAxisPadding()}
+              dataKey="name"
+              stroke="gray"
+            />
+            <YAxis
+              {...Y_AXIS_DEFAULTS}
+              padding={getYAxisPadding()}
+            />
             <CartesianGrid strokeDasharray="3 3" className="chartGrid" />
             <Tooltip />
             <Area type="monotone" dataKey="Total" stroke="#8884d8" fillOpacity={1} fill="url(#total)" /> 

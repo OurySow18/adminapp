@@ -1,12 +1,12 @@
-/**
+﻿/**
  * Abgabe Bachelorarbeit
  * Author: Amadou Oury Sow
  * Date: 15.09.2022
  * 
- * Startseite, Wräppt die App.js in DarkModeContextProvider und der Provider
+ * Startseite, WrÃ¤ppt die App.js in DarkModeContextProvider und der Provider
  */
 import React from 'react';
-import ReactDOM from 'react-dom'; 
+import { createRoot } from 'react-dom/client'; 
 import App from './App'; 
 import {DarkModeContextProvider} from "./context/darkModeContext";
 import {AuthContextProvider} from "./context/AuthContext";
@@ -38,13 +38,18 @@ if (typeof window !== "undefined") {
   };
 }
 
-ReactDOM.render(
-  <React.StrictMode>
-    <DarkModeContextProvider>
-      <AuthContextProvider>
-        <App />
-      </AuthContextProvider>
-    </DarkModeContextProvider>
-  </React.StrictMode>,
-  document.getElementById('root')
-);
+const rootElement = document.getElementById('root');
+
+if (rootElement) {
+  const root = createRoot(rootElement);
+  root.render(
+    <React.StrictMode>
+      <DarkModeContextProvider>
+        <AuthContextProvider>
+          <App />
+        </AuthContextProvider>
+      </DarkModeContextProvider>
+    </React.StrictMode>
+  );
+}
+

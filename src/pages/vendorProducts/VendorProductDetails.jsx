@@ -51,9 +51,22 @@ const FIELD_LABELS = {
   stock: "Stock",
   "inventory.stock": "Stock",
   brand: "Marque",
-  category: "Catégorie",
-  categoryId: "Catégorie",
-  topCategory: "Top catégorie",
+  category: "Categorie",
+  categoryId: "Categorie",
+  topCategory: "Top categorie",
+  media: "Medias",
+  "media.cover": "Medias > couverture",
+  "media.gallery": "Medias > galerie",
+  "media.byOption": "Medias > par option",
+  "media.byOption.color": "Medias > par option > couleur",
+};
+
+const SEGMENT_LABEL_OVERRIDES = {
+  media: "Medias",
+  cover: "Couverture",
+  gallery: "Galerie",
+  byoption: "Par option",
+  color: "Couleur",
 };
 
 const splitFieldPath = (path) =>
@@ -66,6 +79,10 @@ const splitFieldPath = (path) =>
 
 const humanizeSegment = (segment) => {
   if (!segment) return "";
+  const normalized = segment.toLowerCase();
+  if (SEGMENT_LABEL_OVERRIDES[normalized]) {
+    return SEGMENT_LABEL_OVERRIDES[normalized];
+  }
   return segment
     .replace(/_/g, " ")
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -125,7 +142,7 @@ const DiffImagePreview = ({ src, label }) => {
     <figure className="vendorProductDetails__diffImage">
       <img
         src={src}
-        alt={label || "Aperçu média"}
+        alt={label || "Apercu du media"}
         onLoad={handleLoad}
         onError={handleError}
       />
@@ -135,7 +152,7 @@ const DiffImagePreview = ({ src, label }) => {
           {error
             ? "Impossible de charger l'image"
             : dimensions
-            ? `${dimensions.width} × ${dimensions.height} px`
+            ? `${dimensions.width}  ${dimensions.height} px`
             : "Taille en cours de chargement"}
         </span>
       </figcaption>
@@ -411,7 +428,7 @@ const VendorProductDetails = () => {
     if (!publicProduct) {
       return {
         isPublished: false,
-        message: "Aucune entrée dans products_public",
+        message: "Ce Produit n´est pas encore affiché dans Monmarché",
       };
     }
     const statusFlag = toBoolean(
@@ -425,13 +442,13 @@ const VendorProductDetails = () => {
     if (statusFlag && mmStatusFlag) {
       return {
         isPublished: true,
-        message: "Le produit est affiché sur Monmarché",
+        message: "Le produit est affiche sur Monmarche",
       };
     }
     if (!mmStatusFlag) {
       return {
         isPublished: false,
-        message: "Masqué côté Monmarché",
+        message: "Masque cote Monmarche",
       };
     }
     return {
@@ -442,21 +459,21 @@ const VendorProductDetails = () => {
 
   const visibilityStatus = useMemo(() => {
     if (mmStatus && vmStatus) {
-      return { tone: "positive", message: "Produit actif côté Monmarché" };
+      return { tone: "positive", message: "Produit actif cote Monmarche" };
     }
     if (!mmStatus && !vmStatus) {
       return {
         tone: "negative",
-        message: "Masqué par l'admin et le vendeur",
+        message: "Masque par l'admin et le vendeur",
       };
     }
     if (!mmStatus) {
-      return { tone: "negative", message: "Masqué par l'admin" };
+      return { tone: "negative", message: "Masque par l'admin" };
     }
     if (!vmStatus) {
-      return { tone: "warning", message: "Désactivé par le vendeur" };
+      return { tone: "warning", message: "Desactive par le vendeur" };
     }
-    return { tone: "neutral", message: "Visibilité inconnue" };
+    return { tone: "neutral", message: "Visibilite inconnue" };
   }, [mmStatus, vmStatus]);
 
   const priceInfo = useMemo(() => {
@@ -768,7 +785,7 @@ const VendorProductDetails = () => {
         product?.draft?.core?.vendorName,
         product?.draft?.core?.vendor?.name,
         product?.draft?.core?.vendor?.displayName
-      ) ?? (vendorDisplayId !== "-" && vendorDisplayId !== "_" ? vendorDisplayId : "Vendeur non renseigné"),
+      ) ?? (vendorDisplayId !== "-" && vendorDisplayId !== "_" ? vendorDisplayId : "Vendeur non renseigne"),
     [product, vendorDisplayId]
   );
 
@@ -797,12 +814,12 @@ const VendorProductDetails = () => {
         loading: false,
         error: null,
         success: enabled
-          ? "Le produit est désormais visible pour l'admin."
-          : "Le produit a été masqué sur Monmarché.",
+          ? "Le produit est desormais visible pour l'admin."
+          : "Le produit a ete masque sur Monmarche.",
       });
     } catch (err) {
       const message =
-        err?.message || "Impossible de mettre à jour le statut admin.";
+        err?.message || "Impossible de mettre a jour le statut admin.";
       setStatusUpdateState({ loading: false, error: message, success: null });
     }
   };
@@ -820,7 +837,7 @@ const VendorProductDetails = () => {
       setStatusUpdateState({
         loading: false,
         error: null,
-        success: "Modifications validées et appliquées au catalogue public.",
+        success: "Modifications validees et appliquees au catalogue public.",
       });
     } catch (err) {
       const message =
@@ -832,6 +849,7 @@ const VendorProductDetails = () => {
   const handleActivate = () => handleAdminToggle(true);
 
   const handleBlock = () => handleAdminToggle(false);
+
 
   if (loading) {
     return (
@@ -881,14 +899,14 @@ const VendorProductDetails = () => {
               </button>
               <h1>{title}</h1>
               <p>
-                Produit #{productId} · Vendeur :{" "}
+                Produit #{productId}  Vendeur :{" "}
                 <span className="vendorProductDetails__metaHighlight">
                   {vendorName}
                 </span>{" "}
-                ·{" "}
+                {" "}
                 {lastUpdated === "-"
-                  ? "Dernière actualisation indisponible"
-                  : `Actualisé le ${lastUpdated}`}
+                  ? "Derniere actualisation indisponible"
+                  : `Actualise le ${lastUpdated}`}
               </p>
             </div>
             <div className="vendorProductDetails__headerRight">
@@ -909,7 +927,7 @@ const VendorProductDetails = () => {
                   onClick={handleActivate}
                   disabled={statusUpdateState.loading || mmStatus}
                 >
-                  Afficher Monmarché
+                  Afficher Monmarche
                 </button>
                 <button
                   type="button"
@@ -917,13 +935,13 @@ const VendorProductDetails = () => {
                   onClick={handleBlock}
                   disabled={statusUpdateState.loading || !mmStatus}
                 >
-                  Masquer Monmarché
+                  Masquer Monmarche
                 </button>
-              </div>
-            </div>
           </div>
+        </div>
+      </div>
 
-          {(statusUpdateState.error || statusUpdateState.success) && (
+      {(statusUpdateState.error || statusUpdateState.success) && (
             <div
               className={`vendorProductDetails__actionFeedback ${
                 statusUpdateState.error
@@ -938,7 +956,7 @@ const VendorProductDetails = () => {
           <section className="vendorProductDetails__spotlightSection">
             <div className="vendorProductDetails__sectionHeading">
               <h2>Vue d'ensemble</h2>
-              <p>Résumé des indicateurs clés et du média principal.</p>
+              <p>Resume des indicateurs cles et du media principal.</p>
             </div>
             <div className="vendorProductDetails__card vendorProductDetails__card--section vendorProductDetails__spotlightCard">
               <div className="vendorProductDetails__spotlightGrid">
@@ -984,7 +1002,7 @@ const VendorProductDetails = () => {
                     </div>
                     <div className="vendorProductDetails__stat">
                       <span className="vendorProductDetails__statLabel">
-                        Visibilité Monmarché
+                        Visibilite Monmarche
                       </span>
                       <span
                         className={`vendorProductDetails__statValue ${
@@ -1024,7 +1042,7 @@ const VendorProductDetails = () => {
                           {vendorName}
                         </span>
                       </span>
-                      <span>Dernière mise à jour : {lastUpdated}</span>
+                      <span>Derniere mise a jour : {lastUpdated}</span>
                     </div>
                     <div className="vendorProductDetails__chips vendorProductDetails__chips--inline">
                       <span
@@ -1043,13 +1061,13 @@ const VendorProductDetails = () => {
                             : "vendorProductDetails__chip--negative"
                         }`}
                       >
-                        Vendeur : {vmStatus ? "Actif" : "Inactif"}
-                      </span>
-                      {pendingDraftChanges && (
-                        <span className="vendorProductDetails__chip vendorProductDetails__chip--warning">
-                          Modifications en attente
-                        </span>
-                      )}
+                    Vendeur : {vmStatus ? "Actif" : "Inactif"}
+                  </span>
+                  {pendingDraftChanges && (
+                    <span className="vendorProductDetails__chip vendorProductDetails__chip--warning">
+                      Modifications en attente
+                    </span>
+                  )}
                     </div>
                   </div>
                 </div>
@@ -1062,10 +1080,10 @@ const VendorProductDetails = () => {
               {draftChangeDetails.length > 0 && (
                 <section className="vendorProductDetails__card vendorProductDetails__card--section">
                   <div className="vendorProductDetails__cardHeader">
-                    <h2>Champs modifiés</h2>
+                    <h2>Champs modifies</h2>
                     <p>
-                      Ces champs ont été modifiés par le vendeur. Comparez la
-                      proposition à la version publiée avant de valider.
+                      Ces champs ont ete modifies par le vendeur. Comparez la
+                      proposition a la version publiee avant de valider.
                     </p>
                   </div>
                   <ul className="vendorProductDetails__draftList vendorProductDetails__draftList--detailed">
@@ -1086,7 +1104,7 @@ const VendorProductDetails = () => {
                         </div>
                         <div>
                           <span className="vendorProductDetails__draftValuesLabel">
-                            Version publiée
+                            Version publiee
                           </span>
                           {renderChangeValue(
                             change.publishedValue,
@@ -1103,7 +1121,7 @@ const VendorProductDetails = () => {
               <section className="vendorProductDetails__card vendorProductDetails__card--section">
                 <div className="vendorProductDetails__cardHeader">
                   <h2>Description</h2>
-                  <p>Résumé fonctionnel partagé par le vendeur.</p>
+                  <p>Resume fonctionnel partage par le vendeur.</p>
                 </div>
                 <p
                   className={`vendorProductDetails__description ${getFieldClass(
@@ -1125,7 +1143,7 @@ const VendorProductDetails = () => {
                 <section className="vendorProductDetails__card vendorProductDetails__card--section">
                   <div className="vendorProductDetails__cardHeader">
                     <h2>Attributs</h2>
-                    <p>Données déclaratives fournies par le vendeur.</p>
+                    <p>Donnees declaratives fournies par le vendeur.</p>
                   </div>
                   <div className="vendorProductDetails__attributes">
                     {attributes.map(([key, value]) => (
@@ -1152,7 +1170,7 @@ const VendorProductDetails = () => {
                 <section className="vendorProductDetails__card vendorProductDetails__card--section">
                   <div className="vendorProductDetails__cardHeader">
                     <h2>Galerie</h2>
-                    <p>Visuels complémentaires soumis par le vendeur.</p>
+                    <p>Visuels complementaires soumis par le vendeur.</p>
                   </div>
                   <div className="vendorProductDetails__gallery">
                     {galleryImages.slice(1).map((url, index) => (
@@ -1160,7 +1178,7 @@ const VendorProductDetails = () => {
                         className="vendorProductDetails__galleryItem"
                         key={url || index}
                       >
-                        <img src={url} alt={`Aperçu ${index}`} />
+                        <img src={url} alt={`Apercu ${index}`} />
                       </div>
                     ))}
                   </div>
@@ -1186,7 +1204,7 @@ const VendorProductDetails = () => {
                     <span className="vendorProductDetails__infoValue">{productId}</span>
                   </div>
                   <div className="vendorProductDetails__infoItem">
-                    <span className="vendorProductDetails__infoLabel">Catégorie</span>
+                    <span className="vendorProductDetails__infoLabel">Categorie</span>
                     <span
                       className={`vendorProductDetails__infoValue ${getFieldClass(
                         "categoryId",
@@ -1199,7 +1217,7 @@ const VendorProductDetails = () => {
                     </span>
                   </div>
                   <div className="vendorProductDetails__infoItem">
-                    <span className="vendorProductDetails__infoLabel">Top catégorie</span>
+                    <span className="vendorProductDetails__infoLabel">Top categorie</span>
                     <span
                       className={`vendorProductDetails__infoValue ${getFieldClass(
                         "topCategory",
@@ -1227,8 +1245,8 @@ const VendorProductDetails = () => {
 
               <section className="vendorProductDetails__card vendorProductDetails__card--section">
                 <div className="vendorProductDetails__cardHeader">
-                  <h2>Publication & conformité</h2>
-                  <p>Suivi des statuts visibles sur Monmarché.</p>
+                  <h2>Publication & conformite</h2>
+                  <p>Suivi des statuts visibles sur Monmarche.</p>
                 </div>
                 <div className="vendorProductDetails__publication">
                   <div
@@ -1307,7 +1325,7 @@ const VendorProductDetails = () => {
                 </div>
                 <div className="vendorProductDetails__links">
                   <Link to="/vendor-products" className="vendorProductDetails__linkButton">
-                    Retour à la liste des produits vendeurs
+                    Retour a la liste des produits vendeurs
                   </Link>
                   {vendorDisplayId &&
                     vendorDisplayId !== "-" &&
@@ -1331,11 +1349,4 @@ const VendorProductDetails = () => {
 };
 
 export default VendorProductDetails;
-
-
-
-
-
-
-
 
