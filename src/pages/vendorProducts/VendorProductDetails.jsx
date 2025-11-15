@@ -927,7 +927,7 @@ const VendorProductDetails = () => {
                   onClick={handleActivate}
                   disabled={statusUpdateState.loading || mmStatus}
                 >
-                  Afficher Monmarche
+                  Activer
                 </button>
                 <button
                   type="button"
@@ -935,7 +935,7 @@ const VendorProductDetails = () => {
                   onClick={handleBlock}
                   disabled={statusUpdateState.loading || !mmStatus}
                 >
-                  Masquer Monmarche
+                  Désactiver
                 </button>
           </div>
         </div>

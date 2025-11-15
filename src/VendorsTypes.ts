@@ -19,6 +19,7 @@ export type UserDoc = {
 export type Product = {
   id: string;
   vendorId: string;  // = uid
+  vendorName: string;  // = uid
   name: string;
   price?: number;
   stock?: number;
@@ -47,6 +48,7 @@ export type Product = {
   };
   core?: {
     vendorId?: string;
+    vendorName?: string;
     title?: string;
     status?: 'draft'|'active'|'archived';
     active?: boolean;
@@ -92,6 +94,7 @@ export type Order = {
   status: OrderStatus;
   createdAt: any;
   vendorId?: string; // optionnel si multi-vendeur
+  vendorName?: string; // optionnel si multi-vendeur
   driverId?: string; // livreur assigné
 };
 
@@ -195,6 +198,7 @@ export type VendorDocument = {
   uid?: string
   userId?: string
   vendorId?: string
+  vendorName?: string
   ownerId?: string
   vendorStatus?: VendorStatus
   status?: VendorStatus

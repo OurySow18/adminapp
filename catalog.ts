@@ -68,6 +68,7 @@ export type Currency = 'EUR' | 'USD' | 'GBP' | 'GNF';
 export interface ProductCore {
   productId: string;
   vendorId: string;           // boutique / vendeur
+  vendorName: string;           // boutique / vendeur
   title: string;
   description?: string;
   brand?: string;

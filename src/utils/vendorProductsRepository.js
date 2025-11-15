@@ -638,6 +638,19 @@ export const updateVendorProductAdminStatus = async ({
     throw new Error("Valeur de mm_status invalide.");
   }
 
+  const vendorName = enabled
+    ? resolveVendorProductVendorName(
+        productData || {},
+        firstValue(
+          productData?.vendorDisplayId,
+          productData?.vendorId,
+          productData?.core?.vendorId,
+          vendorId,
+          "-"
+        )
+      )
+    : null;
+
   const refsToWrite = await collectVendorProductRefs({
     productId,
     vendorId,
@@ -668,8 +681,18 @@ export const updateVendorProductAdminStatus = async ({
   }
   if (shouldHydrate || publicSnap.exists()) {
     const basePayload = { mm_status: enabled };
+    if (vendorName) {
+      basePayload.vendorName = vendorName;
+    }
+    let sanitizedPayload = null;
+    if (shouldHydrate) {
+      sanitizedPayload = sanitizeProductPayload(productData);
+      if (vendorName && !sanitizedPayload.vendorName) {
+        sanitizedPayload.vendorName = vendorName;
+      }
+    }
     const payload = shouldHydrate
-      ? { ...sanitizeProductPayload(productData), ...basePayload }
+      ? { ...sanitizedPayload, ...basePayload }
       : basePayload;
     writes.push(setDoc(publicRef, payload, { merge: true }));
   }

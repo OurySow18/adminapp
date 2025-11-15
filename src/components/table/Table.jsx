@@ -83,7 +83,7 @@ const ListCommande = ({ limit = 10 }) => {
             <TableCell className="tableCell">Adresse</TableCell>
             <TableCell className="tableCell">Date et Heure</TableCell>
             <TableCell className="tableCell">Total</TableCell>
-            <TableCell className="tableCell">MÃ©thode de Paiement</TableCell>
+            <TableCell className="tableCell">Méthode de Paiement</TableCell>
             <TableCell className="tableCell">Statut</TableCell>
           </TableRow>
         </TableHead>
@@ -127,7 +127,7 @@ const ListCommande = ({ limit = 10 }) => {
                     <span
                       className={`status ${row.delivered ? "delivered" : "pending"}`}
                     >
-                      {row.delivered ? "LivrÃ©" : "En attente"}
+                      {row.delivered ? "Livré" : "En attente"}
                     </span>
                   </TableCell>
                 </TableRow>

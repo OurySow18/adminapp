@@ -1,11 +1,11 @@
-/**
+﻿/**
  * Abgabe Bachelorarbeit
  * Author: Amadou Oury Sow
  * Date: 15.09.2022
  * 
  * Addiert neue Daten in der Datenbank {Products und Users}
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "./new.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
@@ -21,12 +21,17 @@ import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUpload
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useNavigate } from "react-router-dom";
+import FeedbackPopup from "../../components/feedbackPopup/FeedbackPopup";
 
-//Array für die User Kategorie
-const categorieUser = ['ADMIN', 'CLIENT', 'DRIVER'];
-//Array für die Product Type
+//Array fÃ¼r die User Kategorie
+const categorieUser = ["ADMIN", "DRIVER"];
+const ROLE_COLLECTION_MAP = {
+  ADMIN: "admin",
+  DRIVER: "drivers",
+};
+//Array fÃ¼r die Product Type
 const categorieType = ['AUTRES','BREAKFAST', 'DEJEUNER','CEREMONIE', 'ENFANTS', 'FEMMES'];
-//Array für die Produkt Kategorie
+//Array fÃ¼r die Produkt Kategorie
 const categorieProduct = [
   "AUCUN",
   "ENFANT",
@@ -62,17 +67,53 @@ const New = ({ inputs, title, typeCmp }) => {
   const [categories, setCategories] = useState([]);
   const [data, setData] = useState({});
   const [perc, setPerc] = useState(null);
+  const [feedback, setFeedback] = useState({
+    open: false,
+    type: "info",
+    title: "",
+    message: "",
+  });
+  const feedbackAfterCloseRef = useRef(null);
   const navigate = useNavigate();
 
-  //wählt die aufgerufene Kategorie
-  useEffect(() => {
-    setCategories(() => {
-     return typeCmp === "users" ? 
-     categorieUser:
-     categorieProduct
+  const showFeedback = ({
+    type = "info",
+    title: feedbackTitle,
+    message,
+    afterClose,
+  }) => {
+    feedbackAfterCloseRef.current = afterClose || null;
+    setFeedback({
+      open: true,
+      type,
+      title: feedbackTitle,
+      message,
     });
-    
-  }, [typeCmp])
+  };
+
+  const handleFeedbackClose = () => {
+    setFeedback((prev) => ({ ...prev, open: false }));
+    const cb = feedbackAfterCloseRef.current;
+    feedbackAfterCloseRef.current = null;
+    if (typeof cb === "function") {
+      cb();
+    }
+  };
+
+  //waehlt die aufgerufene Kategorie und setzt Standardrollen
+  useEffect(() => {
+    if (typeCmp === "users") {
+      setCategories(categorieUser);
+      setData((prev) => {
+        if (prev?.category && categorieUser.includes(prev.category)) {
+          return prev;
+        }
+        return { ...prev, category: categorieUser[0] };
+      });
+    } else {
+      setCategories(categorieProduct);
+    }
+  }, [typeCmp]);
   
   //Aufladung des Bildes
   useEffect(() => {
@@ -121,30 +162,42 @@ const New = ({ inputs, title, typeCmp }) => {
     setData({ ...data, [id]: value });
   };
 
-  //übernimmt die Änderung der Ausgabe in der Input Komponent
+  //Ã¼bernimmt die Ã„nderung der Ausgabe in der Input Komponent
   const handleChange = (e) => {    
     setData({ ...data, category: e.target.value }); 
   }
 
-  // zurück zu den vorherige Seite
+  // zurÃ¼ck zu den vorherige Seite
   const onBack = (e) =>{ 
     e.preventDefault();
     navigate(-1)
   }
 
-  //wird ausgeführt nach dem Druck auf save Button
+  //wird ausgefÃ¼hrt nach dem Druck auf save Button
   const handleAdd = async (e) => {
     e.preventDefault();
     try {
           if (typeCmp=== "users"){
+            const { password, category, ...userPayload } = data;
+            const normalizedRole = (category || "").toUpperCase();
+            const targetCollection = ROLE_COLLECTION_MAP[normalizedRole];
+
+            if (!targetCollection) {
+              throw new Error("Veuillez selectionner un role Admin ou Driver.");
+            }
+            if (!userPayload.email || !password) {
+              throw new Error("Email et mot de passe sont obligatoires.");
+            }
+
             const res = await createUserWithEmailAndPassword(
               auth,
-              data.email,
-              data.password
+              userPayload.email,
+              password
             );
           
-            await setDoc(doc(db, typeCmp, res.user.uid), {
-              ...data,
+            await setDoc(doc(db, targetCollection, res.user.uid), {
+              ...userPayload,
+              role: normalizedRole,
               timeStamp: serverTimestamp(),
               status: true,
             });
@@ -155,112 +208,149 @@ const New = ({ inputs, title, typeCmp }) => {
             status: false,
           });
       }
-        navigate(-1);
+
+        showFeedback({
+          type: "success",
+          title: "Operation reussie",
+          message:
+            typeCmp === "users"
+              ? "Le compte a ete cree avec succes."
+              : "Les donnees ont ete enregistrees avec succes.",
+          afterClose: () => navigate(-1),
+        });
     } catch (err) {
       console.log(err);
+      showFeedback({
+        type: "error",
+        title: "Echec de l'operation",
+        message:
+          err?.message ||
+          "Une erreur inattendue est survenue. Merci de reessayer.",
+      });
     } finally {
       console.log("We do cleanup here");
     }
   };
 
   return (
-    <div className="new">
-      <Sidebar />
-      <div className="newContainer">
-        <Navbar />
-        <div className="top">
-          <h1>{title}</h1>
-        </div>
-        <div className="bottom">
-          <div className="left">
-            <img
-              src={
-                file
-                  ? URL.createObjectURL(file)
-                  : "https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"
-              }
-              alt=""
-              className="image"
-            />
+    <>
+      <div className="new">
+        <Sidebar />
+        <div className="newContainer">
+          <Navbar />
+          <div className="top">
+            <h1>{title}</h1>
           </div>
-          <div className="right">
-            <form onSubmit={handleAdd}>
-              <div className="formInput">
-                <label htmlFor="file">
-                  Image <DriveFolderUploadOutlinedIcon className="icon" />
-                </label>
-                <input
-                  type="file"
-                  id="file"
-                  onChange={(e) => setFile(e.target.files[0])}
-                  style={{ display: "none" }}
-                />
-              </div>
-              <div className="formInput" >
-                <label>
-                  Category {typeCmp}
-                  <select label={typeCmp} onChange={handleChange}>
-                  {categories.map((item) => (
-                    <option value={item}>{item}</option>                 
-                  ))} 
-                  </select>
-                </label>
-              </div>
-
-              {inputs.map((input) => (
-                <div className="formInput" key={input.id}>
-                  <label> {input.label} </label>
+          <div className="bottom">
+            <div className="left">
+              <img
+                src={
+                  file
+                    ? URL.createObjectURL(file)
+                    : "https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"
+                }
+                alt=""
+                className="image"
+              />
+            </div>
+            <div className="right">
+              <form onSubmit={handleAdd}>
+                <div className="formInput">
+                  <label htmlFor="file">
+                    Image <DriveFolderUploadOutlinedIcon className="icon" />
+                  </label>
                   <input
-                    id={input.id}
-                    type={input.type}
-                    placeholder={input.placeholder}
-                    onChange={handleInput}
+                    type="file"
+                    id="file"
+                    onChange={(e) => setFile(e.target.files[0])}
+                    style={{ display: "none" }}
                   />
                 </div>
-              ))}
-               
-             {
-              typeCmp === "products" && 
-                          <div className="formInput" >
-                              <label> Description </label>
-                                <textarea 
-                                  id= "description"
-                                  label= "Description"
-                                  type= "textarea"
-                                  rows={15}
-                                  cols={65}
-                                  onChange={handleInput}
-                                  placeholder= "Product Description"
-                                  value={data.description}
-                                />
-                                <div className="formInput" >
-                                  <label> 
-                                    <select label=""onChange={handleChange}>
-                                    {categorieType.map((item) => (
-                                      <option value={item}>{item}</option>                 
-                                    ))} 
-                                    </select>
-                                  </label>
-                              </div>                          
-                            </div>
-                              
-            }
-              <div>
-                <button onClick={onBack} type="submit">
-                back
-              </button>
-              </div>
-              <div>
-              <button disabled={perc !== null && perc < 100} type="submit">
-                save
-              </button>
-              </div>
-              
-            </form>
+                <div className="formInput" >
+                  <label>
+                    {typeCmp === "users" ? "Role" : `Category ${typeCmp}`}
+                    <select
+                      label={typeCmp}
+                      onChange={handleChange}
+                      value={data.category ?? (categories[0] || "")}
+                    >
+                    {categories.map((item) => (
+                      <option key={item} value={item}>{item}</option>                 
+                    ))} 
+                    </select>
+                  </label>
+                </div>
+
+                {inputs.map((input) => (
+                  <div className="formInput" key={input.id}>
+                    <label> {input.label} </label>
+                    <input
+                      id={input.id}
+                      type={input.type}
+                      placeholder={input.placeholder}
+                      onChange={handleInput}
+                    />
+                  </div>
+                ))}
+                 
+               {
+                typeCmp === "products" && 
+                            <div className="formInput" >
+                                <label> Description </label>
+                                  <textarea 
+                                    id= "description"
+                                    label= "Description"
+                                    type= "textarea"
+                                    rows={15}
+                                    cols={65}
+                                    onChange={handleInput}
+                                    placeholder= "Product Description"
+                                    value={data.description}
+                                  />
+                                  <div className="formInput" >
+                                    <label> 
+                                      <select label=""onChange={handleChange}>
+                                      {categorieType.map((item) => (
+                                        <option value={item}>{item}</option>                 
+                                      ))} 
+                                      </select>
+                                    </label>
+                                </div>                          
+                              </div>
+                                
+              }
+                <div>
+                  <button onClick={onBack} type="submit">
+                  back
+                </button>
+                </div>
+                <div>
+                <button disabled={perc !== null && perc < 100} type="submit">
+                  save
+                </button>
+                </div>
+                
+              </form>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+      <FeedbackPopup
+        open={feedback.open}
+        type={feedback.type}
+        title={feedback.title}
+        message={feedback.message}
+        onClose={handleFeedbackClose}
+      />
+    </>
   );
 };
 export default New;
+
+
+
+
+
+
+
+

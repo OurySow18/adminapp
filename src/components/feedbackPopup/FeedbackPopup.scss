@@ -1,0 +1,120 @@
+﻿.feedbackPopup {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1300;
+  backdrop-filter: blur(2px);
+
+  &__container {
+    position: relative;
+    width: min(480px, 100%);
+    background: #fff;
+    border-radius: 18px;
+    padding: 28px;
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.25);
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 18px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+
+    &--success {
+      border-color: rgba(22, 163, 74, 0.35);
+    }
+
+    &--error {
+      border-color: rgba(239, 68, 68, 0.35);
+    }
+
+    &--info {
+      border-color: rgba(59, 130, 246, 0.35);
+    }
+  }
+
+  &__close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: #64748b;
+    display: inline-flex;
+    padding: 4px;
+    border-radius: 8px;
+
+    &:hover {
+      background: rgba(148, 163, 184, 0.15);
+    }
+  }
+
+  &__icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    color: #fff;
+    background: #2563eb;
+
+    svg {
+      font-size: inherit;
+    }
+  }
+
+  &__container--success &__icon {
+    background: #16a34a;
+  }
+
+  &__container--error &__icon {
+    background: #dc2626;
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    h3 {
+      margin: 0;
+      font-size: 1.2rem;
+      color: #0f172a;
+    }
+
+    p {
+      margin: 0;
+      color: #475569;
+      line-height: 1.5;
+    }
+  }
+
+  &__actions {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 10px;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 576px) {
+  .feedbackPopup__container {
+    padding: 22px;
+    grid-template-columns: 1fr;
+    text-align: center;
+
+    .feedbackPopup__icon {
+      margin: 0 auto;
+    }
+
+    .feedbackPopup__actions {
+      justify-content: center;
+    }
+  }
+}
