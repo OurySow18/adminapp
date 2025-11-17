@@ -3,47 +3,61 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 16px; // un peu de marge sur petits écrans
 
   form {
     display: flex;
     flex-direction: column;
     align-items: center;
+    width: 100%;
+    max-width: 320px; // largeur max pour rester propre
 
     input {
-      width: 200px;
-      height: 30px;
-      margin: 10px;
+      width: 100%;
+      height: 40px;
+      margin: 10px 0;
+      padding: 0 12px;
+      box-sizing: border-box;
     }
 
-    .password-input {
-      position: relative; /* Pour positionner l'icône par rapport à l'input */
-      width: 200px; /* Largeur de l'input */
-      height: 30px; /* Hauteur de l'input */
-      margin: 10px;
+    // Conteneur du champ mot de passe + icône
+    .password-wrapper {
+      position: relative;
+      width: 100%;
+      margin: 10px 0;
+
+      input {
+        width: 100%;
+        height: 40px;
+        padding: 0 40px 0 12px; // espace à droite pour l’icône
+        box-sizing: border-box;
+      }
     }
 
+    // Icône œil
     .password-toggle {
-      position: absolute; /* Position absolue par rapport à son parent */
-      width: 860px; /* Largeur de l'input */
-      height: 30px; /* Hauteur de l'input */
-      margin: 22px;
-      margin-top: 15px;
-      top: 50%; /* Centrage vertical */
-      right: 1px; /* Marge à droite */
-      transform: translateY(-50%); /* Décalage vertical pour centrer */
+      position: absolute;
+      top: 30%;
+      right: 10px;
+      transform: translateY(-50%);
       cursor: pointer;
-      color: rgb(216, 28, 28); /* Couleur par défaut de l'icône */
-      transition: color 0.3s ease; /* Transition de couleur pour un effet visuel */
+      color: rgb(216, 28, 28);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: color 0.3s ease;
     }
 
     .password-toggle:hover {
-      color: black; /* Changement de couleur au survol */
+      color: black;
     }
 
     button {
-      width: 210px;
-      height: 30px;
-      margin: 10px;
+      width: 100%;
+      max-width: 320px;
+      height: 40px;
+      margin: 10px 0;
       border: none;
       background-color: purple;
       color: white;
@@ -52,9 +66,10 @@
     }
 
     span {
-      font-size: 25px;
+      font-size: 14px;
       color: red;
-      margin-top: 50px;
+      margin-top: 12px;
+      text-align: center;
     }
   }
 }

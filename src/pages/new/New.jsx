@@ -2,7 +2,7 @@
  * Abgabe Bachelorarbeit
  * Author: Amadou Oury Sow
  * Date: 15.09.2022
- * 
+ *
  * Addiert neue Daten in der Datenbank {Products und Users}
  */
 import { useState, useEffect, useRef } from "react";
@@ -16,6 +16,10 @@ import {
   doc,
   serverTimestamp,
   setDoc,
+  getDocs,
+  query,
+  where,
+  limit,
 } from "firebase/firestore";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
 import { createUserWithEmailAndPassword } from "firebase/auth";
@@ -30,7 +34,14 @@ const ROLE_COLLECTION_MAP = {
   DRIVER: "drivers",
 };
 //Array fÃ¼r die Product Type
-const categorieType = ['AUTRES','BREAKFAST', 'DEJEUNER','CEREMONIE', 'ENFANTS', 'FEMMES'];
+const categorieType = [
+  "AUTRES",
+  "BREAKFAST",
+  "DEJEUNER",
+  "CEREMONIE",
+  "ENFANTS",
+  "FEMMES",
+];
 //Array fÃ¼r die Produkt Kategorie
 const categorieProduct = [
   "AUCUN",
@@ -60,10 +71,10 @@ const categorieProduct = [
   "BISCUITS",
   "COTON",
   "CHIPS",
-  "CORN FLAKES"
+  "CORN FLAKES",
 ];
 const New = ({ inputs, title, typeCmp }) => {
-  const [file, setFile] = useState(""); 
+  const [file, setFile] = useState("");
   const [categories, setCategories] = useState([]);
   const [data, setData] = useState({});
   const [perc, setPerc] = useState(null);
@@ -72,6 +83,7 @@ const New = ({ inputs, title, typeCmp }) => {
     type: "info",
     title: "",
     message: "",
+    actions: null,
   });
   const feedbackAfterCloseRef = useRef(null);
   const navigate = useNavigate();
@@ -80,6 +92,7 @@ const New = ({ inputs, title, typeCmp }) => {
     type = "info",
     title: feedbackTitle,
     message,
+    actions = null,
     afterClose,
   }) => {
     feedbackAfterCloseRef.current = afterClose || null;
@@ -88,11 +101,12 @@ const New = ({ inputs, title, typeCmp }) => {
       type,
       title: feedbackTitle,
       message,
+      actions,
     });
   };
 
   const handleFeedbackClose = () => {
-    setFeedback((prev) => ({ ...prev, open: false }));
+    setFeedback((prev) => ({ ...prev, open: false, actions: null }));
     const cb = feedbackAfterCloseRef.current;
     feedbackAfterCloseRef.current = null;
     if (typeof cb === "function") {
@@ -114,7 +128,7 @@ const New = ({ inputs, title, typeCmp }) => {
       setCategories(categorieProduct);
     }
   }, [typeCmp]);
-  
+
   //Aufladung des Bildes
   useEffect(() => {
     const uploadFile = () => {
@@ -163,69 +177,201 @@ const New = ({ inputs, title, typeCmp }) => {
   };
 
   //Ã¼bernimmt die Ã„nderung der Ausgabe in der Input Komponent
-  const handleChange = (e) => {    
-    setData({ ...data, category: e.target.value }); 
-  }
+  const handleChange = (e) => {
+    setData({ ...data, category: e.target.value });
+  };
 
   // zurÃ¼ck zu den vorherige Seite
-  const onBack = (e) =>{ 
+  const onBack = (e) => {
     e.preventDefault();
-    navigate(-1)
-  }
+    navigate(-1);
+  };
 
   //wird ausgefÃ¼hrt nach dem Druck auf save Button
   const handleAdd = async (e) => {
     e.preventDefault();
     try {
-          if (typeCmp=== "users"){
-            const { password, category, ...userPayload } = data;
-            const normalizedRole = (category || "").toUpperCase();
-            const targetCollection = ROLE_COLLECTION_MAP[normalizedRole];
+      if (typeCmp === "users") {
+        const { password, category, ...userPayload } = data;
+        const normalizedRole = (category || "").toUpperCase();
+        const targetCollection = ROLE_COLLECTION_MAP[normalizedRole];
 
-            if (!targetCollection) {
-              throw new Error("Veuillez selectionner un role Admin ou Driver.");
-            }
-            if (!userPayload.email || !password) {
-              throw new Error("Email et mot de passe sont obligatoires.");
-            }
+        if (!targetCollection) {
+          throw new Error("Veuillez sélectionner un rôle Admin ou Driver.");
+        }
+        if (!userPayload.email || !password) {
+          throw new Error("Email et mot de passe sont obligatoires.");
+        }
 
-            const res = await createUserWithEmailAndPassword(
-              auth,
-              userPayload.email,
-              password
+        // 🔒 Si ADMIN : username obligatoire + unique
+        if (normalizedRole === "ADMIN") {
+          const username = (userPayload.username || "").trim();
+          if (!username) {
+            throw new Error(
+              "Le nom d'utilisateur est obligatoire pour un administrateur."
             );
-          
-            await setDoc(doc(db, targetCollection, res.user.uid), {
-              ...userPayload,
-              role: normalizedRole,
-              timeStamp: serverTimestamp(),
-              status: true,
-            });
-        } else { 
-            await addDoc(collection(db, typeCmp), {
-            ...data,
+          }
+
+          // Vérifier que le username n'est pas déjà utilisé dans la collection admin
+          const usernameQuery = query(
+            collection(db, "admin"),
+            where("username", "==", username),
+            limit(1)
+          );
+          const usernameSnap = await getDocs(usernameQuery);
+
+          if (!usernameSnap.empty) {
+            throw new Error(
+              "Ce nom d'utilisateur est déjà utilisé par un autre administrateur."
+            );
+          }
+        }
+
+        // 1) Vérifier si cet email existe déjà dans la collection admin/drivers
+        const roleQuery = query(
+          collection(db, targetCollection),
+          where("email", "==", userPayload.email),
+          limit(1)
+        );
+        const roleSnap = await getDocs(roleQuery);
+
+        if (!roleSnap.empty) {
+          throw new Error(
+            normalizedRole === "ADMIN"
+              ? "Un administrateur avec cet email existe déjà."
+              : "Un driver avec cet email existe déjà."
+          );
+        }
+
+        let uid;
+
+        // 2) Essayer de créer l'utilisateur dans Auth
+        try {
+          const res = await createUserWithEmailAndPassword(
+            auth,
+            userPayload.email,
+            password
+          );
+          uid = res.user.uid;
+
+          await setDoc(doc(db, targetCollection, uid), {
+            ...userPayload,
+            role: normalizedRole,
             timeStamp: serverTimestamp(),
-            status: false,
+            status: true,
           });
-      }
+
+          showFeedback({
+            type: "success",
+            title: "Opération réussie",
+            message: "Le compte a été créé avec succès.",
+            afterClose: () => navigate(-1),
+          });
+          return;
+        } catch (err) {
+          // 3) Email déjà utilisé dans Firebase Auth
+          if (err.code === "auth/email-already-in-use") {
+            const userQuery = query(
+              collection(db, "users"),
+              where("email", "==", userPayload.email),
+              limit(1)
+            );
+            const userSnap = await getDocs(userQuery);
+
+            if (userSnap.empty) {
+              throw new Error(
+                "Cet email est déjà utilisé dans le système, mais aucun utilisateur associé n'a été trouvé dans la collection 'users'."
+              );
+            }
+
+            const existingUserDoc = userSnap.docs[0];
+            uid = existingUserDoc.id;
+
+            // Popup de confirmation customisé
+            showFeedback({
+              type: "info",
+              title: "Utilisateur existant",
+              message: `Cet email est déjà utilisé par un autre compte.\n\nVoulez-vous quand même l'ajouter comme ${
+                normalizedRole === "ADMIN" ? "administrateur" : "driver"
+              } ?`,
+              actions: (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleFeedbackClose}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={async () => {
+                      handleFeedbackClose();
+                      try {
+                        await setDoc(doc(db, targetCollection, uid), {
+                          ...userPayload,
+                          role: normalizedRole,
+                          timeStamp: serverTimestamp(),
+                          status: true,
+                        });
+
+                        showFeedback({
+                          type: "success",
+                          title: "Opération réussie",
+                          message: `L'utilisateur existant a été ajouté comme ${
+                            normalizedRole === "ADMIN"
+                              ? "administrateur."
+                              : "driver."
+                          }`,
+                          afterClose: () => navigate(-1),
+                        });
+                      } catch (e) {
+                        console.error(e);
+                        showFeedback({
+                          type: "error",
+                          title: "Échec de l'opération",
+                          message:
+                            e?.message ||
+                            "Une erreur est survenue lors de l'ajout de l'utilisateur.",
+                        });
+                      }
+                    }}
+                  >
+                    Oui, l'ajouter
+                  </button>
+                </>
+              ),
+            });
+
+            return;
+          }
+
+          throw err;
+        }
+      } else {
+        // produits (inchangé)
+        await addDoc(collection(db, typeCmp), {
+          ...data,
+          timeStamp: serverTimestamp(),
+          status: false,
+        });
 
         showFeedback({
           type: "success",
-          title: "Operation reussie",
-          message:
-            typeCmp === "users"
-              ? "Le compte a ete cree avec succes."
-              : "Les donnees ont ete enregistrees avec succes.",
+          title: "Opération réussie",
+          message: "Les données ont été enregistrées avec succès.",
           afterClose: () => navigate(-1),
         });
+      }
     } catch (err) {
       console.log(err);
       showFeedback({
         type: "error",
-        title: "Echec de l'operation",
+        title: "Échec de l'opération",
         message:
           err?.message ||
-          "Une erreur inattendue est survenue. Merci de reessayer.",
+          "Une erreur inattendue est survenue. Merci de réessayer.",
       });
     } finally {
       console.log("We do cleanup here");
@@ -266,7 +412,7 @@ const New = ({ inputs, title, typeCmp }) => {
                     style={{ display: "none" }}
                   />
                 </div>
-                <div className="formInput" >
+                <div className="formInput">
                   <label>
                     {typeCmp === "users" ? "Role" : `Category ${typeCmp}`}
                     <select
@@ -274,9 +420,11 @@ const New = ({ inputs, title, typeCmp }) => {
                       onChange={handleChange}
                       value={data.category ?? (categories[0] || "")}
                     >
-                    {categories.map((item) => (
-                      <option key={item} value={item}>{item}</option>                 
-                    ))} 
+                      {categories.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
                     </select>
                   </label>
                 </div>
@@ -292,44 +440,41 @@ const New = ({ inputs, title, typeCmp }) => {
                     />
                   </div>
                 ))}
-                 
-               {
-                typeCmp === "products" && 
-                            <div className="formInput" >
-                                <label> Description </label>
-                                  <textarea 
-                                    id= "description"
-                                    label= "Description"
-                                    type= "textarea"
-                                    rows={15}
-                                    cols={65}
-                                    onChange={handleInput}
-                                    placeholder= "Product Description"
-                                    value={data.description}
-                                  />
-                                  <div className="formInput" >
-                                    <label> 
-                                      <select label=""onChange={handleChange}>
-                                      {categorieType.map((item) => (
-                                        <option value={item}>{item}</option>                 
-                                      ))} 
-                                      </select>
-                                    </label>
-                                </div>                          
-                              </div>
-                                
-              }
+
+                {typeCmp === "products" && (
+                  <div className="formInput">
+                    <label> Description </label>
+                    <textarea
+                      id="description"
+                      label="Description"
+                      type="textarea"
+                      rows={15}
+                      cols={65}
+                      onChange={handleInput}
+                      placeholder="Product Description"
+                      value={data.description}
+                    />
+                    <div className="formInput">
+                      <label>
+                        <select label="" onChange={handleChange}>
+                          {categorieType.map((item) => (
+                            <option value={item}>{item}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <button onClick={onBack} type="submit">
-                  back
-                </button>
+                    back
+                  </button>
                 </div>
                 <div>
-                <button disabled={perc !== null && perc < 100} type="submit">
-                  save
-                </button>
+                  <button disabled={perc !== null && perc < 100} type="submit">
+                    save
+                  </button>
                 </div>
-                
               </form>
             </div>
           </div>
@@ -341,16 +486,9 @@ const New = ({ inputs, title, typeCmp }) => {
         title={feedback.title}
         message={feedback.message}
         onClose={handleFeedbackClose}
+        actions={feedback.actions}
       />
     </>
   );
 };
 export default New;
-
-
-
-
-
-
-
-
