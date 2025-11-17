@@ -41,6 +41,89 @@ const toBoolean = (value) =>
   value === 1 ||
   value === "1";
 
+const ATTRIBUTE_LABELS = {
+  perishables: "Produit perissable",
+  originCountry: "Pays d'origine",
+  organic: "Produit bio",
+  expirationDate: "Date limite",
+  storage: "Conservation",
+  unit: "Unite de vente",
+  netWeight: "Poids net",
+  ingredients: "Ingredients",
+  allergens: "Allergenes",
+  "nutrition.kcalPer100g": "Calories / 100g",
+  volume: "Contenance",
+  alcohol: "Degre d'alcool",
+  gender: "Genre",
+  material: "Matiere",
+  fit: "Coupe",
+  care: "Entretien",
+  materialUpper: "Matiere (tige)",
+  materialSole: "Matiere (semelle)",
+  color: "Couleur",
+  model: "Modele",
+  os: "Systeme",
+  storageGb: "Stockage (Go)",
+  ramGb: "Memoire vive (Go)",
+  batteryMah: "Batterie (mAh)",
+  screenInch: "Ecran (\")",
+  cameraMp: "Appareil photo (MP)",
+  cpu: "Processeur",
+  gpu: "Carte graphique",
+  screenType: "Type d'ecran",
+  sizeInch: "Diagonal (\")",
+  panel: "Dalle",
+  type: "Type",
+  wireless: "Sans fil",
+  codec: "Codecs",
+  room: "Piece",
+  requiresAssembly: "Montage requis",
+  maxLoadKg: "Charge max (kg)",
+  powerW: "Puissance (W)",
+  energyClass: "Classe energetique",
+  capacity: "Capacite",
+  features: "Fonctionnalites",
+  dishwasherSafe: "Compatible lave-vaisselle",
+  skinType: "Type de peau",
+  crueltyFree: "Non teste sur animaux",
+  sport: "Discipline",
+  level: "Niveau pratique",
+  ageMin: "Age minimum",
+  ageMax: "Age maximum",
+  safetyMarks: "Normes / certifications",
+  author: "Auteur",
+  publisher: "Editeur",
+  language: "Langue",
+  pages: "Nombre de pages",
+  format: "Format",
+  isbn13: "ISBN-13",
+  artist: "Artiste",
+  tracks: "Nombre de pistes",
+  platform: "Plateforme",
+  pegi: "PEGI",
+  compatibleMakes: "Marques compatibles",
+  partNumber: "Reference piece",
+  cordless: "Sans fil",
+  voltageV: "Voltage (V)",
+  animal: "Animal concerne",
+  weight: "Poids / contenance",
+  flavor: "Saveur",
+  deliveryType: "Mode de livraison",
+  durationDays: "Duree (jours)",
+};
+
+const ATTRIBUTE_FIELD_LABELS = Object.fromEntries(
+  Object.entries(ATTRIBUTE_LABELS).flatMap(([key, label]) => {
+    const entries = [[key, label]];
+    if (!key.startsWith("attributes.")) {
+      entries.push([`attributes.${key}`, label]);
+      entries.push([`core.attributes.${key}`, label]);
+      entries.push([`draft.core.attributes.${key}`, label]);
+    }
+    return entries;
+  })
+);
+
 const FIELD_LABELS = {
   description: "Description",
   brandRelationship: "Relation marque",
@@ -59,6 +142,7 @@ const FIELD_LABELS = {
   "media.gallery": "Medias > galerie",
   "media.byOption": "Medias > par option",
   "media.byOption.color": "Medias > par option > couleur",
+  ...ATTRIBUTE_FIELD_LABELS,
 };
 
 const SEGMENT_LABEL_OVERRIDES = {
@@ -77,6 +161,14 @@ const splitFieldPath = (path) =>
         .filter(Boolean)
     : [];
 
+const normalizeFieldPath = (path) => {
+  if (typeof path !== "string") return "";
+  return path
+    .replace(/^draft\.core\./, "")
+    .replace(/^core\./, "")
+    .replace(/^draft\./, "");
+};
+
 const humanizeSegment = (segment) => {
   if (!segment) return "";
   const normalized = segment.toLowerCase();
@@ -93,7 +185,42 @@ const humanizeSegment = (segment) => {
 const getFieldLabel = (path) => {
   if (!path) return "-";
   if (FIELD_LABELS[path]) return FIELD_LABELS[path];
-  return splitFieldPath(path).map(humanizeSegment).join(" > ");
+  const normalized = normalizeFieldPath(path);
+  if (normalized && FIELD_LABELS[normalized]) return FIELD_LABELS[normalized];
+  const resolvedPath = normalized || path;
+  const segments = splitFieldPath(resolvedPath);
+  if (!segments.length) return "-";
+  return segments.map(humanizeSegment).join(" > ");
+};
+
+const trimAttributeLabel = (value) => {
+  if (typeof value !== "string") return value;
+  const segments = value
+    .split(">")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  if (!segments.length) return value;
+  return segments[segments.length - 1];
+};
+
+const getAttributeLabel = (key) => {
+  if (!key) return "-";
+  const candidates = [
+    FIELD_LABELS[key],
+    FIELD_LABELS[`attributes.${key}`],
+    FIELD_LABELS[`core.attributes.${key}`],
+    FIELD_LABELS[`draft.core.attributes.${key}`],
+    getFieldLabel(key),
+    getFieldLabel(`attributes.${key}`),
+  ];
+  const label = candidates.find(
+    (value) => typeof value === "string" && value.trim() && value !== "-"
+  );
+  if (!label) {
+    const fallback = humanizeSegment(key);
+    return fallback || key;
+  }
+  return trimAttributeLabel(label);
 };
 
 const getNestedValue = (source, path) => {
@@ -1148,7 +1275,12 @@ const VendorProductDetails = () => {
                   <div className="vendorProductDetails__attributes">
                     {attributes.map(([key, value]) => (
                       <div className="vendorProductDetails__attributeRow" key={key}>
-                        <span className="vendorProductDetails__attributeKey">{key}</span>
+                        <span
+                          className="vendorProductDetails__attributeKey"
+                          title={key}
+                        >
+                          {getAttributeLabel(key)}
+                        </span>
                         <span
                           className={`vendorProductDetails__attributeValue ${getFieldClass(
                             `attributes.${key}`,
