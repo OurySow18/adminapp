@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Abgabe Bachelorarbeit
  * Author: Amadou Oury Sow
  * Date: 15.09.2022
@@ -26,6 +26,7 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useNavigate } from "react-router-dom";
 import FeedbackPopup from "../../components/feedbackPopup/FeedbackPopup";
+import { sendPasswordResetEmail } from "firebase/auth";
 
 //Array fÃ¼r die User Kategorie
 const categorieUser = ["ADMIN", "DRIVER"];
@@ -187,6 +188,197 @@ const New = ({ inputs, title, typeCmp }) => {
     navigate(-1);
   };
 
+  // Template email HTML pour ADMIN
+  const adminHtmlTemplate = `
+<div style="font-family: Arial, sans-serif; background-color:#f5f5f5; padding:20px;">
+  <div style="max-width:600px; margin:0 auto; background-color:#ffffff; border-radius:8px; overflow:hidden;">
+    <div style="background-color:#ff6f00; color:#ffffff; padding:16px 24px;">
+      <h2 style="margin:0; font-size:20px;">
+        Bienvenue dans Monmarché – Accès administrateur
+      </h2>
+    </div>
+
+    <div style="padding:24px;">
+      <p>Bonjour,</p>
+
+      <p>
+        Vous avez été ajouté comme <strong>Administrateur</strong> sur la
+        plateforme <strong>Monmarché</strong>.
+      </p>
+
+      <p>En tant qu'administrateur, vous pourrez notamment :</p>
+      <ul>
+        <li>Accéder au tableau de bord d'administration,</li>
+        <li>Gérer les vendeurs et les produits,</li>
+        <li>Consulter les commandes et le suivi de l'activité.</li>
+      </ul>
+
+      <h3>🔐 Première connexion</h3>
+      <p>
+        Pour des raisons de sécurité, vous devez
+        <strong> définir votre mot de passe </strong>
+        avant votre première connexion.
+      </p>
+      <p>
+        Un email séparé vous a été envoyé par notre système
+        d'authentification avec un lien pour
+        <strong> créer ou réinitialiser votre mot de passe </strong>.
+      </p>
+      <p>
+        <strong>
+          Veuillez consulter votre boîte mail (et vos spams si besoin)
+        </strong>
+        et suivre les instructions de cet email pour définir votre mot de passe.
+      </p>
+
+      <h3>🔗 Accès à l'interface administrateur</h3>
+      <p>
+        Une fois votre mot de passe défini, vous pourrez vous connecter à
+        l'interface administrateur Monmarché à l'adresse suivante :
+      </p>
+      <p>
+        <a
+          href="https://monmarhe.web.app/login"
+          style="color:#ff6f00; text-decoration:none; font-weight:bold;"
+        >
+          https://monmarhe.web.app/login
+        </a>
+      </p>
+
+      <p style="margin-top:24px;">
+        Si vous n'êtes pas à l'origine de cette demande ou si vous pensez
+        qu'il s'agit d'une erreur, merci de nous contacter immédiatement.
+      </p>
+
+      <p style="margin-top:24px;">
+        À bientôt,<br>
+        <strong>L'équipe Monmarché</strong>
+      </p>
+    </div>
+
+    <div style="background-color:#f9fafb; color:#6b7280; padding:12px 24px; font-size:12px; text-align:center;">
+      Cet email est destiné au nouveau compte administrateur enregistré sur
+      Monmarché.
+    </div>
+  </div>
+</div>
+`;
+
+  // Template email HTML pour DRIVER
+  const driverHtmlTemplate = `
+<div style="font-family: Arial, sans-serif; background-color:#f5f5f5; padding:20px;">
+  <div style="max-width:600px; margin:0 auto; background-color:#ffffff; border-radius:8px; overflow:hidden;">
+    <div style="background-color:#ff6f00; color:#ffffff; padding:16px 24px;">
+      <h2 style="margin:0; font-size:20px;">
+        Bienvenue dans Monmarché – Accès livreur
+      </h2>
+    </div>
+
+    <div style="padding:24px;">
+      <p>Bonjour,</p>
+
+      <p>
+        Vous avez été ajouté comme <strong>Livreur</strong> sur la
+        plateforme <strong>Monmarché</strong>.
+      </p>
+
+      <p>En tant que livreur, vous pourrez :</p>
+      <ul>
+        <li>Consulter les commandes qui vous sont attribuées,</li>
+        <li>Voir les informations de livraison (adresse, contact, etc.),</li>
+        <li>Mettre à jour le statut des livraisons (en cours, livrée, etc.).</li>
+      </ul>
+
+      <h3>🔐 Première connexion</h3>
+      <p>
+        Pour des raisons de sécurité, vous devez
+        <strong> définir votre mot de passe </strong>
+        avant votre première connexion.
+      </p>
+      <p>
+        Un email séparé vous a été envoyé par notre système
+        d'authentification avec un lien pour
+        <strong> créer ou réinitialiser votre mot de passe </strong>.
+      </p>
+      <p>
+        <strong>
+          Veuillez consulter votre boîte mail (et vos spams si besoin)
+        </strong>
+        et suivre les instructions de cet email pour définir votre mot de
+        passe.
+      </p>
+
+      <h3>🚚 Accès à votre espace livreur</h3>
+      <p>
+        Une fois votre mot de passe défini, vous pourrez vous connecter à
+        votre espace livreur à l'adresse suivante :
+      </p>
+      <p>
+        <a
+          href="https://ton-domaine-livreur-monmarche.com"
+          style="color:#ff6f00; text-decoration:none; font-weight:bold;"
+        >
+          https://ton-domaine-livreur-monmarche.com
+        </a>
+      </p>
+
+      <p style="margin-top:24px;">
+        Si vous n'êtes pas à l'origine de cette inscription ou si vous
+        pensez qu'il s'agit d'une erreur, merci de nous contacter
+        immédiatement.
+      </p>
+
+      <p style="margin-top:24px;">
+        Bonne tournée !<br>
+        <strong>L'équipe Monmarché</strong>
+      </p>
+    </div>
+
+    <div style="background-color:#f9fafb; color:#6b7280; padding:12px 24px; font-size:12px; text-align:center;">
+      Cet email est destiné au nouveau compte livreur enregistré sur
+      Monmarché.
+    </div>
+  </div>
+</div>
+`;
+  /**
+   * Envoie l'email d'information Monmarché + l'email Firebase de reset mot de passe
+   */
+  const sendWelcomeEmails = async (email, normalizedRole, htmlTemplate) => {
+    const subject =
+      normalizedRole === "ADMIN"
+        ? "Votre accès administrateur Monmarché"
+        : "Votre accès livreur Monmarché";
+
+    // 1️⃣ Envoi email Monmarché (via Firestore /mail)
+    try {
+      const mailRef = doc(collection(db, "mail"));
+      await setDoc(mailRef, {
+        to: email,
+        message: {
+          subject,
+          text: "Bienvenue sur Monmarché",
+          html: htmlTemplate,
+        },
+      });
+      console.log("📨 Email Monmarché envoyé à :", email);
+    } catch (mailErr) {
+      console.error("❌ Erreur envoi email Monmarché :", mailErr);
+    }
+
+    // 2️⃣ Envoi email Firebase pour définir un mot de passe
+    try {
+      await sendPasswordResetEmail(auth, email);
+      console.log("📧 Email de réinitialisation envoyé à :", email);
+    } catch (resetErr) {
+      console.error(
+        "❌ Erreur sendPasswordResetEmail :",
+        resetErr.code,
+        resetErr.message
+      );
+    }
+  };
+
   //wird ausgefÃ¼hrt nach dem Druck auf save Button
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -252,6 +444,7 @@ const New = ({ inputs, title, typeCmp }) => {
             userPayload.email,
             password
           );
+
           uid = res.user.uid;
 
           await setDoc(doc(db, targetCollection, uid), {
@@ -260,6 +453,11 @@ const New = ({ inputs, title, typeCmp }) => {
             timeStamp: serverTimestamp(),
             status: true,
           });
+
+          const htmlTemplate =
+            normalizedRole === "ADMIN" ? adminHtmlTemplate : driverHtmlTemplate;
+
+          await sendWelcomeEmails(userPayload.email, normalizedRole, htmlTemplate);
 
           showFeedback({
             type: "success",
@@ -315,7 +513,16 @@ const New = ({ inputs, title, typeCmp }) => {
                           timeStamp: serverTimestamp(),
                           status: true,
                         });
+                        const htmlTemplate =
+                          normalizedRole === "ADMIN"
+                            ? adminHtmlTemplate
+                            : driverHtmlTemplate;
 
+                        await sendWelcomeEmails(
+                          userPayload.email,
+                          normalizedRole,
+                          htmlTemplate
+                        );
                         showFeedback({
                           type: "success",
                           title: "Opération réussie",
