@@ -19,10 +19,12 @@ import { useContext } from "react";
 import { DarkModeContext } from "./context/darkModeContext";
 import { productInputs, userInputs, zonesInputs } from "./formSource";
 import {
-  userColumns, 
+  userColumns,
+  adminColumns,
+  driverColumns,
   productColumns,
   orderColumns,
-  zonesColumns, 
+  zonesColumns,
 } from "./datatablesource";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { auth } from "./firebase";
@@ -92,6 +94,56 @@ function App() {
                       title={titleUser}
                       typeCmp="users"
                     />
+                  </RequireAuth>
+                }
+              />
+            </Route>
+
+            {/*Admins*/}
+            <Route path="admins">
+              <Route
+                index
+                element={
+                  <RequireAuth>
+                    <List
+                      typeColumns={adminColumns}
+                      title="admin"
+                      pageTitle="administrateurs"
+                      disableCreate
+                    />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path=":id"
+                element={
+                  <RequireAuth>
+                    <Single title="admin" />
+                  </RequireAuth>
+                }
+              />
+            </Route>
+
+            {/*Drivers*/}
+            <Route path="drivers">
+              <Route
+                index
+                element={
+                  <RequireAuth>
+                    <List
+                      typeColumns={driverColumns}
+                      title="drivers"
+                      pageTitle="livreurs"
+                      disableCreate
+                    />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path=":id"
+                element={
+                  <RequireAuth>
+                    <Single title="drivers" />
                   </RequireAuth>
                 }
               />

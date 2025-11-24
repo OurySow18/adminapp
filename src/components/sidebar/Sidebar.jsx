@@ -13,6 +13,7 @@ import StorefrontIcon from "@mui/icons-material/Storefront";
 import Inventory2Icon from "@mui/icons-material/Inventory2";
 import PublicIcon from "@mui/icons-material/Public";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
+import DeliveryDiningIcon from "@mui/icons-material/DeliveryDining";
 import LocalPrintshopSharpIcon from "@mui/icons-material/LocalPrintshopSharp";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
@@ -32,6 +33,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import MenuOpenIcon from "@mui/icons-material/MenuOpen";
 import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
 import {
@@ -248,6 +250,14 @@ const Sidbar = () => {
     () => location.pathname.startsWith("/catalogue-public"),
     [location.pathname]
   );
+  const isAdminsActive = useMemo(
+    () => location.pathname.startsWith("/admins"),
+    [location.pathname]
+  );
+  const isDriversActive = useMemo(
+    () => location.pathname.startsWith("/drivers"),
+    [location.pathname]
+  );
 
   const vendorActiveKey = useMemo(() => {
     const normalizedPath = location.pathname.replace(/\/+$/, "");
@@ -424,6 +434,26 @@ return (
             <li>
               <PersonOutlineOutlinedIcon className="icon" />
               <span>Utilisateurs</span>
+            </li>
+          </Link>
+          <Link
+            to="/admins"
+            style={{ textDecoration: "none" }}
+            onClick={handleNavLinkClick}
+          >
+            <li className={isAdminsActive ? "active" : ""}>
+              <AdminPanelSettingsIcon className="icon" />
+              <span>Admin</span>
+            </li>
+          </Link>
+          <Link
+            to="/drivers"
+            style={{ textDecoration: "none" }}
+            onClick={handleNavLinkClick}
+          >
+            <li className={isDriversActive ? "active" : ""}>
+              <DeliveryDiningIcon className="icon" />
+              <span>Livreurs</span>
             </li>
           </Link>
           <Link

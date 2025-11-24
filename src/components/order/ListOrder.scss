@@ -21,7 +21,12 @@
 
   .listOrder__searchInput {
     flex: 1 1 260px;
-    max-width: 360px;
+    width: min(100%, 420px);
+    max-width: 420px;
+    min-width: 0;
+    height: 44px;
+    max-height: 48px;
+    box-sizing: border-box;
     padding: 10px 14px;
     border-radius: 10px;
     border: 1px solid #d1d5db;
@@ -108,6 +113,7 @@
       flex-direction: column;
       align-items: flex-start;
       width: 100%;
+      gap: 10px;
     }
 
     .listOrder__searchInput {
@@ -129,6 +135,14 @@
   .listOrder {
     .listOrderTitel {
       font-size: 1.1rem;
+    }
+
+    .listOrder__gridWrapper {
+      overflow-x: auto;
+    }
+
+    .listOrder__gridWrapper .datagrid {
+      min-width: 520px;
     }
 
     .listOrder__gridWrapper .datagrid {

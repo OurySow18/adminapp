@@ -67,7 +67,9 @@ const Datatable = ({
   const [loading, setLoading] = useState(true);
   const [pageSize, setPageSize] = useState(9);
   const [searchQuery, setSearchQuery] = useState("");
-  const enableSearch = ["products", "users", "vendors"].includes(title);
+  const enableSearch = ["products", "users", "vendors", "admin", "drivers"].includes(
+    title
+  );
 
   useEffect(() => {
     if (!enableSearch && searchQuery) {
@@ -143,10 +145,7 @@ const Datatable = ({
       renderCell: (params) => {
         return (
           <div className="cellAction">
-            <Link
-              to={{ pathname: params.id }}
-              style={{ textDecoration: "none" }}
-            >
+            <Link to={String(params.id)} style={{ textDecoration: "none" }}>
               <div className="viewButton">View</div>
             </Link>
          {/*   <div
@@ -241,6 +240,8 @@ const Datatable = ({
         row.status,
         row.profile?.status
       );
+      const adminNameCandidate = firstValue(row.username, row.surname);
+      const driverZoneCandidate = firstValue(row.zone, row.deliveryZone);
 
       const candidates = [
         identifierCandidate,
@@ -253,6 +254,8 @@ const Datatable = ({
         vendorNameCandidate,
         vendorPhoneCandidate,
         vendorStatusCandidate,
+        adminNameCandidate,
+        driverZoneCandidate,
       ];
       return candidates
         .filter((value) => typeof value === "string" && value.trim())

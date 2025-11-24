@@ -256,6 +256,108 @@ export const userColumns = [
   },
 ];
 
+export const adminColumns = [
+  { field: "id", headerName: "ID", width: 90 },
+  {
+    field: "username",
+    headerName: "Identifiant",
+    width: 160,
+    valueGetter: (params) => params.row.username || "-",
+  },
+  {
+    field: "surname",
+    headerName: "Nom complet",
+    width: 200,
+    valueGetter: (params) => params.row.surname || "-",
+  },
+  {
+    field: "email",
+    headerName: "Email",
+    width: 230,
+  },
+  {
+    field: "phone",
+    headerName: "Téléphone",
+    width: 160,
+    valueGetter: (params) => params.row.phone || "-",
+  },
+  {
+    field: "addresse",
+    headerName: "Adresse",
+    width: 220,
+    valueGetter: (params) => params.row.addresse || "-",
+  },
+  {
+    field: "country",
+    headerName: "Pays",
+    width: 140,
+    valueGetter: (params) => params.row.country || "-",
+  },
+  {
+    field: "role",
+    headerName: "Rôle",
+    width: 120,
+    valueGetter: (params) => params.row.role || "ADMIN",
+  },
+  {
+    field: "status",
+    headerName: "Actif",
+    width: 110,
+    valueGetter: (params) => boolLabel(params.row.status, "Oui", "Non"),
+  },
+  {
+    field: "timeStamp",
+    headerName: "Date & Heure",
+    width: 200,
+    valueGetter: (params) => formatDate(params.row.timeStamp),
+  },
+];
+
+export const driverColumns = [
+  { field: "id", headerName: "ID", width: 90 },
+  {
+    field: "surname",
+    headerName: "Nom complet",
+    width: 200,
+    valueGetter: (params) => params.row.surname || params.row.name || "-",
+  },
+  {
+    field: "email",
+    headerName: "Email",
+    width: 230,
+  },
+  {
+    field: "phone",
+    headerName: "Téléphone",
+    width: 160,
+    valueGetter: (params) => params.row.phone || "-",
+  },
+  {
+    field: "addresse",
+    headerName: "Adresse",
+    width: 220,
+    valueGetter: (params) => params.row.addresse || params.row.address || "-",
+  },
+  {
+    field: "zone",
+    headerName: "Zone",
+    width: 130,
+    valueGetter: (params) => params.row.zone || params.row.deliveryZone || "-",
+  },
+  {
+    field: "status",
+    headerName: "Actif",
+    width: 110,
+    valueGetter: (params) => boolLabel(params.row.status, "Oui", "Non"),
+  },
+  {
+    field: "timeStamp",
+    headerName: "Date & Heure",
+    width: 200,
+    valueGetter: (params) => formatDate(params.row.timeStamp),
+  },
+];
+
 export const vendorColumns = [
   { field: "id", headerName: "ID", width: 90 },
   {

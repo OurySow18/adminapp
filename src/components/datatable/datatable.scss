@@ -29,6 +29,11 @@
     &__search {
       flex: 1 1 260px;
       max-width: 420px;
+      width: min(100%, 420px);
+      min-width: 0;
+      height: 44px;
+      max-height: 48px;
+      box-sizing: border-box;
       padding: 10px 14px;
       border-radius: 10px;
       border: 1px solid #d1d5db;
@@ -64,10 +69,12 @@
     width: 100%;
     min-width: 0;
     overflow: hidden;
+    overflow-x: auto;
 
     .datagrid {
       border: none;
       font-size: 0.95rem;
+      min-width: 540px;
 
       .MuiDataGrid-columnHeaders {
         font-weight: 600;
