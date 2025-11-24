@@ -68,6 +68,10 @@
             }
         }
 
+        .card--shifts {
+            overflow: hidden;
+        }
+
         .primaryButton {
             padding: 10px 18px;
             border-radius: 999px;
@@ -339,5 +343,222 @@
                 margin-bottom: 16px;
             }
         }
+
+        .shiftTable {
+            width: 100%;
+            overflow-x: auto;
+            display: block;
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                min-width: 960px;
+                font-size: 14px;
+            }
+
+            thead {
+                background: #f8fafc;
+
+                th {
+                    text-align: left;
+                    padding: 12px 12px;
+                    color: #475569;
+                    font-weight: 700;
+                    letter-spacing: 0.04em;
+                    border-bottom: 1px solid #e2e8f0;
+                    white-space: nowrap;
+                }
+            }
+
+            tbody tr:nth-child(odd) {
+                background: #fafafa;
+            }
+
+            td {
+                padding: 12px 12px;
+                border-bottom: 1px solid #e2e8f0;
+                color: #0f172a;
+                vertical-align: top;
+            }
+
+            .shiftTable__text {
+                max-width: 280px;
+                white-space: pre-wrap;
+                word-break: break-word;
+                color: #334155;
+            }
+
+            .shiftTable__date,
+            .shiftTable__time,
+            .shiftTable__number {
+                white-space: nowrap;
+                font-weight: 600;
+                color: #1f2937;
+            }
+
+            .shiftTable__number {
+                text-align: center;
+            }
+        }
+
+        .shiftCards {
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .shiftCard {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px;
+            background: #f8fafc;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+        }
+
+        .shiftCard__row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 6px 0;
+            border-bottom: 1px dashed #e2e8f0;
+
+            &:last-child {
+                border-bottom: none;
+            }
+        }
+
+        .shiftCard__label {
+            font-weight: 700;
+            color: #475569;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .shiftCard__text {
+            max-width: 60%;
+            text-align: right;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #0f172a;
+        }
+
+        .statusPill {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 12px;
+            text-transform: capitalize;
+            border: 1px solid transparent;
+
+            &--working {
+                background: #ecfdf3;
+                color: #15803d;
+                border-color: #bbf7d0;
+            }
+
+            &--paused {
+                background: #fff7ed;
+                color: #b45309;
+                border-color: #fed7aa;
+            }
+
+            &--finished {
+                background: #eff6ff;
+                color: #1d4ed8;
+                border-color: #bfdbfe;
+            }
+        }
     }
+}
+
+@media (max-width: 992px) {
+  .single {
+    .singleContainer {
+      .top {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+        padding: 16px;
+      }
+
+      .card {
+        padding: 18px;
+      }
+
+      .bottom {
+        margin: 16px;
+        padding: 18px;
+      }
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .single {
+    .singleContainer {
+      .card {
+        gap: 14px;
+      }
+
+      .card__actions {
+        flex-direction: column;
+        align-items: stretch;
+
+        .primaryButton {
+          width: 100%;
+          justify-content: center;
+          text-align: center;
+        }
+      }
+
+      .profileMain {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .shiftTable table {
+        min-width: 100%;
+        font-size: 13px;
+      }
+
+      .shiftCards {
+        display: flex;
+      }
+
+      .shiftTable {
+        display: none;
+      }
+    }
+  }
+}
+
+@media (max-width: 576px) {
+  .single {
+    .singleContainer {
+      .top {
+        padding: 12px;
+      }
+
+      .card {
+        padding: 16px;
+      }
+
+      .profileDetails {
+        grid-template-columns: 1fr;
+      }
+
+      .shiftTable {
+        table {
+          font-size: 12.5px;
+        }
+
+        th,
+        td {
+          padding: 10px 8px;
+        }
+      }
+    }
+  }
 }

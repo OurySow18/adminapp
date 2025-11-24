@@ -6,12 +6,22 @@
  * Navbar Komponent
  */
 import "./navbar.scss";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { DarkModeContext } from "../../context/darkModeContext";
 import { useSidebar } from "../../context/sidebarContext";
 import { AuthContext } from "../../context/AuthContext";
 import { db } from "../../firebase";
-import { doc, getDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  onSnapshot,
+  setDoc,
+  updateDoc,
+  serverTimestamp,
+  Timestamp,
+  runTransaction,
+} from "firebase/firestore";
+import ConfirmModal from "../modal/ConfirmModal";
 
 import Bild from "../../images/Bild_Sow.jpeg";
 
@@ -27,6 +37,14 @@ import CloseIcon from "@mui/icons-material/Close";
 
 const SUPER_ADMIN_UID = "To3bnfOHvgf2S4ZIEX9TWZEbl1l2";
 
+const getTodayId = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const Navbar = () => {
   const { dispatch } = useContext(DarkModeContext);
   const { toggleSidebar, isCollapsed, isMobile, isMobileOpen } = useSidebar();
@@ -34,6 +52,15 @@ const Navbar = () => {
 
   const [roleLabel, setRoleLabel] = useState("");
   const [userLabel, setUserLabel] = useState("");
+  const [workSession, setWorkSession] = useState(null);
+  const [workLoading, setWorkLoading] = useState(false);
+  const [modalConfig, setModalConfig] = useState({
+    open: false,
+    action: null,
+  });
+  const [startTasks, setStartTasks] = useState("");
+  const [stopSummary, setStopSummary] = useState("");
+  const [stopAchieved, setStopAchieved] = useState(null);
 
   const ToggleIcon = isMobile
     ? isMobileOpen
@@ -42,6 +69,33 @@ const Navbar = () => {
     : isCollapsed
     ? MenuIcon
     : MenuOpenIcon;
+
+  const todayDocRef = useMemo(() => {
+    if (!currentUser) return null;
+    return doc(db, "admin", currentUser.uid, "workSessions", getTodayId());
+  }, [currentUser]);
+
+  const parseShifts = (data) => {
+    const shifts = Array.isArray(data?.shifts) ? data.shifts : [];
+    if (shifts.length) return shifts;
+    if (data?.startTime) {
+      return [
+        {
+          startTime: data.startTime,
+          plannedTasks: data.plannedTasks || "",
+          pauses: Array.isArray(data.pauses) ? data.pauses : [],
+          endTime: data.endTime || null,
+          summary: data.summary || "",
+          achievedGoals: data.achievedGoals ?? null,
+          status: data.status || (data.endTime ? "finished" : "working"),
+        },
+      ];
+    }
+    return [];
+  };
+
+  const shifts = useMemo(() => parseShifts(workSession), [workSession]);
+  const activeShift = shifts[shifts.length - 1] || null;
 
   useEffect(() => {
     const fetchRole = async () => {
@@ -80,6 +134,263 @@ const Navbar = () => {
     fetchRole();
   }, [currentUser]);
 
+  useEffect(() => {
+    if (!todayDocRef) {
+      setWorkSession(null);
+      return undefined;
+    }
+    const unsubscribe = onSnapshot(todayDocRef, (snapshot) => {
+      setWorkSession(snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null);
+    });
+    return () => unsubscribe();
+  }, [todayDocRef]);
+
+  const workStatus = useMemo(() => {
+    if (!activeShift) return "idle";
+    if (activeShift.endTime) return "idle";
+    const pauses = Array.isArray(activeShift.pauses) ? activeShift.pauses : [];
+    const lastPause = pauses[pauses.length - 1];
+    if (lastPause && !lastPause.end) return "paused";
+    return "working";
+  }, [activeShift]);
+
+  const ensureDocRef = () => {
+    if (!todayDocRef) throw new Error("Utilisateur non connecté");
+    return todayDocRef;
+  };
+
+  const handleStartWork = async (plannedTasks) => {
+    if (workStatus !== "idle") return;
+    try {
+      setWorkLoading(true);
+      const docRef = ensureDocRef();
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(docRef);
+        const data = snap.data() || {};
+        const currentShifts = parseShifts(data);
+        const newShift = {
+          startTime: Timestamp.now(),
+          plannedTasks: plannedTasks.trim(),
+          status: "working",
+          pauses: [],
+          endTime: null,
+          summary: "",
+          achievedGoals: null,
+        };
+        transaction.set(
+          docRef,
+          { shifts: [...currentShifts, newShift] },
+          { merge: true }
+        );
+      });
+    } catch (error) {
+      console.error("Erreur lors du démarrage du travail:", error);
+      alert("Impossible de démarrer la session de travail.");
+    } finally {
+      setWorkLoading(false);
+    }
+  };
+
+  const handlePause = async () => {
+    if (workStatus !== "working") return;
+    try {
+      setWorkLoading(true);
+      const docRef = ensureDocRef();
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(docRef);
+        const data = snap.data() || {};
+        const currentShifts = parseShifts(data);
+        if (!currentShifts.length) throw new Error("Aucune session active");
+        const updatedShifts = currentShifts.slice();
+        const last = { ...updatedShifts[updatedShifts.length - 1] };
+        const pauses = Array.isArray(last.pauses) ? last.pauses.slice() : [];
+        pauses.push({ start: Timestamp.now(), end: null });
+        last.pauses = pauses;
+        last.status = "paused";
+        updatedShifts[updatedShifts.length - 1] = last;
+        transaction.set(docRef, { shifts: updatedShifts }, { merge: true });
+      });
+    } catch (error) {
+      console.error("Erreur lors de la mise en pause:", error);
+      alert("Impossible de mettre en pause.");
+    } finally {
+      setWorkLoading(false);
+    }
+  };
+
+  const handleResume = async () => {
+    if (workStatus !== "paused") return;
+    try {
+      setWorkLoading(true);
+      const docRef = ensureDocRef();
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(docRef);
+        const data = snap.data() || {};
+        const currentShifts = parseShifts(data);
+        if (!currentShifts.length) throw new Error("Aucune session active");
+        const updatedShifts = currentShifts.slice();
+        const last = { ...updatedShifts[updatedShifts.length - 1] };
+        const pauses = Array.isArray(last.pauses) ? last.pauses.slice() : [];
+        const idx = pauses.length - 1;
+        if (idx >= 0) {
+          pauses[idx] = { ...pauses[idx], end: Timestamp.now() };
+        }
+        last.pauses = pauses;
+        last.status = "working";
+        updatedShifts[updatedShifts.length - 1] = last;
+        transaction.set(docRef, { shifts: updatedShifts }, { merge: true });
+      });
+    } catch (error) {
+      console.error("Erreur lors de la reprise:", error);
+      alert("Impossible de reprendre la session.");
+    } finally {
+      setWorkLoading(false);
+    }
+  };
+
+  const handleStop = async ({ summary, achievedGoals }) => {
+    if (workStatus !== "working" && workStatus !== "paused") return;
+    try {
+      setWorkLoading(true);
+      const docRef = ensureDocRef();
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(docRef);
+        const data = snap.data() || {};
+        const currentShifts = parseShifts(data);
+        if (!currentShifts.length) throw new Error("Aucune session active");
+        const updatedShifts = currentShifts.slice();
+        const last = { ...updatedShifts[updatedShifts.length - 1] };
+        const pauses = Array.isArray(last.pauses) ? last.pauses.slice() : [];
+        const idx = pauses.length - 1;
+        if (workStatus === "paused" && idx >= 0 && !pauses[idx].end) {
+          pauses[idx] = { ...pauses[idx], end: Timestamp.now() };
+        }
+        last.pauses = pauses;
+        last.endTime = Timestamp.now();
+        last.summary = summary.trim();
+        last.achievedGoals = achievedGoals ?? null;
+        last.status = "finished";
+        updatedShifts[updatedShifts.length - 1] = last;
+        transaction.set(docRef, { shifts: updatedShifts }, { merge: true });
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'arrêt:", error);
+      alert("Impossible de terminer la session.");
+    } finally {
+      setWorkLoading(false);
+    }
+  };
+
+  const openModal = (action) => {
+    setModalConfig({ open: true, action });
+    if (action === "start") setStartTasks(workSession?.plannedTasks || "");
+    if (action === "stop") {
+      setStopSummary("");
+      setStopAchieved(null);
+    }
+  };
+
+  const closeModal = () => setModalConfig({ open: false, action: null });
+
+  const handleConfirmModal = async () => {
+    const action = modalConfig.action;
+    if (!action) return;
+    if (action === "start") {
+      await handleStartWork(startTasks || "");
+      closeModal();
+      return;
+    }
+    if (action === "pause") {
+      await handlePause();
+      closeModal();
+      return;
+    }
+    if (action === "resume") {
+      await handleResume();
+      closeModal();
+      return;
+    }
+    if (action === "stop") {
+      await handleStop({
+        summary: stopSummary || "",
+        achievedGoals: stopAchieved,
+      });
+      closeModal();
+    }
+  };
+
+  const renderWorkControls = () => {
+    if (!currentUser) return null;
+    switch (workStatus) {
+      case "idle":
+        return (
+          <button
+            type="button"
+            className="navbar__workButton navbar__workButton--start"
+            onClick={() => openModal("start")}
+            disabled={workLoading}
+          >
+            Commencer
+          </button>
+        );
+      case "working":
+        return (
+          <>
+            <button
+              type="button"
+              className="navbar__workButton navbar__workButton--pause"
+              onClick={() => openModal("pause")}
+              disabled={workLoading}
+            >
+              Pause
+            </button>
+            <button
+              type="button"
+              className="navbar__workButton navbar__workButton--stop"
+              onClick={() => openModal("stop")}
+              disabled={workLoading}
+            >
+              Terminer
+            </button>
+          </>
+        );
+      case "paused":
+        return (
+          <>
+            <button
+              type="button"
+              className="navbar__workButton navbar__workButton--resume"
+              onClick={() => openModal("resume")}
+              disabled={workLoading}
+            >
+              Recommencer
+            </button>
+            <button
+              type="button"
+              className="navbar__workButton navbar__workButton--stop"
+              onClick={() => openModal("stop")}
+              disabled={workLoading}
+            >
+              Terminer
+            </button>
+          </>
+        );
+      case "finished":
+        return (
+          <button
+            type="button"
+            className="navbar__workButton navbar__workButton--start"
+            onClick={() => openModal("start")}
+            disabled={workLoading}
+          >
+            Commencer
+          </button>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="navbar">
       <div className="wrapper">
@@ -106,6 +417,7 @@ const Navbar = () => {
           </div> */}
         </div>
         <div className="items">
+          <div className="item navbar__workControls">{renderWorkControls()}</div>
           {/* Badge rôle Admin / SuperAdmin */}
           {roleLabel && (
             <div className="item">
@@ -146,6 +458,95 @@ const Navbar = () => {
           </div>
         </div>
       </div>
+      <ConfirmModal
+        open={modalConfig.open}
+        onClose={closeModal}
+        onConfirm={handleConfirmModal}
+        confirmText={
+          modalConfig.action === "stop"
+            ? "Terminer"
+            : modalConfig.action === "pause"
+            ? "Mettre en pause"
+            : modalConfig.action === "resume"
+            ? "Recommencer"
+            : "Commencer"
+        }
+        title={
+          modalConfig.action === "stop"
+            ? "Terminer ta journée"
+            : modalConfig.action === "pause"
+            ? "Mettre en pause"
+            : modalConfig.action === "resume"
+            ? "Reprendre le travail"
+            : "Commencer le travail"
+        }
+        loading={workLoading}
+      >
+        {modalConfig.action === "start" && (
+          <div className="workModal__field">
+            <label htmlFor="plannedTasks">Tâches prévues</label>
+            <textarea
+              id="plannedTasks"
+              value={startTasks}
+              onChange={(e) => setStartTasks(e.target.value)}
+              placeholder="Décris les tâches que tu prévois aujourd'hui..."
+              rows={3}
+            />
+          </div>
+        )}
+
+        {modalConfig.action === "stop" && (
+          <>
+            <div className="workModal__field">
+              <label htmlFor="stopSummary">Ce que tu as accompli</label>
+              <textarea
+                id="stopSummary"
+                value={stopSummary}
+                onChange={(e) => setStopSummary(e.target.value)}
+                placeholder="Résume tes tâches réalisées..."
+                rows={3}
+              />
+            </div>
+            <div className="workModal__field">
+              <span>Objectifs atteints ?</span>
+              <div className="workModal__choices">
+                <label>
+                  <input
+                    type="radio"
+                    name="achievedGoals"
+                    value="yes"
+                    checked={stopAchieved === true}
+                    onChange={() => setStopAchieved(true)}
+                  />
+                  Oui
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="achievedGoals"
+                    value="no"
+                    checked={stopAchieved === false}
+                    onChange={() => setStopAchieved(false)}
+                  />
+                  Non
+                </label>
+              </div>
+            </div>
+          </>
+        )}
+
+        {modalConfig.action === "pause" && (
+          <p className="workModal__text">
+            Tu es sur le point de mettre ta session en pause. Tu pourras la reprendre plus tard.
+          </p>
+        )}
+
+        {modalConfig.action === "resume" && (
+          <p className="workModal__text">
+            Reprendre la session et continuer le suivi de ton temps.
+          </p>
+        )}
+      </ConfirmModal>
     </div>
   );
 };

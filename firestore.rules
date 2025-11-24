@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Chaque admin peut lire/écrire sa fiche et ses sessions de travail du jour
+    match /admin/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      match /workSessions/{sessionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+  }
+}

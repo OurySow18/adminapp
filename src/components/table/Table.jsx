@@ -121,7 +121,7 @@ const ListCommande = ({ limit = 10 }) => {
                     {formatCurrency(row.total)}
                   </TableCell>
                   <TableCell className="tableCell">
-                    {row.paymentMethode || row.paymentMethod || "-"}
+                    {row.paymentType || row.paymentMethode || "-"}
                   </TableCell>
                   <TableCell className="tableCell">
                     <span

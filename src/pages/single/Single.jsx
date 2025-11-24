@@ -4,7 +4,7 @@ import Navbar from "../../components/navbar/Navbar";
 import ListCommande from "../../components/table/Table";
 import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, collection } from "firebase/firestore";
 import { db, auth, storage } from "../../firebase";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
@@ -24,6 +24,11 @@ const Single = ({ title }) => {
     saving: false,
     error: null,
     success: null,
+  });
+  const [shiftRows, setShiftRows] = useState([]);
+  const [shiftState, setShiftState] = useState({
+    loading: true,
+    error: null,
   });
   const [passwordResetState, setPasswordResetState] = useState({
     loading: false,
@@ -79,6 +84,63 @@ const Single = ({ title }) => {
 
     return () => unsub();
   }, [title, params.id, editableFields]);
+
+  useEffect(() => {
+    if (title !== "admin") return undefined;
+    const colRef = collection(db, "admin", params.id, "workSessions");
+    const unsubscribe = onSnapshot(
+      colRef,
+      (snapshot) => {
+        const rows = [];
+        snapshot.forEach((docSnap) => {
+          const dateId = docSnap.id;
+          const data = docSnap.data() || {};
+          const shifts = Array.isArray(data.shifts) ? data.shifts : [];
+          shifts.forEach((shift, index) => {
+            const start = shift.startTime?.toDate?.() || null;
+            const end = shift.endTime?.toDate?.() || null;
+            const pauses = Array.isArray(shift.pauses) ? shift.pauses : [];
+            const pauseMs = pauses.reduce((acc, pause) => {
+              const ps = pause?.start?.toDate?.();
+              const pe = pause?.end?.toDate?.();
+              if (ps && pe) {
+                return acc + Math.max(0, pe.getTime() - ps.getTime());
+              }
+              return acc;
+            }, 0);
+            const durationMs =
+              start && end ? Math.max(0, end.getTime() - start.getTime() - pauseMs) : null;
+            rows.push({
+              id: `${dateId}-${index}`,
+              dateId,
+              shiftNumber: index + 1,
+              start,
+              end,
+              pauseMs,
+              durationMs,
+              plannedTasks: shift.plannedTasks || "",
+              summary: shift.summary || "",
+              achievedGoals: shift.achievedGoals,
+              status: shift.status || (end ? "finished" : "working"),
+            });
+          });
+        });
+        rows.sort(
+          (a, b) => (b.start?.getTime?.() || 0) - (a.start?.getTime?.() || 0)
+        );
+        setShiftRows(rows);
+        setShiftState({ loading: false, error: null });
+      },
+      (error) => {
+        console.error("Erreur récupération shifts:", error);
+        setShiftState({
+          loading: false,
+          error: "Impossible de récupérer les shifts.",
+        });
+      }
+    );
+    return () => unsubscribe();
+  }, [title, params.id]);
 
   const handleToggleStatus = async () => {
     try {
@@ -222,6 +284,26 @@ const Single = ({ title }) => {
 
   const identityName = data.username || data.name || "Nom inconnu";
   const statusLabel = data.status ? "Actif" : "Désactivé";
+  const formatDate = (value) =>
+    value instanceof Date
+      ? value.toLocaleDateString("fr-FR", { year: "numeric", month: "2-digit", day: "2-digit" })
+      : null;
+  const formatTime = (value) =>
+    value instanceof Date
+      ? value.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+      : "—";
+  const formatDuration = (ms) => {
+    if (!ms && ms !== 0) return "—";
+    const totalMinutes = Math.floor(ms / 60000);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return `${h}h${m.toString().padStart(2, "0")}`;
+  };
+  const statusLabels = {
+    working: "En cours",
+    paused: "En pause",
+    finished: "Terminé",
+  };
   const infoRows = [
     { label: "Email", value: data.email || "N/A" },
     { label: "Téléphone", value: data.phone || "N/A" },
@@ -341,6 +423,137 @@ const Single = ({ title }) => {
               </dl>
             </div>
           </section>
+
+          {title === "admin" && (
+            <section className="card card--shifts">
+              <header className="card__header card__header--compact">
+                <div>
+                  <p className="card__eyebrow">Temps de travail</p>
+                  <h2>Shifts de la journée</h2>
+                </div>
+              </header>
+              {shiftState.error && (
+                <p className="card__notice card__notice--error">
+                  {shiftState.error}
+                </p>
+              )}
+              {shiftState.loading ? (
+                <p className="card__muted">Chargement des shifts...</p>
+              ) : shiftRows.length === 0 ? (
+                <p className="card__muted">
+                  Aucun shift enregistré pour cet admin.
+                </p>
+              ) : (
+                <>
+                  <div className="shiftTable">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>#</th>
+                          <th>Début</th>
+                          <th>Fin</th>
+                          <th>Pause</th>
+                          <th>Durée</th>
+                          <th>Statut</th>
+                          <th>Tâches prévues</th>
+                          <th>Résumé</th>
+                          <th>Objectifs atteints</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shiftRows.map((row) => (
+                          <tr key={row.id}>
+                            <td className="shiftTable__date">
+                              {formatDate(row.start) || row.dateId}
+                            </td>
+                            <td className="shiftTable__number">{row.shiftNumber}</td>
+                            <td className="shiftTable__time">{formatTime(row.start)}</td>
+                            <td className="shiftTable__time">
+                              {row.end ? formatTime(row.end) : "—"}
+                            </td>
+                            <td>{row.pauseMs ? formatDuration(row.pauseMs) : "—"}</td>
+                            <td>{row.durationMs ? formatDuration(row.durationMs) : "—"}</td>
+                            <td>
+                              <span className={`statusPill statusPill--${row.status}`}>
+                                {statusLabels[row.status] || row.status}
+                              </span>
+                            </td>
+                            <td className="shiftTable__text">{row.plannedTasks || "—"}</td>
+                            <td className="shiftTable__text">{row.summary || "—"}</td>
+                            <td>
+                              {row.achievedGoals === true
+                                ? "Oui"
+                                : row.achievedGoals === false
+                                ? "Non"
+                                : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="shiftCards">
+                    {shiftRows.map((row) => (
+                      <div className="shiftCard" key={`card-${row.id}`}>
+                        <div className="shiftCard__row">
+                          <span className="shiftCard__label">Date</span>
+                          <span>{formatDate(row.start) || row.dateId}</span>
+                        </div>
+                        <div className="shiftCard__row">
+                          <span className="shiftCard__label">Shift</span>
+                          <span>#{row.shiftNumber}</span>
+                        </div>
+                        <div className="shiftCard__row">
+                          <span className="shiftCard__label">Début</span>
+                          <span>{formatTime(row.start)}</span>
+                        </div>
+                        <div className="shiftCard__row">
+                          <span className="shiftCard__label">Fin</span>
+                          <span>{row.end ? formatTime(row.end) : "—"}</span>
+                        </div>
+                        <div className="shiftCard__row">
+                          <span className="shiftCard__label">Pause</span>
+                          <span>{row.pauseMs ? formatDuration(row.pauseMs) : "—"}</span>
+                        </div>
+                        <div className="shiftCard__row">
+                          <span className="shiftCard__label">Durée</span>
+                          <span>{row.durationMs ? formatDuration(row.durationMs) : "—"}</span>
+                        </div>
+                        <div className="shiftCard__row">
+                          <span className="shiftCard__label">Statut</span>
+                          <span className={`statusPill statusPill--${row.status}`}>
+                            {statusLabels[row.status] || row.status}
+                          </span>
+                        </div>
+                        <div className="shiftCard__row">
+                          <span className="shiftCard__label">Tâches prévues</span>
+                          <span className="shiftCard__text">
+                            {row.plannedTasks || "—"}
+                          </span>
+                        </div>
+                        <div className="shiftCard__row">
+                          <span className="shiftCard__label">Résumé</span>
+                          <span className="shiftCard__text">{row.summary || "—"}</span>
+                        </div>
+                        <div className="shiftCard__row">
+                          <span className="shiftCard__label">Objectifs atteints</span>
+                          <span>
+                            {row.achievedGoals === true
+                              ? "Oui"
+                              : row.achievedGoals === false
+                              ? "Non"
+                              : "—"}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </section>
+          )}
 
           <section className="card card--edit">
             <header className="card__header card__header--compact">
