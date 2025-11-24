@@ -132,6 +132,7 @@ const Login = () => {
 
       // 3) Vérifier si c'est un admin ou superAdmin
       let isAdmin = false;
+      let adminData = null;
 
       if (user.uid === SUPER_ADMIN_UID) {
         isAdmin = true;
@@ -140,6 +141,7 @@ const Login = () => {
         const adminDocSnap = await getDoc(adminDocRef);
         if (adminDocSnap.exists()) {
           isAdmin = true;
+          adminData = adminDocSnap.data();
         }
       }
 
@@ -149,6 +151,19 @@ const Login = () => {
         setError(true);
         showErrorPopup(
           "Vous n'êtes pas autorisé à accéder à cette interface administrateur."
+        );
+        return;
+      }
+
+      // 3b) Admin désactivé (status === false)
+      const isRegularAdmin = adminData?.role
+        ? String(adminData.role).toLowerCase() === "admin"
+        : true;
+      if (isRegularAdmin && adminData?.status === false) {
+        await signOut(auth);
+        setError(true);
+        showErrorPopup(
+          "Ce compte administrateur est désactivé. Contactez un super administrateur."
         );
         return;
       }
