@@ -727,13 +727,10 @@ export const applyVendorProductDraftChanges = async ({
 
   const publicRef = doc(db, "products_public", productId);
   const publicSnap = await getDoc(publicRef);
-  const publicPayload = publicSnap.exists()
-    ? valuesPayload
-    : {
-        ...sanitizeProductPayload(productData),
-        ...valuesPayload,
-      };
-  await setDoc(publicRef, publicPayload, { merge: true });
+  const writes = [];
+  if (publicSnap.exists()) {
+    writes.push(setDoc(publicRef, valuesPayload, { merge: true }));
+  }
 
   const refsToWrite = await collectVendorProductRefs({
     productId,
@@ -753,8 +750,10 @@ export const applyVendorProductDraftChanges = async ({
     "draft.core.updatedAt": timestamp,
   };
 
-  await Promise.all(
-    refsToWrite.map((ref) => setDoc(ref, cleanupPayload, { merge: true }))
+  const cleanupWrites = refsToWrite.map((ref) =>
+    setDoc(ref, cleanupPayload, { merge: true })
   );
+
+  await Promise.all([...writes, ...cleanupWrites]);
 };
 
