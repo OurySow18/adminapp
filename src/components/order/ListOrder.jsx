@@ -94,7 +94,7 @@ const ListOrder = ({ typeColumns, title }) => {
 
   const columns = useMemo(
     () => typeColumns.concat(actionColumn),
-    [typeColumns]
+    [typeColumns, actionColumn]
   );
 
   return (

@@ -15,21 +15,29 @@ import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 
 import { db } from "../../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const Featured = () => {
   const [data, setData] = useState([]);
   const monthGoal = 85000000;
-  const today = new Date();
-  const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);  
-const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const lastMonth = new Date(
-    today.getFullYear(),
-    today.getMonth() - 1,
-    today.getDate()
+  const today = useMemo(() => new Date(), []);
+  const lastWeek = useMemo(
+    () => new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000),
+    [today]
+  );
+  const startOfToday = useMemo(
+    () => new Date(today.getFullYear(), today.getMonth(), today.getDate()),
+    [today]
+  );
+  const lastMonth = useMemo(
+    () => new Date(today.getFullYear(), today.getMonth() - 1, today.getDate()),
+    [today]
   );
   // Obtenir le premier jour du mois actuel
-  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const firstDayOfMonth = useMemo(
+    () => new Date(today.getFullYear(), today.getMonth(), 1),
+    [today]
+  );
 
   useEffect(() => {
     const fetchData = async () => {
@@ -52,7 +60,7 @@ const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDa
       }
     };
     fetchData();
-  }, []);
+  }, [lastMonth, today]);
 
   // Calculer le total des revenus réalisés aujourd'hui
   const totalRevenueToday = data.reduce((total, order) => {

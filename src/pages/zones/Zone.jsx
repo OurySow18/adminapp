@@ -14,7 +14,6 @@ import { db } from "../../firebase";
 import {
   updateDoc,
   doc,
-  serverTimestamp,
   onSnapshot,
 } from "firebase/firestore";
 
@@ -39,7 +38,7 @@ const Zone = ({ title }) => {
     return () => {
       unsub();
     };
-  }, []);
+  }, [params.id, title]);
 
   // Update Zones details in Firestore
   const handleUpdate = async (e) => {

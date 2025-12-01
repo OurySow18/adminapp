@@ -11,21 +11,11 @@ import { DarkModeContext } from "../../context/darkModeContext";
 import { useSidebar } from "../../context/sidebarContext";
 import { AuthContext } from "../../context/AuthContext";
 import { db } from "../../firebase";
-import {
-  doc,
-  getDoc,
-  onSnapshot,
-  setDoc,
-  updateDoc,
-  serverTimestamp,
-  Timestamp,
-  runTransaction,
-} from "firebase/firestore";
+import { doc, getDoc, onSnapshot, Timestamp, runTransaction } from "firebase/firestore";
 import ConfirmModal from "../modal/ConfirmModal";
 
 import Bild from "../../images/Bild_Sow.jpeg";
 
-import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import LanguageOutlinedIcon from "@mui/icons-material/LanguageOutlined";
 import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
 import FullscreenExitOutlinedIcon from "@mui/icons-material/FullscreenExitOutlined";

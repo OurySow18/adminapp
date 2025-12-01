@@ -8,11 +8,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { db } from "../../firebase";
-import { doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 
 const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
   const [orderDetails, setOrderDetails] = useState({});
-  const [isProcessing, setIsProcessing] = useState(false);
+  const isProcessing = false;
   const navigate = useNavigate();
   const params = useParams();
 
@@ -29,7 +29,7 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [params.id, title]);
 
   // Gérer le retour en arrière
   const goBack = () => {

@@ -55,21 +55,6 @@ if (YAxis?.defaultProps) {
 const getXAxisPadding = () => ({ left: 0, right: 0 });
 const getYAxisPadding = () => ({ top: 0, bottom: 0 });
 
-const dataMonth = [
-    {name: "Janvier", Total: 1200},
-    {name: "Fevrier", Total: 2500},
-    {name: "Mars", Total: 800},
-    {name: "Avril", Total: 1600},
-    {name: "Mai", Total: 900},
-    {name: "Juin", Total: 1700},
-    {name: "Juillet", Total: 1800},
-    {name: "Aoüt", Total: 1900},
-    {name: "Septembre", Total: 2100},
-    {name: "Octobre", Total: 2000},
-    {name: "Novembre", Total: 2400},
-    {name: "Decembre", Total: 2600},
-];
-
 const Chart = ({aspect, title}) => {  
   const [data, setData] = useState();
 

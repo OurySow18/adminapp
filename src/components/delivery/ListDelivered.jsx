@@ -2,7 +2,7 @@ import "./ListDelivered.scss";
 import React, { useState, useEffect, useMemo } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
-import { Link, useParams } from "react-router-dom"; // Importez le composant Link depuis React Router 
+import { Link } from "react-router-dom"; // Importez le composant Link depuis React Router 
 import { DataGrid } from "@mui/x-data-grid";
 
 const ListDelivered = ({ typeColumns }) => {
@@ -10,9 +10,6 @@ const ListDelivered = ({ typeColumns }) => {
   const [count, setCount] = useState(0); 
   const [pageSize, setPageSize] = useState(9);
   
-  const params = useParams();
-  //console.log(params) 
-
   // Récupère les données de Firestore et met à jour l'état local
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "orders"), (snapshot) => {
@@ -37,27 +34,33 @@ const ListDelivered = ({ typeColumns }) => {
     };
   }, []);
 
-  const actionColumn = [
-    {
-      field: "action",
-      headername: "Action",
-      width: 200,
-      renderCell: (params) => { 
-        return (
-          <div className="cellAction">
-            <Link
-              to={{ pathname: params.id }}
-              style={{ textDecoration: "none" }}
-            >
-              <div className="viewButton">Details</div>
-            </Link> 
-          </div>
-        );
+  const actionColumn = useMemo(
+    () => [
+      {
+        field: "action",
+        headername: "Action",
+        width: 200,
+        renderCell: (params) => {
+          return (
+            <div className="cellAction">
+              <Link
+                to={{ pathname: params.id }}
+                style={{ textDecoration: "none" }}
+              >
+                <div className="viewButton">Details</div>
+              </Link>
+            </div>
+          );
+        },
       },
-    },
-  ];
+    ],
+    []
+  );
 
-  const columns = useMemo(() => typeColumns.concat(actionColumn), [typeColumns]);
+  const columns = useMemo(
+    () => typeColumns.concat(actionColumn),
+    [typeColumns]
+  );
   
   return ( 
         <div className="listOrder">

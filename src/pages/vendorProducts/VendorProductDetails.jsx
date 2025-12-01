@@ -1,4 +1,4 @@
-﻿import "./vendorProductDetails.scss";
+import "./vendorProductDetails.scss";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../../components/sidebar/Sidebar";

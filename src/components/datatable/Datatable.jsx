@@ -9,12 +9,7 @@ import "./datatable.scss";
 import { Link } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
 import { DataGrid } from "@mui/x-data-grid";
-import {
-  collection,
-  doc,
-  deleteDoc,
-  onSnapshot,
-} from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
 
 const firstValue = (...values) => {
@@ -126,44 +121,30 @@ const Datatable = ({
     return () => unsubscribe();
   }, [title, applyFilter]);
 
-  const handleDelete = async (id) => {
-    const confirm = window.confirm("Voulez-vous vraiment supprimer ?");
-    if (!confirm) return;
-    try {
-      await deleteDoc(doc(db, title, id));
-      setData((prev) => prev.filter((item) => item.id !== id));
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const actionColumn = [
-    {
-      field: "action",
-      headername: "Action",
-      width: 90,
-      renderCell: (params) => {
-        return (
-          <div className="cellAction">
-            <Link to={String(params.id)} style={{ textDecoration: "none" }}>
-              <div className="viewButton">View</div>
-            </Link>
-         {/*   <div
-              className="deleteButton"
-              onClick={() => handleDelete(params.row.id)}
-            >
-              Delete
-            </div>*/}
-          </div>
-        );
+  const actionColumn = useMemo(
+    () => [
+      {
+        field: "action",
+        headername: "Action",
+        width: 90,
+        renderCell: (params) => {
+          return (
+            <div className="cellAction">
+              <Link to={String(params.id)} style={{ textDecoration: "none" }}>
+                <div className="viewButton">View</div>
+              </Link>
+            </div>
+          );
+        },
       },
-    },
-  ];
+    ],
+    []
+  );
 
   const headerTitle = pageTitle ?? title;
   const columns = useMemo(
     () => typeColumns.concat(actionColumn),
-    [typeColumns]
+    [typeColumns, actionColumn]
   );
 
   const normalizedSearch = searchQuery.trim().toLowerCase();

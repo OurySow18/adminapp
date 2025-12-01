@@ -137,34 +137,6 @@ const getProductTitle = (row) =>
     row.draft?.core?.title
   );
 
-const getProductActiveFlag = (row) => {
-  if (
-    typeof row?.mmStatus === "boolean" &&
-    typeof row?.vmStatus === "boolean"
-  ) {
-    return row.mmStatus && row.vmStatus;
-  }
-  if (typeof row?.publicActive === "boolean") {
-    return row.publicActive;
-  }
-  const candidates = [
-    row.active,
-    row.isActive,
-    row.core?.active,
-    row.core?.isActive,
-    row.draft?.core?.active,
-    row.draft?.core?.isActive,
-  ];
-  for (const value of candidates) {
-    if (typeof value === "boolean") return value;
-  }
-  if (typeof row?.blocked === "boolean") return !row.blocked;
-  if (typeof row?.core?.blocked === "boolean") return !row.core.blocked;
-  if (typeof row?.draft?.core?.blocked === "boolean")
-    return !row.draft.core.blocked;
-  return undefined;
-};
-
 const getProductBlockedReason = (row) =>
   firstValue(
     row.blockedReason,

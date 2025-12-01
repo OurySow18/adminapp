@@ -1,4 +1,4 @@
-﻿import PropTypes from "prop-types";
+import PropTypes from "prop-types";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";

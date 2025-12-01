@@ -22,7 +22,6 @@ import SettingsApplicationsIcon from "@mui/icons-material/SettingsApplications";
 import AccountBalanceOutlinedIcon from "@mui/icons-material/AccountBalanceOutlined";
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 import AddLocationIcon from "@mui/icons-material/AddLocation";
-import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import EditNoteIcon from "@mui/icons-material/EditNote";
 import ForwardToInboxIcon from "@mui/icons-material/ForwardToInbox";
 import DescriptionIcon from "@mui/icons-material/Description";

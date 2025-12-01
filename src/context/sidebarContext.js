@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
 
 const SidebarContext = createContext(null);
 
@@ -29,35 +36,35 @@ export const SidebarProvider = ({ children }) => {
     }
   }, [isMobile]);
 
-  const toggleCollapsed = () => {
+  const toggleCollapsed = useCallback(() => {
     setIsCollapsed((prev) => !prev);
-  };
+  }, []);
 
-  const toggleMobileSidebar = () => {
+  const toggleMobileSidebar = useCallback(() => {
     setIsMobileOpen((prev) => !prev);
-  };
+  }, []);
 
-  const toggleSidebar = () => {
+  const toggleSidebar = useCallback(() => {
     if (isMobile) {
       toggleMobileSidebar();
     } else {
       toggleCollapsed();
     }
-  };
+  }, [isMobile, toggleCollapsed, toggleMobileSidebar]);
 
-  const openSidebar = () => {
+  const openSidebar = useCallback(() => {
     if (isMobile) {
       setIsMobileOpen(true);
     } else {
       setIsCollapsed(false);
     }
-  };
+  }, [isMobile]);
 
-  const closeSidebar = () => {
+  const closeSidebar = useCallback(() => {
     if (isMobile) {
       setIsMobileOpen(false);
     }
-  };
+  }, [isMobile]);
 
   const value = useMemo(
     () => ({
@@ -71,7 +78,16 @@ export const SidebarProvider = ({ children }) => {
       closeSidebar,
       setCollapsed: setIsCollapsed,
     }),
-    [isCollapsed, isMobile, isMobileOpen]
+    [
+      isCollapsed,
+      isMobile,
+      isMobileOpen,
+      toggleSidebar,
+      toggleCollapsed,
+      toggleMobileSidebar,
+      openSidebar,
+      closeSidebar,
+    ]
   );
 
   return (
@@ -88,4 +104,3 @@ export const useSidebar = () => {
   }
   return context;
 };
-

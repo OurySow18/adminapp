@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Abgabe Bachelorarbeit
  * Author: Amadou Oury Sow
  * Date: 15.09.2022

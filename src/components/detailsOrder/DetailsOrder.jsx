@@ -18,7 +18,7 @@ import {
 
 const DetailsOrder = ({ title, btnValidation }) => {
   const [orderDetails, setOrderDetails] = useState([]);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const isProcessing = false;
   const navigate = useNavigate();
   const params = useParams();
 
