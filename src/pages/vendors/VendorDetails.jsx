@@ -171,7 +171,10 @@ const getProductLabel = (product) => {
   );
 };
 
-const getProfileSection = (vendor) => vendor.profile || vendor.vendor || vendor || {};
+const getProfileSection = (vendor) => {
+  if (!vendor || typeof vendor !== "object") return {};
+  return vendor.profile || vendor.vendor || vendor || {};
+};
 
 const getSection = (vendor, key) => {
   if (!vendor) return {};
@@ -197,6 +200,7 @@ const VendorDetails = () => {
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [locationError, setLocationError] = useState(null);
   const [locationMessage, setLocationMessage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
 
   useEffect(() => {
     if (!id) return;
@@ -246,6 +250,17 @@ const VendorDetails = () => {
     () => (vendor ? resolveVendorStatus(vendor, "draft") : "draft"),
     [vendor]
   );
+
+  const logoUrl = useMemo(() => {
+    const profileSection = getProfileSection(vendor);
+    return (
+      profileSection?.logo ||
+      profileSection?.company?.logoUrl ||
+      vendor?.logo ||
+      vendor?.companyLogo ||
+      null
+    );
+  }, [vendor]);
 
   const vendorStatus = vendor
     ? getVendorStatusLabel(normalizedStatus)
@@ -1526,7 +1541,17 @@ const VendorDetails = () => {
               >
                 ← Retour
               </button>
-              <h1>{fallbackDisplayName}</h1>
+              <div className="vendorDetails__headerTitle">
+                {logoUrl && (
+                  <img
+                    src={logoUrl}
+                    alt={`${fallbackDisplayName} logo`}
+                    className="vendorDetails__logo"
+                    onClick={() => setImagePreview(logoUrl)}
+                  />
+                )}
+                <h1>{fallbackDisplayName}</h1>
+              </div>
               <p>ID dossier : {vendor.id}</p>
             </div>
             <div className="vendorDetails__headerRight">
@@ -2111,14 +2136,31 @@ const VendorDetails = () => {
           </div>
         </div>
       )}
+      {imagePreview && (
+        <div
+          className="vendorDetails__imageOverlay"
+          onClick={() => setImagePreview(null)}
+          role="presentation"
+        >
+          <div
+            className="vendorDetails__imageModal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="vendorDetails__imageClose"
+              onClick={() => setImagePreview(null)}
+              aria-label="Fermer l'aperçu"
+            >
+              ×
+            </button>
+            <img src={imagePreview} alt="Logo vendeur" />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default VendorDetails;
-
-
-
-
-
 

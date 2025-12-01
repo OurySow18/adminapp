@@ -308,6 +308,52 @@ const VendorProductDetails = () => {
   });
   const [publicProduct, setPublicProduct] = useState(null);
   const [publicProductError, setPublicProductError] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+
+  const deliveryInfo = useMemo(() => {
+    const get = (...paths) => firstValue(...paths);
+    const type = get(
+      product?.deliveryType,
+      product?.core?.deliveryType,
+      product?.draft?.core?.deliveryType,
+      product?.attributes?.deliveryType,
+      product?.core?.attributes?.deliveryType,
+      product?.draft?.core?.attributes?.deliveryType
+    );
+    const zones = get(
+      product?.deliveryZones,
+      product?.core?.deliveryZones,
+      product?.draft?.core?.deliveryZones
+    );
+    const fee = get(
+      product?.deliveryFee,
+      product?.core?.deliveryFee,
+      product?.draft?.core?.deliveryFee,
+      product?.shippingFee,
+      product?.core?.shippingFee,
+      product?.draft?.core?.shippingFee,
+      product?.deliveryCost,
+      product?.core?.deliveryCost,
+      product?.draft?.core?.deliveryCost
+    );
+    const delay = get(
+      product?.deliveryDelay,
+      product?.core?.deliveryDelay,
+      product?.draft?.core?.deliveryDelay,
+      product?.deliveryTime,
+      product?.core?.deliveryTime,
+      product?.draft?.core?.deliveryTime,
+      product?.shippingTime,
+      product?.core?.shippingTime,
+      product?.draft?.core?.shippingTime
+    );
+    const mode = get(
+      product?.deliveryMethod,
+      product?.core?.deliveryMethod,
+      product?.draft?.core?.deliveryMethod
+    );
+    return { type, zones, fee, delay, mode };
+  }, [product]);
 
   useEffect(() => {
     if (!productId) return;
@@ -1010,6 +1056,7 @@ const VendorProductDetails = () => {
   }
 
   return (
+    <>
     <div className="vendorProductDetails">
       <Sidebar />
       <div className="vendorProductDetails__container">
@@ -1093,7 +1140,11 @@ const VendorProductDetails = () => {
                       Brouillon vendeur en attente
                     </span>
                   )}
-                  <img src={coverImage} alt={title} />
+                  <img
+                    src={coverImage}
+                    alt={title}
+                    onClick={() => coverImage && setImagePreview(coverImage)}
+                  />
                 </div>
                 <div className="vendorProductDetails__summary">
                   <div className="vendorProductDetails__statGrid">
@@ -1310,7 +1361,11 @@ const VendorProductDetails = () => {
                         className="vendorProductDetails__galleryItem"
                         key={url || index}
                       >
-                        <img src={url} alt={`Apercu ${index}`} />
+                        <img
+                          src={url}
+                          alt={`Apercu ${index}`}
+                          onClick={() => url && setImagePreview(url)}
+                        />
                       </div>
                     ))}
                   </div>
@@ -1448,6 +1503,43 @@ const VendorProductDetails = () => {
                     {publicProductError}
                   </div>
                 )}
+
+                <section className="vendorProductDetails__card vendorProductDetails__card--section vendorProductDetails__card--highlight">
+                  <div className="vendorProductDetails__cardHeader">
+                    <h2>Livraison</h2>
+                    <p>Informations clés pour l'expédition.</p>
+                  </div>
+                  <div className="vendorProductDetails__deliveryGrid">
+                    <div className="vendorProductDetails__deliveryItem">
+                      <span className="vendorProductDetails__deliveryLabel">Mode</span>
+                      <span className="vendorProductDetails__deliveryValue">
+                        {deliveryInfo.mode || deliveryInfo.type || "—"}
+                      </span>
+                    </div>
+                    <div className="vendorProductDetails__deliveryItem">
+                      <span className="vendorProductDetails__deliveryLabel">Zones / périmètre</span>
+                      <span className="vendorProductDetails__deliveryValue">
+                        {Array.isArray(deliveryInfo.zones)
+                          ? deliveryInfo.zones.join(", ")
+                          : deliveryInfo.zones || "—"}
+                      </span>
+                    </div>
+                    <div className="vendorProductDetails__deliveryItem">
+                      <span className="vendorProductDetails__deliveryLabel">Frais</span>
+                      <span className="vendorProductDetails__deliveryValue">
+                        {deliveryInfo.fee !== undefined && deliveryInfo.fee !== null && deliveryInfo.fee !== ""
+                          ? deliveryInfo.fee
+                          : "—"}
+                      </span>
+                    </div>
+                    <div className="vendorProductDetails__deliveryItem">
+                      <span className="vendorProductDetails__deliveryLabel">Délai estimé</span>
+                      <span className="vendorProductDetails__deliveryValue">
+                        {deliveryInfo.delay || "—"}
+                      </span>
+                    </div>
+                  </div>
+                </section>
               </section>
 
               <section className="vendorProductDetails__card vendorProductDetails__card--section">
@@ -1477,6 +1569,29 @@ const VendorProductDetails = () => {
         </div>
       </div>
     </div>
+    {imagePreview && (
+      <div
+        className="vendorProductDetails__imageOverlay"
+        onClick={() => setImagePreview(null)}
+        role="presentation"
+      >
+        <div
+          className="vendorProductDetails__imageModal"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="vendorProductDetails__imageClose"
+            onClick={() => setImagePreview(null)}
+            aria-label="Fermer l'aperçu"
+          >
+            ×
+          </button>
+          <img src={imagePreview} alt={title} />
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 
