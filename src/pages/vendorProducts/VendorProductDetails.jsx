@@ -519,6 +519,109 @@ const VendorProductDetails = () => {
     );
   }, [product]);
 
+  const variantMedia = useMemo(() => {
+    if (!product) return [];
+    const source =
+      product.media?.byOption ||
+      product.core?.media?.byOption ||
+      product.draft?.core?.media?.byOption;
+    if (!source || typeof source !== "object") return [];
+
+    const collected = [];
+    const walk = (node, prefix = "") => {
+      if (!node || typeof node !== "object") return;
+      Object.entries(node).forEach(([key, value]) => {
+        const label = prefix ? `${prefix} / ${key}` : key;
+        if (Array.isArray(value)) {
+          if (value.length) collected.push({ key: label, images: value });
+          return;
+        }
+        if (value && typeof value === "object") {
+          const images = Array.isArray(value.images) ? value.images : null;
+          if (images && images.length) {
+            collected.push({ key: label, images });
+          }
+          // explore deeper for structures like byOption.color.blancs
+          walk(value, label);
+        }
+      });
+    };
+
+    walk(source);
+    return collected;
+  }, [product]);
+
+  const imagesByColor = useMemo(() => {
+    const map = new Map();
+    variantMedia.forEach(({ key, images }) => {
+      const parts = key.split("/").map((s) => s.trim()).filter(Boolean);
+      const colorKey = (parts[parts.length - 1] || "").toLowerCase();
+      if (!colorKey) return;
+      map.set(colorKey, images);
+    });
+    return map;
+  }, [variantMedia]);
+
+  const variantOptions = useMemo(() => {
+    if (!product?.variants || !Array.isArray(product.variants.variants)) return [];
+    return product.variants.variants.map((variant, idx) => {
+      const baseOptions = variant?.options || {};
+      const price = firstValue(
+        baseOptions.price,
+        variant.price,
+        variant.pricing?.price,
+        variant.pricing?.basePrice
+      );
+      const stock = firstValue(
+        baseOptions.stock,
+        variant.stock,
+        variant.inventory?.stock
+      );
+      const optionValues = { ...baseOptions, price, stock };
+      const imageKeys = Array.isArray(variant?.imageKeys) ? variant.imageKeys : [];
+      const resolvedImages = [];
+      imageKeys.forEach((key) => {
+        if (typeof key !== "string") return;
+        const normalized = key.trim().toLowerCase();
+        if (normalized.startsWith("http")) {
+          resolvedImages.push(key);
+          return;
+        }
+        const mapped = imagesByColor.get(normalized);
+        if (Array.isArray(mapped)) {
+          resolvedImages.push(...mapped);
+        }
+      });
+      return {
+        idx: idx + 1,
+        optionValues,
+        images: resolvedImages,
+        vid: variant?.vid,
+      };
+    });
+  }, [product, imagesByColor]);
+
+  const variantsByColor = useMemo(() => {
+    const groups = new Map();
+    variantOptions.forEach((variant) => {
+      const colorValue =
+        variant.optionValues.color ||
+        variant.optionValues.Color ||
+        variant.optionValues.couleur ||
+        variant.optionValues.Couleur ||
+        "Autres";
+      const key = String(colorValue).trim() || "Autres";
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key).push(variant);
+    });
+    return Array.from(groups.entries()).map(([color, list]) => ({
+      color,
+      list,
+    }));
+  }, [variantOptions]);
+
   const title = useMemo(() => {
     if (!product) return "Produit vendeur";
     return (
@@ -1368,6 +1471,120 @@ const VendorProductDetails = () => {
                         />
                       </div>
                     ))}
+                  </div>
+                </section>
+              )}
+
+              {variantsByColor.length > 0 && (
+                <section className="vendorProductDetails__card vendorProductDetails__card--section vendorProductDetails__card--highlight">
+                  <div className="vendorProductDetails__cardHeader">
+                    <h2>Variantes & visuels</h2>
+                    <p>Groupées par couleur avec options et photos.</p>
+                  </div>
+                  <div className="vendorProductDetails__variants">
+                    {variantsByColor.map(({ color, list }) => {
+                      const colorKey = String(color || "").trim().toLowerCase();
+                      const colorImages = imagesByColor.get(colorKey) || [];
+                      const hasPriceOrStock = list.some(
+                        (variant) =>
+                          variant.optionValues.price !== undefined ||
+                          variant.optionValues.stock !== undefined
+                      );
+                      return (
+                        <div className="vendorProductDetails__variantCard" key={color || "autres"}>
+                          <div className="vendorProductDetails__variantHeader">
+                            <span className="vendorProductDetails__variantLabel">
+                              Couleur : {color}
+                            </span>
+                            <span className="vendorProductDetails__variantCount">
+                              {list.length} déclinaison(s)
+                            </span>
+                          </div>
+                          {colorImages.length > 0 && (
+                            <div className="vendorProductDetails__variantGallery">
+                              {colorImages.map((url, idx) => (
+                                <div
+                                  className="vendorProductDetails__variantImgWrapper"
+                                  key={url || idx}
+                                >
+                                  <img
+                                    src={url}
+                                    alt={`Variante ${color} - ${idx + 1}`}
+                                    onClick={() => url && setImagePreview(url)}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="vendorProductDetails__variantOptions">
+                            {list.map((variant) => (
+                              <div
+                                className="vendorProductDetails__variantRow"
+                                key={variant.vid || variant.idx}
+                              >
+                                <div className="vendorProductDetails__variantMeta">
+                                  <span className="vendorProductDetails__variantChip">
+                                    Variante #{variant.idx}
+                                  </span>
+                                  {variant.vid && (
+                                    <span className="vendorProductDetails__variantVid">
+                                      {variant.vid}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="vendorProductDetails__variantOptionsGrid">
+                                  {Object.entries(variant.optionValues)
+                                    .filter(
+                                      ([key]) =>
+                                        key.toLowerCase() !== "color" &&
+                                        key.toLowerCase() !== "couleur" &&
+                                        key.toLowerCase() !== "price" &&
+                                        key.toLowerCase() !== "stock"
+                                    )
+                                    .map(([key, value]) => (
+                                      <div
+                                        className="vendorProductDetails__variantOption"
+                                        key={key}
+                                      >
+                                        <span className="vendorProductDetails__variantOptionLabel">
+                                          {key}
+                                        </span>
+                                        <span className="vendorProductDetails__variantOptionValue">
+                                          {String(value)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  <div className="vendorProductDetails__variantOption">
+                                    <span className="vendorProductDetails__variantOptionLabel">
+                                      Prix
+                                    </span>
+                                    <span className="vendorProductDetails__variantOptionValue">
+                                      {variant.optionValues.price !== undefined
+                                        ? variant.optionValues.price
+                                        : hasPriceOrStock
+                                        ? "—"
+                                        : "N/A"}
+                                    </span>
+                                  </div>
+                                  <div className="vendorProductDetails__variantOption">
+                                    <span className="vendorProductDetails__variantOptionLabel">
+                                      Stock
+                                    </span>
+                                    <span className="vendorProductDetails__variantOptionValue">
+                                      {variant.optionValues.stock !== undefined
+                                        ? variant.optionValues.stock
+                                        : hasPriceOrStock
+                                        ? "—"
+                                        : "N/A"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </section>
               )}

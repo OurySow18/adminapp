@@ -197,6 +197,7 @@ const VendorDetails = () => {
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState(null);
   const [approvalLocation, setApprovalLocation] = useState(null);
+  const [locationFallback, setLocationFallback] = useState(null);
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [locationError, setLocationError] = useState(null);
   const [locationMessage, setLocationMessage] = useState(null);
@@ -245,6 +246,16 @@ const VendorDetails = () => {
     const docs = profile?.requiredDocs ?? vendor?.requiredDocs ?? [];
     return Array.isArray(docs) ? docs : [];
   }, [profile, vendor]);
+
+  const REQUIRED_DOC_LABELS = {
+    repId: "Pièce d'identité du représentant",
+    gewerbe: "Enregistrement commerce",
+    handelsregister: "Extrait registre de commerce",
+    ifsg: "Certificat IFSG",
+    haccp: "Plan HACCP",
+    liability: "Assurance responsabilité civile",
+    foodRegistration: "Enregistrement établissement alimentaire",
+  };
 
   const normalizedStatus = useMemo(
     () => (vendor ? resolveVendorStatus(vendor, "draft") : "draft"),
@@ -750,6 +761,7 @@ const VendorDetails = () => {
       return;
     }
 
+    setLocationFallback(null);
     setFetchingLocation(true);
     setLocationError(null);
     navigator.geolocation.getCurrentPosition(
@@ -807,7 +819,7 @@ const VendorDetails = () => {
 
   const handleApproveVendor = useCallback(async () => {
     if (!vendor?.id) return false;
-    if (!approvalLocation) {
+    if (!approvalLocation && !locationFallback) {
       setActionError(
         "Veuillez recuperer les coordonnees avant de valider le vendeur."
       );
@@ -854,30 +866,33 @@ const VendorDetails = () => {
         updates.approvedByUid = auth.currentUser.uid;
       }
 
-      const locationPayload = {
-        latitude: approvalLocation.latitude,
-        longitude: approvalLocation.longitude,
-      };
-      if (typeof approvalLocation.accuracy === "number") {
-        locationPayload.accuracy = approvalLocation.accuracy;
+      if (approvalLocation) {
+        const locationPayload = {
+          latitude: approvalLocation.latitude,
+          longitude: approvalLocation.longitude,
+        };
+        if (typeof approvalLocation.accuracy === "number") {
+          locationPayload.accuracy = approvalLocation.accuracy;
+        }
+        if (typeof approvalLocation.altitude === "number") {
+          locationPayload.altitude = approvalLocation.altitude;
+        }
+        if (typeof approvalLocation.altitudeAccuracy === "number") {
+          locationPayload.altitudeAccuracy = approvalLocation.altitudeAccuracy;
+        }
+        if (typeof approvalLocation.heading === "number") {
+          locationPayload.heading = approvalLocation.heading;
+        }
+        if (typeof approvalLocation.speed === "number") {
+          locationPayload.speed = approvalLocation.speed;
+        }
+        if (approvalLocation.timestamp) {
+          locationPayload.capturedAt = approvalLocation.timestamp;
+        }
+        updates.approvedCoordinates = locationPayload;
+      } else if (locationFallback) {
+        updates.approvedCoordinatesNote = locationFallback;
       }
-      if (typeof approvalLocation.altitude === "number") {
-        locationPayload.altitude = approvalLocation.altitude;
-      }
-      if (typeof approvalLocation.altitudeAccuracy === "number") {
-        locationPayload.altitudeAccuracy = approvalLocation.altitudeAccuracy;
-      }
-      if (typeof approvalLocation.heading === "number") {
-        locationPayload.heading = approvalLocation.heading;
-      }
-      if (typeof approvalLocation.speed === "number") {
-        locationPayload.speed = approvalLocation.speed;
-      }
-      if (approvalLocation.timestamp) {
-        locationPayload.capturedAt = approvalLocation.timestamp;
-      }
-
-      updates.approvedCoordinates = locationPayload;
 
       await updateDoc(vendorRef, updates);
       setActionMessage("Le vendeur a ete valide.");
@@ -892,7 +907,7 @@ const VendorDetails = () => {
     }
 
     return success;
-  }, [vendor, approvalLocation]);
+  }, [vendor, approvalLocation, locationFallback]);
 
   const handleBlockVendor = useCallback(
     async (reason) => {
@@ -1573,6 +1588,32 @@ const VendorDetails = () => {
                     ? "Recuperation en cours..."
                     : "Recuperer ma position"}
                 </button>
+                <div className="vendorDetails__locationAlt">
+                  <button
+                    type="button"
+                    className="vendorDetails__actionButton vendorDetails__actionButton--ghost"
+                    onClick={() => {
+                      setApprovalLocation(null);
+                      setLocationFallback("Client hors de Conakry");
+                      setLocationMessage("Marqué hors de Conakry.");
+                      setLocationError(null);
+                    }}
+                  >
+                    Client hors de Conakry
+                  </button>
+                  <button
+                    type="button"
+                    className="vendorDetails__actionButton vendorDetails__actionButton--ghost"
+                    onClick={() => {
+                      setApprovalLocation(null);
+                      setLocationFallback("Pas de localisation fournie");
+                      setLocationMessage("Marqué sans localisation fournie.");
+                      setLocationError(null);
+                    }}
+                  >
+                    Pas de localisation disponible
+                  </button>
+                </div>
                 <button
                   type="button"
                   className="vendorDetails__actionButton vendorDetails__actionButton--primary"
@@ -1585,7 +1626,7 @@ const VendorDetails = () => {
                   <button
                     type="button"
                     className="vendorDetails__actionButton vendorDetails__actionButton--success"
-                    disabled={actionBusy}
+                    disabled={actionBusy || !isApproved}
                     onClick={() => openDialog({ type: "unblockVendor" })}
                   >
                     Debloquer le vendeur
@@ -1594,7 +1635,7 @@ const VendorDetails = () => {
                   <button
                     type="button"
                     className="vendorDetails__actionButton vendorDetails__actionButton--danger"
-                    disabled={actionBusy}
+                    disabled={actionBusy || !isApproved}
                     onClick={() => openDialog({ type: "blockVendor" })}
                   >
                     Bloquer le vendeur
@@ -1606,7 +1647,9 @@ const VendorDetails = () => {
                 <button
                   type="button"
                   className="vendorDetails__actionButton vendorDetails__actionButton--ghost"
-                  disabled={actionBusy || !canModerateProducts || !hasProducts}
+                  disabled={
+                    actionBusy || !canModerateProducts || !hasProducts || !isApproved
+                  }
                   onClick={() => openDialog({ type: "blockAllProducts" })}
                 >
                   Bloquer tous les produits
@@ -1644,6 +1687,18 @@ const VendorDetails = () => {
               {locationError && (
                 <p className="vendorDetails__actionsFeedback vendorDetails__actionsFeedback--error">
                   {locationError}
+                </p>
+              )}
+              {(vendor?.approvedCoordinates || vendor?.approvedCoordinatesNote) && (
+                <p className="vendorDetails__actionsMeta">
+                  Coordonnées validées :{" "}
+                  {vendor?.approvedCoordinates
+                    ? `${vendor.approvedCoordinates.latitude}, ${vendor.approvedCoordinates.longitude}${
+                        vendor.approvedCoordinates.accuracy
+                          ? ` (±${Math.round(vendor.approvedCoordinates.accuracy)} m)`
+                          : ""
+                      }`
+                    : vendor?.approvedCoordinatesNote}
                 </p>
               )}
               {actionError && (
@@ -2080,14 +2135,59 @@ const VendorDetails = () => {
             <h2>Documents requis</h2>
             <div className="vendorDetails__card">
               {requiredDocs.length > 0 ? (
-                <ul>
-                  {requiredDocs.map((docKey) => (
-                    <li key={docKey}>{docKey}</li>
-                  ))}
-                </ul>
+                <div className="vendorDetails__docsGrid">
+                  {requiredDocs.map((docKey) => {
+                    const label = REQUIRED_DOC_LABELS[docKey] || docKey;
+                    const delivered = Boolean(
+                      profile?.deliveredDocs?.[docKey] ?? vendor?.deliveredDocs?.[docKey]
+                    );
+                    return (
+                      <label
+                        key={docKey}
+                        className={`vendorDetails__docItem ${
+                          delivered ? "vendorDetails__docItem--delivered" : ""
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={delivered}
+                          readOnly
+                          disabled
+                        />
+                        <span className="vendorDetails__docLabel">{label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               ) : (
                 <p>Aucun document supplémentaire requis.</p>
               )}
+            </div>
+          </section>
+
+          <section>
+            <h2>Informations générales</h2>
+            <div className="vendorDetails__infoGrid--highlight">
+              <div className="vendorDetails__infoChip">
+                <span>Statut vendeur</span>
+                <span>{vendorStatus}</span>
+              </div>
+              <div className="vendorDetails__infoChip">
+                <span>Email</span>
+                <span>{company?.email ?? vendor?.email ?? "-"}</span>
+              </div>
+              <div className="vendorDetails__infoChip">
+                <span>Téléphone</span>
+                <span>{company?.phone ?? vendor?.phone ?? "-"}</span>
+              </div>
+              <div className="vendorDetails__infoChip">
+                <span>Ville</span>
+                <span>{company?.city ?? vendor?.city ?? "-"}</span>
+              </div>
+              <div className="vendorDetails__infoChip">
+                <span>Pays</span>
+                <span>{company?.country ?? vendor?.country ?? "-"}</span>
+              </div>
             </div>
           </section>
         </div>
@@ -2163,4 +2263,3 @@ const VendorDetails = () => {
 };
 
 export default VendorDetails;
-
