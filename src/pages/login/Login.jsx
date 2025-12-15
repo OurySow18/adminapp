@@ -23,7 +23,7 @@ import {
   getDoc,
 } from "firebase/firestore";
 
-const SUPER_ADMIN_UID = "To3bnfOHvgf2S4ZIEX9TWZEbl1l2"; // ton UID superAdmin
+const SUPER_ADMIN_UID = "rgFo1YPQNDdJxyfRCiWFXETpJHB2"; // ton UID superAdmin
 
 const Login = () => {
   const [error, setError] = useState(false);

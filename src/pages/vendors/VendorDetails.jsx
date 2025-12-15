@@ -764,50 +764,80 @@ const VendorDetails = () => {
     setLocationFallback(null);
     setFetchingLocation(true);
     setLocationError(null);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const {
-          accuracy,
-          altitude,
-          altitudeAccuracy,
-          heading,
-          latitude,
-          longitude,
-          speed,
-        } = position.coords;
-        setApprovalLocation({
-          latitude,
-          longitude,
-          accuracy: typeof accuracy === "number" ? accuracy : null,
-          altitude: typeof altitude === "number" ? altitude : null,
-          altitudeAccuracy:
-            typeof altitudeAccuracy === "number" ? altitudeAccuracy : null,
-          heading: typeof heading === "number" ? heading : null,
-          speed: typeof speed === "number" ? speed : null,
-          timestamp: position.timestamp || Date.now(),
-        });
-        setLocationMessage("Coordonnees recuperees.");
-        setFetchingLocation(false);
-      },
-      (error) => {
-        let message = "Impossible de récupérer la position.";
+    setLocationMessage(null);
+
+    const onSuccess = (position, message = "Coordonnees recuperees.") => {
+      const {
+        accuracy,
+        altitude,
+        altitudeAccuracy,
+        heading,
+        latitude,
+        longitude,
+        speed,
+      } = position.coords;
+      setApprovalLocation({
+        latitude,
+        longitude,
+        accuracy: typeof accuracy === "number" ? accuracy : null,
+        altitude: typeof altitude === "number" ? altitude : null,
+        altitudeAccuracy:
+          typeof altitudeAccuracy === "number" ? altitudeAccuracy : null,
+        heading: typeof heading === "number" ? heading : null,
+        speed: typeof speed === "number" ? speed : null,
+        timestamp: position.timestamp || Date.now(),
+      });
+      setLocationMessage(message);
+      setFetchingLocation(false);
+    };
+
+    const finalizeError = (error) => {
+      let message = "Impossible de récupérer la position.";
+      if (error) {
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            message =
-              "Autorisez l'acces a la localisation pour continuer.";
+            message = "Autorisez l'acces a la localisation pour continuer.";
             break;
           case error.POSITION_UNAVAILABLE:
             message = "Les informations de localisation sont indisponibles.";
             break;
           case error.TIMEOUT:
-            message = "La recuperation de la position a expire.";
+            message =
+              "La recuperation de la position a expire. Activez la localisation puis reessayez.";
             break;
           default:
             break;
         }
-        setFetchingLocation(false);
-        setLocationMessage(null);
-        setLocationError(message);
+      }
+      setFetchingLocation(false);
+      setLocationMessage(null);
+      setLocationError(message);
+    };
+
+    const attemptFallback = () => {
+      // Essaye une localisation plus tolérante (moins précise) si la version haute précision échoue.
+      navigator.geolocation.getCurrentPosition(
+        (position) => onSuccess(position, "Coordonnees recuperees (precision standard)."),
+        (fallbackError) => finalizeError(fallbackError),
+        {
+          enableHighAccuracy: false,
+          maximumAge: 300000, // accepte une position cachee jusqu'a 5 minutes
+          timeout: 20000, // laisse plus de temps sur reseaux lents
+        }
+      );
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => onSuccess(position),
+      (error) => {
+        if (
+          error &&
+          (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE)
+        ) {
+          attemptFallback();
+          return;
+        }
+        finalizeError(error);
       },
       {
         enableHighAccuracy: true,

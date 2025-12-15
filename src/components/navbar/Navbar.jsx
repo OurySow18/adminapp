@@ -25,7 +25,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import MenuOpenIcon from "@mui/icons-material/MenuOpen";
 import CloseIcon from "@mui/icons-material/Close";
 
-const SUPER_ADMIN_UID = "To3bnfOHvgf2S4ZIEX9TWZEbl1l2";
+const SUPER_ADMIN_UID = "rgFo1YPQNDdJxyfRCiWFXETpJHB2";
 
 const getTodayId = () => {
   const now = new Date();
