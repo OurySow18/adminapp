@@ -6,7 +6,7 @@
  * Navbar Komponent
  */
 import "./navbar.scss";
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { DarkModeContext } from "../../context/darkModeContext";
 import { useSidebar } from "../../context/sidebarContext";
 import { AuthContext } from "../../context/AuthContext";
@@ -51,6 +51,11 @@ const Navbar = () => {
   const [startTasks, setStartTasks] = useState("");
   const [stopSummary, setStopSummary] = useState("");
   const [stopAchieved, setStopAchieved] = useState(null);
+  const [resumePromptOpen, setResumePromptOpen] = useState(false);
+  const [endPromptOpen, setEndPromptOpen] = useState(false);
+  const [endTimeValue, setEndTimeValue] = useState("");
+  const [endTimeError, setEndTimeError] = useState("");
+  const resumePromptedRef = useRef(false);
 
   const ToggleIcon = isMobile
     ? isMobileOpen
@@ -86,6 +91,51 @@ const Navbar = () => {
 
   const shifts = useMemo(() => parseShifts(workSession), [workSession]);
   const activeShift = shifts[shifts.length - 1] || null;
+  const activeShiftStart = activeShift?.startTime || workSession?.startTime || null;
+  const activeShiftTasks =
+    activeShift?.plannedTasks || workSession?.plannedTasks || startTasks || "";
+
+  const formatDateTimeInput = (date) => {
+    if (!date) return "";
+    const local = new Date(date);
+    if (Number.isNaN(local.getTime())) return "";
+    const pad = (value) => String(value).padStart(2, "0");
+    return `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(
+      local.getDate()
+    )}T${pad(local.getHours())}:${pad(local.getMinutes())}`;
+  };
+
+  const toDateValue = (value) => {
+    if (!value) return null;
+    if (typeof value?.toDate === "function") return value.toDate();
+    if (value instanceof Date) return value;
+    if (typeof value === "number") return new Date(value);
+    if (typeof value === "string") {
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    if (
+      typeof value === "object" &&
+      typeof value.seconds === "number" &&
+      typeof value.nanoseconds === "number"
+    ) {
+      return new Date(value.seconds * 1000 + Math.floor(value.nanoseconds / 1e6));
+    }
+    return null;
+  };
+
+  const formatDateTimeLabel = (value) => {
+    const date = toDateValue(value);
+    return date
+      ? date.toLocaleString("fr-FR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "";
+  };
 
   useEffect(() => {
     const fetchRole = async () => {
@@ -134,6 +184,19 @@ const Navbar = () => {
     });
     return () => unsubscribe();
   }, [todayDocRef]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      resumePromptedRef.current = false;
+      setResumePromptOpen(false);
+      setEndPromptOpen(false);
+      return;
+    }
+    if (resumePromptedRef.current) return;
+    if (!activeShift || activeShift.endTime) return;
+    resumePromptedRef.current = true;
+    setResumePromptOpen(true);
+  }, [currentUser, activeShift]);
 
   const workStatus = useMemo(() => {
     if (!activeShift) return "idle";
@@ -271,6 +334,45 @@ const Navbar = () => {
     }
   };
 
+  const handleForceStop = async (endDate) => {
+    if (!endDate) return;
+    try {
+      setWorkLoading(true);
+      const docRef = ensureDocRef();
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(docRef);
+        const data = snap.data() || {};
+        const currentShifts = parseShifts(data);
+        const updatedShifts = currentShifts.slice();
+        if (!updatedShifts.length && data.startTime) {
+          updatedShifts.push({
+            startTime: data.startTime,
+            endTime: null,
+            status: data.status || "working",
+          });
+        }
+        if (!updatedShifts.length) throw new Error("Aucune session active");
+        const last = { ...updatedShifts[updatedShifts.length - 1] };
+        if (last.endTime) return;
+        const pauses = Array.isArray(last.pauses) ? last.pauses.slice() : [];
+        const idx = pauses.length - 1;
+        if (idx >= 0 && !pauses[idx]?.end) {
+          pauses[idx] = { ...pauses[idx], end: Timestamp.fromDate(endDate) };
+        }
+        last.pauses = pauses;
+        last.endTime = Timestamp.fromDate(endDate);
+        last.status = "finished";
+        updatedShifts[updatedShifts.length - 1] = last;
+        transaction.set(docRef, { shifts: updatedShifts }, { merge: true });
+      });
+    } catch (error) {
+      console.error("Erreur lors de la clôture:", error);
+      alert("Impossible de terminer la session.");
+    } finally {
+      setWorkLoading(false);
+    }
+  };
+
   const openModal = (action) => {
     setModalConfig({ open: true, action });
     if (action === "start") setStartTasks(workSession?.plannedTasks || "");
@@ -307,6 +409,44 @@ const Navbar = () => {
       });
       closeModal();
     }
+  };
+
+  const handleResumePromptContinue = () => {
+    setResumePromptOpen(false);
+  };
+
+  const handleResumePromptTerminate = () => {
+    const now = new Date();
+    setEndTimeValue(formatDateTimeInput(now));
+    setEndTimeError("");
+    setResumePromptOpen(false);
+    setEndPromptOpen(true);
+  };
+
+  const handleEndPromptClose = () => {
+    setEndTimeError("");
+    setEndPromptOpen(false);
+  };
+
+  const handleEndPromptConfirm = async () => {
+    const parsed = endTimeValue ? new Date(endTimeValue) : null;
+    if (!parsed || Number.isNaN(parsed.getTime())) {
+      setEndTimeError("Merci de renseigner une date et une heure valides.");
+      return;
+    }
+    const now = new Date();
+    if (parsed.getTime() > now.getTime()) {
+      setEndTimeError("La date de fin ne peut pas être dans le futur.");
+      return;
+    }
+    const startDate = toDateValue(activeShiftStart);
+    if (startDate && parsed.getTime() < startDate.getTime()) {
+      setEndTimeError("La date de fin doit être après la date de début.");
+      return;
+    }
+    setEndTimeError("");
+    await handleForceStop(parsed);
+    setEndPromptOpen(false);
   };
 
   const renderWorkControls = () => {
@@ -534,6 +674,62 @@ const Navbar = () => {
         {modalConfig.action === "resume" && (
           <p className="workModal__text">
             Reprendre la session et continuer le suivi de ton temps.
+          </p>
+        )}
+      </ConfirmModal>
+      <ConfirmModal
+        open={resumePromptOpen}
+        onClose={handleResumePromptContinue}
+        onConfirm={handleResumePromptTerminate}
+        title="Session en cours détectée"
+        confirmText="Terminer"
+        cancelText="Continuer"
+        loading={workLoading}
+      >
+        <p className="workModal__text">
+          Une session a été démarrée et n'a pas encore été terminée.
+        </p>
+        {activeShiftStart && (
+          <p className="workModal__text">
+            Début : <strong>{formatDateTimeLabel(activeShiftStart)}</strong>
+          </p>
+        )}
+        {activeShiftTasks && (
+          <p className="workModal__text">
+            Description : <strong>{activeShiftTasks}</strong>
+          </p>
+        )}
+        <p className="workModal__text">
+          Souhaites-tu continuer cette session ou la terminer maintenant ?
+        </p>
+      </ConfirmModal>
+      <ConfirmModal
+        open={endPromptOpen}
+        onClose={handleEndPromptClose}
+        onConfirm={handleEndPromptConfirm}
+        title="Terminer la session"
+        confirmText="Confirmer la fin"
+        cancelText="Annuler"
+        loading={workLoading}
+      >
+        <div className="workModal__field">
+          <label htmlFor="endTime">Date et heure de fin</label>
+          <input
+            id="endTime"
+            type="datetime-local"
+            value={endTimeValue}
+            onChange={(event) => setEndTimeValue(event.target.value)}
+          />
+          {endTimeError && <span className="workModal__error">{endTimeError}</span>}
+          {!endTimeError && (
+            <span className="workModal__hint">
+              Proposition : {formatDateTimeLabel(new Date())}
+            </span>
+          )}
+        </div>
+        {activeShiftTasks && (
+          <p className="workModal__text">
+            Description : <strong>{activeShiftTasks}</strong>
           </p>
         )}
       </ConfirmModal>

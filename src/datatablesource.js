@@ -287,6 +287,13 @@ export const adminColumns = [
     valueGetter: (params) => boolLabel(params.row.status, "Oui", "Non"),
   },
   {
+    field: "online",
+    headerName: "En ligne",
+    width: 120,
+    valueGetter: (params) =>
+      boolLabel(params.row.__online, "Oui", "Non"),
+  },
+  {
     field: "timeStamp",
     headerName: "Date & Heure",
     width: 200,

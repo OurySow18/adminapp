@@ -9,7 +9,11 @@ import "./datatable.scss";
 import { Link } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
 import { DataGrid } from "@mui/x-data-grid";
-import { collection, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  onSnapshot,
+} from "firebase/firestore";
 import { db } from "../../firebase";
 
 const firstValue = (...values) => {
@@ -59,12 +63,36 @@ const Datatable = ({
   disableCreate = false,
 }) => {
   const [data, setData] = useState([]);
+  const [onlineMap, setOnlineMap] = useState(new Map());
   const [loading, setLoading] = useState(true);
   const [pageSize, setPageSize] = useState(9);
   const [searchQuery, setSearchQuery] = useState("");
   const enableSearch = ["products", "users", "vendors", "admin", "drivers"].includes(
     title
   );
+
+  const getTodayId = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const parseShifts = (data) => {
+    const shifts = Array.isArray(data?.shifts) ? data.shifts : [];
+    if (shifts.length) return shifts;
+    if (data?.startTime) {
+      return [
+        {
+          startTime: data.startTime,
+          endTime: data.endTime || null,
+          status: data.status || (data.endTime ? "finished" : "working"),
+        },
+      ];
+    }
+    return [];
+  };
 
   useEffect(() => {
     if (!enableSearch && searchQuery) {
@@ -121,6 +149,50 @@ const Datatable = ({
     return () => unsubscribe();
   }, [title, applyFilter]);
 
+  useEffect(() => {
+    if (title !== "admin") {
+      setOnlineMap(new Map());
+      return undefined;
+    }
+    const todayId = getTodayId();
+    if (!data.length) {
+      setOnlineMap(new Map());
+      return undefined;
+    }
+    const unsubscribes = [];
+    data.forEach((row) => {
+      if (!row?.id) return;
+      const docRef = doc(db, "admin", row.id, "workSessions", todayId);
+      const unsubscribe = onSnapshot(
+        docRef,
+        (snapshot) => {
+          const data = snapshot.exists() ? snapshot.data() : null;
+          const shifts = parseShifts(data);
+          const lastShift = shifts[shifts.length - 1];
+          const isOnline =
+            Boolean(lastShift) &&
+            !lastShift.endTime &&
+            lastShift.status !== "finished";
+          setOnlineMap((prev) => {
+            const nextMap = new Map(prev);
+            nextMap.set(row.id, isOnline);
+            return nextMap;
+          });
+        },
+        (error) => {
+          console.error("workSessions snapshot error:", error);
+          setOnlineMap((prev) => {
+            const nextMap = new Map(prev);
+            nextMap.set(row.id, false);
+            return nextMap;
+          });
+        }
+      );
+      unsubscribes.push(unsubscribe);
+    });
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+  }, [title, data]);
+
   const actionColumn = useMemo(
     () => [
       {
@@ -149,9 +221,17 @@ const Datatable = ({
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
+  const enrichedRows = useMemo(() => {
+    if (title !== "admin") return data;
+    return data.map((row) => ({
+      ...row,
+      __online: onlineMap.get(row.id) === true,
+    }));
+  }, [data, onlineMap, title]);
+
   const displayedRows = useMemo(() => {
-    if (!enableSearch || !normalizedSearch) return data;
-    return data.filter((row) => {
+    if (!enableSearch || !normalizedSearch) return enrichedRows;
+    return enrichedRows.filter((row) => {
       const titleCandidate = firstValue(
         row.name,
         row.title,
@@ -242,7 +322,7 @@ const Datatable = ({
         .filter((value) => typeof value === "string" && value.trim())
         .some((value) => value.toLowerCase().includes(normalizedSearch));
     });
-  }, [data, enableSearch, normalizedSearch]);
+  }, [enrichedRows, enableSearch, normalizedSearch]);
 
   const displayedCount = displayedRows.length;
 

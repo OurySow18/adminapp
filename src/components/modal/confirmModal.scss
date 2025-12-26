@@ -129,6 +129,22 @@
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
     }
   }
+
+  input {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.95rem;
+    background: #f8fafc;
+    color: #0f172a;
+
+    &:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+    }
+  }
 }
 
 .workModal__choices {
@@ -149,6 +165,17 @@
   margin: 0;
   color: #475569;
   line-height: 1.5;
+}
+
+.workModal__hint {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.workModal__error {
+  font-size: 0.85rem;
+  color: #dc2626;
+  font-weight: 600;
 }
 
 @media (max-width: 480px) {
