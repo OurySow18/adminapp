@@ -119,6 +119,15 @@ const getVendorActiveFlag = (row) => {
   return undefined;
 };
 
+const getVendorPartnerFlag = (row) => {
+  const profile = getVendorProfile(row);
+  if (typeof row?.isPartner === "boolean") return row.isPartner;
+  if (typeof row?.partner === "boolean") return row.partner;
+  if (typeof profile?.isPartner === "boolean") return profile.isPartner;
+  if (typeof profile?.partner === "boolean") return profile.partner;
+  return undefined;
+};
+
 const getVendorLockCatalogFlag = (row) => {
   const profile = getVendorProfile(row);
   if (typeof row?.lockCatalog === "boolean") return row.lockCatalog;
@@ -407,6 +416,13 @@ export const vendorColumns = [
     valueGetter: (params) =>
       getVendorStatusLabel(resolveVendorStatus(params.row, "draft")),
   },  
+  {
+    field: "partner",
+    headerName: "Partenaire",
+    width: 120,
+    valueGetter: (params) =>
+      boolLabel(getVendorPartnerFlag(params.row), "Oui", "Non"),
+  },
   {
     field: "active",
     headerName: "Actif",

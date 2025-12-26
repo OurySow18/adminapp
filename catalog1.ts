@@ -6,7 +6,6 @@
 export type TopCategory =
   | 'grocery'     // Alimentaire & boissons
   | 'fashion'     // Mode & accessoires
-  | 'baby'        // Bébé & puériculture
   | 'electronics' // Électronique
   | 'home'        // Maison & cuisine
   | 'beauty'      // Beauté & santé
@@ -28,14 +27,6 @@ export type CategoryId =
   | 'fashion_pants'
   | 'fashion_shoes'
   | 'fashion_accessory'
-  | 'fashion_underwear'   // ✅ NOUVEAU
-  | 'fashion_socks'
-  // Baby
-  | 'baby_clothing'          // vêtements & layette
-  | 'baby_care'              // hygiène & soin
-  | 'baby_diapering'         // couches et change
-  | 'baby_food'              // alimentation bébé
-  | 'baby_gear'              // poussette, siège auto…
   // Electronics
   | 'electronics_phone'
   | 'electronics_laptop'
@@ -44,12 +35,10 @@ export type CategoryId =
   // Home
   | 'home_furniture'
   | 'home_appliance_small'
-  | 'home_appliance_major'
   | 'home_kitchenware'
   // Beauty
   | 'beauty_cosmetic'
   | 'beauty_personalcare'
-  | 'beauty_fragrance' 
   // Sports
   | 'sports_equipment'
   | 'toys_generic'
@@ -65,52 +54,25 @@ export type CategoryId =
 
 /* ---------- Tronc commun produit ---------- */
 // utils monnaie (optionnel)
-export const CURRENCY_META = {
-  GNF : { decimals: 0, label: 'GNF ' }, // Guinean franc uses 0 decimal digits
-} as const
+export const CURRENCY_META: Record<string,{decimals:number; label:string}> = {
+  EUR:{decimals:2,label:'EUR'},
+  USD:{decimals:2,label:'USD'},
+  GBP:{decimals:2,label:'GBP'},
+  GNF:{decimals:0,label:'GNF'}, // Franc guinéen : sans décimales
+  XOF:{decimals:0,label:'CFA (XOF)'}, // UEMOA
+  XAF:{decimals:0,label:'CFA (XAF)'}, // CEMAC
+}
 export type CurrencyCode = keyof typeof CURRENCY_META;
-export type Currency = CurrencyCode;
-
-export interface ProductRating {
-  average: number;           // moyenne 0-5
-  count: number;             // nombre d'avis
-  lastReviewAt?: any;        // timestamp Firestore / ISO
-  breakdown?: Partial<Record<1 | 2 | 3 | 4 | 5, number>>;
-}
-
-export const DEFAULT_PRODUCT_RATING: ProductRating = {
-  average: 0,
-  count: 0,
-}
-
-export const ensureProductRating = (rating?: ProductRating | null): ProductRating => {
-  if (!rating) return { ...DEFAULT_PRODUCT_RATING }
-  const average = typeof rating.average === 'number' && Number.isFinite(rating.average)
-    ? Math.max(0, Math.min(5, rating.average))
-    : DEFAULT_PRODUCT_RATING.average
-  const count = typeof rating.count === 'number' && Number.isFinite(rating.count)
-    ? Math.max(0, Math.round(rating.count))
-    : DEFAULT_PRODUCT_RATING.count
-  return {
-    average,
-    count,
-    ...(rating.lastReviewAt ? { lastReviewAt: rating.lastReviewAt } : {}),
-    ...(rating.breakdown ? { breakdown: rating.breakdown } : {}),
-  }
-}
+export type Currency = 'EUR' | 'USD' | 'GBP' | 'GNF';
 
 export interface ProductCore {
   productId: string;
   vendorId: string;           // boutique / vendeur
-  vendorName?: string;        // vendor display name
+  vendorName: string;           // boutique / vendeur
   title: string;
   description?: string;
   brand?: string;
-  brandRelationship?: 'owner' | 'legal_rep' | 'reseller';
   tags?: string[];
-
-  /** Stock global lorsque le produit n'a pas de variantes */
-  stock?: number;
 
   categoryId: CategoryId;     // discriminant
   topCategory: TopCategory;
@@ -142,14 +104,6 @@ export interface ProductCore {
     // marketplace ou vendeur
     shippedBy?: 'vendor' | 'platform';
     deliveryOptions?: Array<'pickup' | 'local_delivery' | 'carrier' | 'digital'>;
-    vendorDeliveryAreas?: VendorDeliveryArea[];
-    vendorShipping?: {
-      localAreas?: VendorDeliveryArea[];
-      nationalCarriers?: VendorCarrierService[];
-      internationalCarriers?: VendorCarrierService[];
-      pickupPoints?: VendorPickupPoint[];
-    };
-    deliveryNote?: string;
     leadTimeDays?: number;    // délai préparation
     weightGr?: number;
     dimensionsCm?: { w: number; h: number; d: number };
@@ -157,24 +111,6 @@ export interface ProductCore {
   };
 
   status: 'draft' | 'active' | 'archived';
-  vm_status?: boolean;        // visibilité choisie par le vendeur
-  mm_status?: boolean;        // validation Monmarché (admin)
-  draft_status?: boolean;     // indique des modifications en attente
-  draftChanges?: string[];    // liste des champs modifiés (dot notation)
-  rating?: ProductRating;     // note publique (obligatoire si status = active)
-  
-  soldCount?: number;     // nb de ventes (ou commandes contenant ce produit)
-
-  isDeleted?: boolean;    // soft delete si besoin
-  flags?: {
-    featured?: boolean;
-    new?: boolean;
-    flashSale?: boolean;
-  };
-
-  slug?: string;             // 'robe-longue-wax'
-  searchKeywords?: string[]; // ['robe', 'wax', 'afrique']
-
 
   createdAt: any;
   updatedAt: any;
@@ -199,35 +135,6 @@ export interface Variant {
   barcode?: string;
   sku?: string;  
   attributes?: Record<string, any>; // attributs techniques supplémentaires
-}
-
-export interface VendorDeliveryArea {
-  city: string;
-  fee?: number;
-  minDelayDays?: number;
-  maxDelayDays?: number;
-}
-
-export type VendorShippingMode = 'local' | 'national_carrier' | 'international_carrier' | 'pickup';
-
-export interface VendorCarrierService {
-  id: string;
-  carrier?: string;
-  serviceName?: string;
-  coverage: string;
-  baseFee?: number;
-  currency?: Currency;
-  estimatedDays?: string;
-  notes?: string;
-}
-
-export interface VendorPickupPoint {
-  id: string;
-  label: string;
-  address: string;
-  city?: string;
-  hours?: string;
-  instructions?: string;
 }
 
 /** Bloc variantes pour tout produit varianté */
@@ -278,72 +185,6 @@ export interface AttrFashionShoes {
   materialSole?: string;
 }
 
-// ---------- Fashion: sous-vêtements & chaussettes ----------
-
-export interface AttrFashionUnderwear {
-  gender?: 'men' | 'women' | 'unisex' | 'kids';
-  material?: string;
-  size?: string;         // ex: S, M, L, XL
-  packSize?: number;     // ex: pack de 3, 5...
-}
-
-export interface AttrFashionSocks {
-  size?: string;         // ex: 39-42
-  material?: string;     // coton, laine, etc.
-  thickness?: 'light' | 'medium' | 'warm';
-  packSize?: number;
-}
-
-// ---------- Bébé / puériculture ----------
-
-export interface AttrBabyClothing {
-  ageRangeMonths?: string; // ex: '0-3 mois'
-  size?: string;           // ex: 56, 62, 68
-  material?: string;
-  season?: 'summer' | 'winter' | 'all_season';
-  gender?: 'boy' | 'girl' | 'unisex';
-  care?: string;
-  packSize?: number;
-}
-
-export interface AttrBabyCare {
-  type?: 'bath' | 'skin' | 'hair' | 'health' | 'accessory';
-  ageMinMonths?: number;
-  ageMaxMonths?: number;
-  hypoallergenic?: boolean;
-  dermatologicallyTested?: boolean;
-  fragranceFree?: boolean;
-  ingredients?: string;
-}
-
-export interface AttrBabyDiapering {
-  type?: 'disposable' | 'cloth' | 'training' | 'swim';
-  size?: string;
-  weightRangeKg?: string; // ex: 4-8 kg
-  countPerPack?: number;
-  fragranceFree?: boolean;
-}
-
-export interface AttrBabyFood {
-  ageMinMonths?: number;
-  ageMaxMonths?: number;
-  texture?: 'liquid' | 'puree' | 'pieces' | 'snack';
-  flavor?: string;
-  organic?: boolean;
-  netWeight?: string;
-  allergens?: string[];
-}
-
-export interface AttrBabyGear {
-  type?: 'stroller' | 'car_seat' | 'carrier' | 'high_chair' | 'bed' | 'monitor' | 'other';
-  ageMinMonths?: number;
-  ageMaxMonths?: number;
-  weightLimitKg?: number;
-  material?: string;
-  color?: string;
-  foldable?: boolean;
-}
-
 export interface AttrElectronicsPhone {
   model?: string;
   os?: string;
@@ -378,27 +219,6 @@ export interface AttrHomeApplianceSmall {
   energyClass?: string;       // ex: 'A++'
   capacity?: string;          // '1.7L'
   features?: string[];
-}
-
-export interface AttrHomeApplianceMajor {
-  applianceType?: 'fridge' | 'freezer' | 'washing_machine' | 'dryer' | 'dishwasher' | 'oven' | 'cooktop' | 'microwave';
-  capacityL?: number;           // volume utile
-  drumKg?: number;              // capacité en kg (LL/Sèche-linge)
-  energyClass?: string;         // ex: A+++
-  noiseDb?: number;             // niveau sonore
-  dimensionsCm?: string;        // ex: 60x60x85 cm
-  powerW?: number;
-  color?: string;
-  features?: string[];
-}
-
-// ---------- Beauté: parfum & fragrances ----------
-
-export interface AttrBeautyFragrance {
-  for?: 'men' | 'women' | 'unisex';
-  volume?: string;       // ex: 50ml, 100ml
-  notes?: string;        // notes olfactives (floral, boisé, etc.)
-  concentration?: 'eau_de_toilette' | 'eau_de_parfum' | 'parfum' | 'mist';
 }
 
 export interface AttrBeautyCosmetic {
@@ -460,37 +280,26 @@ export interface AttrServiceDigital {
 
 /* ---------- Cartes produit discriminées par categoryId ---------- */
 
-type ProductGroceryFresh     = ProductCore & { categoryId:'grocery_fresh'     ; topCategory:'grocery'    ; attributes: AttrGroceryFresh     ; variants?: VariantBlock };
-type ProductGroceryPackaged  = ProductCore & { categoryId:'grocery_packaged'  ; topCategory:'grocery'    ; attributes: AttrGroceryPackaged  ; variants?: VariantBlock };
-type ProductGroceryBeverage  = ProductCore & { categoryId:'grocery_beverage'  ; topCategory:'grocery'    ; attributes: AttrGroceryBeverage  ; variants?: VariantBlock };
+type ProductGroceryFresh     = ProductCore & { categoryId:'grocery_fresh'    ; topCategory:'grocery'    ; attributes: AttrGroceryFresh     ; variants?: VariantBlock };
+type ProductGroceryPackaged  = ProductCore & { categoryId:'grocery_packaged' ; topCategory:'grocery'    ; attributes: AttrGroceryPackaged  ; variants?: VariantBlock };
+type ProductGroceryBeverage  = ProductCore & { categoryId:'grocery_beverage' ; topCategory:'grocery'    ; attributes: AttrGroceryBeverage  ; variants?: VariantBlock };
 
-type ProductFashionShirt     = ProductCore & { categoryId:'fashion_shirt'     ; topCategory:'fashion'    ; attributes: AttrFashionClothing  ; variants: VariantBlock  };
-type ProductFashionUnderwear = ProductCore & { categoryId: 'fashion_underwear'; topCategory:'fashion'    ; attributes: AttrFashionUnderwear ; variants?: VariantBlock };
-type ProductFashionSocks     = ProductCore & { categoryId: 'fashion_socks'    ; topCategory:'fashion'    ; attributes: AttrFashionSocks     ; variants?: VariantBlock };
+type ProductFashionShirt     = ProductCore & { categoryId:'fashion_shirt'    ; topCategory:'fashion'    ; attributes: AttrFashionClothing  ; variants: VariantBlock };
+type ProductFashionPants     = ProductCore & { categoryId:'fashion_pants'    ; topCategory:'fashion'    ; attributes: AttrFashionClothing  ; variants: VariantBlock };
+type ProductFashionShoes     = ProductCore & { categoryId:'fashion_shoes'    ; topCategory:'fashion'    ; attributes: AttrFashionShoes     ; variants: VariantBlock };
+type ProductFashionAccessory = ProductCore & { categoryId:'fashion_accessory'; topCategory:'fashion'    ; attributes: Record<string,any>   ; variants?: VariantBlock };
 
-type ProductFashionPants     = ProductCore & { categoryId:'fashion_pants'    ; topCategory:'fashion'     ; attributes: AttrFashionClothing  ; variants: VariantBlock };
-type ProductFashionShoes     = ProductCore & { categoryId:'fashion_shoes'    ; topCategory:'fashion'     ; attributes: AttrFashionShoes     ; variants: VariantBlock };
-type ProductFashionAccessory = ProductCore & { categoryId:'fashion_accessory'; topCategory:'fashion'     ; attributes: Record<string,any>   ; variants?: VariantBlock };
+type ProductElectronicsPhone = ProductCore & { categoryId:'electronics_phone'; topCategory:'electronics'; attributes: AttrElectronicsPhone ; variants?: VariantBlock };
+type ProductElectronicsLaptop= ProductCore & { categoryId:'electronics_laptop';topCategory:'electronics'; attributes: AttrElectronicsLaptop; variants?: VariantBlock };
+type ProductElectronicsTv    = ProductCore & { categoryId:'electronics_tv'   ; topCategory:'electronics'; attributes: { sizeInch?:number; panel?:'LCD'|'OLED'|'QLED'; os?:string }; variants?: VariantBlock };
+type ProductElectronicsAudio = ProductCore & { categoryId:'electronics_audio'; topCategory:'electronics'; attributes: { type?:'headphones'|'speaker'|'amp'; wireless?:boolean; codec?:string[] }; variants?: VariantBlock };
 
-type ProductBabyClothing     = ProductCore & { categoryId:'baby_clothing'    ; topCategory:'baby'        ; attributes: AttrBabyClothing     ; variants?: VariantBlock };
-type ProductBabyCare         = ProductCore & { categoryId:'baby_care'        ; topCategory:'baby'        ; attributes: AttrBabyCare         ; variants?: VariantBlock };
-type ProductBabyDiapering    = ProductCore & { categoryId:'baby_diapering'   ; topCategory:'baby'        ; attributes: AttrBabyDiapering    ; variants?: VariantBlock };
-type ProductBabyFood         = ProductCore & { categoryId:'baby_food'        ; topCategory:'baby'        ; attributes: AttrBabyFood         ; variants?: VariantBlock };
-type ProductBabyGear         = ProductCore & { categoryId:'baby_gear'        ; topCategory:'baby'        ; attributes: AttrBabyGear         ; variants?: VariantBlock };
+type ProductHomeFurniture    = ProductCore & { categoryId:'home_furniture'   ; topCategory:'home'       ; attributes: AttrHomeFurniture    ; variants?: VariantBlock };
+type ProductHomeApplianceSm  = ProductCore & { categoryId:'home_appliance_small';topCategory:'home'    ; attributes: AttrHomeApplianceSmall; variants?: VariantBlock };
+type ProductHomeKitchenware  = ProductCore & { categoryId:'home_kitchenware' ; topCategory:'home'       ; attributes: { material?:string; dishwasherSafe?:boolean }; variants?: VariantBlock };
 
-type ProductElectronicsPhone = ProductCore & { categoryId:'electronics_phone'; topCategory:'electronics' ; attributes: AttrElectronicsPhone ; variants?: VariantBlock };
-type ProductElectronicsLaptop= ProductCore & { categoryId:'electronics_laptop';topCategory:'electronics' ; attributes: AttrElectronicsLaptop; variants?: VariantBlock };
-type ProductElectronicsTv    = ProductCore & { categoryId:'electronics_tv'   ; topCategory:'electronics' ; attributes: { sizeInch?:number; panel?:'LCD'|'OLED'|'QLED'; os?:string }; variants?: VariantBlock };
-type ProductElectronicsAudio = ProductCore & { categoryId:'electronics_audio'; topCategory:'electronics' ; attributes: { type?:'headphones'|'speaker'|'amp'; wireless?:boolean; codec?:string[] }; variants?: VariantBlock };
-
-type ProductHomeFurniture    = ProductCore & { categoryId:'home_furniture'   ; topCategory:'home'        ; attributes: AttrHomeFurniture    ; variants?: VariantBlock };
-type ProductHomeApplianceSm  = ProductCore & { categoryId:'home_appliance_small';topCategory:'home'      ; attributes: AttrHomeApplianceSmall; variants?: VariantBlock };
-type ProductHomeApplianceMajor = ProductCore & { categoryId:'home_appliance_major';topCategory:'home'    ; attributes: AttrHomeApplianceMajor; variants?: VariantBlock };
-type ProductHomeKitchenware  = ProductCore & { categoryId:'home_kitchenware' ; topCategory:'home'        ; attributes: { material?:string; dishwasherSafe?:boolean }; variants?: VariantBlock };
-
-type ProductBeautyCosmetic   = ProductCore & { categoryId:'beauty_cosmetic'  ; topCategory:'beauty'      ; attributes: AttrBeautyCosmetic   ; variants?: VariantBlock };
-type ProductBeautyCare       = ProductCore & { categoryId:'beauty_personalcare';topCategory:'beauty'     ; attributes: AttrBeautyCosmetic   ; variants?: VariantBlock };
-type ProductBeautyFragrance  = ProductCore & { categoryId: 'beauty_fragrance' ; topCategory:'fashion'    ; attributes: AttrBeautyFragrance  ; variants?: VariantBlock };
+type ProductBeautyCosmetic   = ProductCore & { categoryId:'beauty_cosmetic'  ; topCategory:'beauty'     ; attributes: AttrBeautyCosmetic   ; variants?: VariantBlock };
+type ProductBeautyCare       = ProductCore & { categoryId:'beauty_personalcare';topCategory:'beauty'   ; attributes: AttrBeautyCosmetic   ; variants?: VariantBlock };
 
 type ProductSportsEquip      = ProductCore & { categoryId:'sports_equipment' ; topCategory:'sports'     ; attributes: AttrSportsEquipment  ; variants?: VariantBlock };
 type ProductToysGeneric      = ProductCore & { categoryId:'toys_generic'     ; topCategory:'sports'     ; attributes: AttrToy              ; variants?: VariantBlock };
@@ -508,19 +317,14 @@ type ProductServiceDigital   = ProductCore & { categoryId:'service_digital'  ; t
 /** Union principale : tous les produits possibles */
 export type Product =
   | ProductGroceryFresh | ProductGroceryPackaged | ProductGroceryBeverage
-  | ProductFashionShirt | ProductFashionPants | ProductFashionShoes | ProductFashionAccessory | ProductFashionUnderwear | ProductFashionSocks
-  | ProductBabyClothing | ProductBabyCare | ProductBabyDiapering | ProductBabyFood | ProductBabyGear
+  | ProductFashionShirt | ProductFashionPants | ProductFashionShoes | ProductFashionAccessory
   | ProductElectronicsPhone | ProductElectronicsLaptop | ProductElectronicsTv | ProductElectronicsAudio
-  | ProductHomeFurniture | ProductHomeApplianceSm | ProductHomeApplianceMajor | ProductHomeKitchenware
-  | ProductBeautyCosmetic | ProductBeautyCare | ProductBeautyFragrance
+  | ProductHomeFurniture | ProductHomeApplianceSm | ProductHomeKitchenware
+  | ProductBeautyCosmetic | ProductBeautyCare
   | ProductSportsEquip | ProductToysGeneric
   | ProductBook | ProductMediaMusic | ProductMediaVideogame
   | ProductAutoPart | ProductDiyTool | ProductPet
-  | ProductServiceDigital ;
-
-export type PublishedProduct = Extract<Product, { status: 'active' }> & { rating: ProductRating }
-export const isPublishedProduct = (product: Product): product is PublishedProduct =>
-  product.status === 'active' && !!product.rating
+  | ProductServiceDigital;
 
 /* ---------- Aides runtime pour générer les formulaires ---------- */
 
@@ -540,14 +344,6 @@ export interface CategorySpec {
   categoryId: CategoryId;
   topCategory: TopCategory;
   label: string;
-  
-  // nouveau :
-  parentId?: string;             // ex: 'fashion_women'
-  iconName?: string;             // ex: 'tshirt', 'smartphone'
-  imageURL?: string;             // visuel pour les grilles
-  sortOrder?: number;            // ordre d’affichage
-  isFeatured?: boolean;          // à mettre en avant sur la Home
-  
   defaultOptions?: ProductOption[];  // préconfig variantes (ex: taille/couleur)
   attributeFields: FieldSpec[];      // pour construire le formulaire
 }
@@ -640,60 +436,6 @@ export const CATEGORY_SPECS: Record<CategoryId, CategorySpec> = {
       { key:'care', label:'Entretien', kind:'text' },
     ]
   },
-  fashion_underwear: {
-    categoryId: 'fashion_underwear',
-    topCategory: 'fashion',
-    label: 'Sous-vêtements',
-    defaultOptions: [
-      {
-        id: 'size',
-        name: 'Taille',
-        values: [
-          { id: 's', label: 'S' },
-          { id: 'm', label: 'M' },
-          { id: 'l', label: 'L' },
-          { id: 'xl', label: 'XL' },
-        ],
-      },
-    ],
-    attributeFields: [
-      {
-        key: 'gender',
-        label: 'Genre',
-        kind: 'select',
-        options: [
-          { value: 'men', label: 'Homme' },
-          { value: 'women', label: 'Femme' },
-          { value: 'unisex', label: 'Unisexe' },
-          { value: 'kids', label: 'Enfant' },
-        ],
-      },
-      { key: 'material', label: 'Matière', kind: 'text' },
-      { key: 'size', label: 'Taille', kind: 'text' },
-      { key: 'packSize', label: 'Nombre dans le pack', kind: 'number' },
-    ],
-  },
-
-  fashion_socks: {
-    categoryId: 'fashion_socks',
-    topCategory: 'fashion',
-    label: 'Chaussettes',
-    attributeFields: [
-      { key: 'size', label: 'Pointure / taille', kind: 'text' },
-      { key: 'material', label: 'Matière', kind: 'text' },
-      {
-        key: 'thickness',
-        label: 'Épaisseur',
-        kind: 'select',
-        options: [
-          { value: 'light', label: 'Légère' },
-          { value: 'medium', label: 'Moyenne' },
-          { value: 'warm', label: 'Chaude' },
-        ],
-      },
-      { key: 'packSize', label: 'Nombre dans le pack', kind: 'number' },
-    ],
-  },
   fashion_shoes: {
     categoryId: 'fashion_shoes',
     topCategory: 'fashion',
@@ -718,94 +460,6 @@ export const CATEGORY_SPECS: Record<CategoryId, CategorySpec> = {
     label: 'Accessoire',
     attributeFields: [
       { key:'material', label:'Matière', kind:'text' },
-      { key:'color', label:'Couleur', kind:'text' },
-    ]
-  },
-
-  // Baby
-  baby_clothing: {
-    categoryId: 'baby_clothing',
-    topCategory: 'baby',
-    label: 'Vêtements bébé',
-    defaultOptions: [
-      { id:'color', name:'Couleur', values:[] },
-      { id:'size',  name:'Taille', values:[
-        {id:'0-3m',label:'0-3m'},{id:'3-6m',label:'3-6m'},{id:'6-9m',label:'6-9m'},{id:'9-12m',label:'9-12m'},{id:'12-18m',label:'12-18m'}
-      ]},
-    ],
-    attributeFields: [
-      { key:'ageRangeMonths', label:'Âge / mois', kind:'text', help:'ex: 0-3 mois' },
-      { key:'size', label:'Taille', kind:'text', help:'ex: 56, 62, 68' },
-      { key:'material', label:'Matière', kind:'text' },
-      { key:'season', label:'Saison', kind:'select', options:[
-        {value:'all_season',label:'Toutes saisons'},{value:'summer',label:'Été'},{value:'winter',label:'Hiver'}
-      ]},
-      { key:'gender', label:'Genre', kind:'select', options:[
-        {value:'boy',label:'Garçon'},{value:'girl',label:'Fille'},{value:'unisex',label:'Unisexe'}
-      ]},
-      { key:'care', label:'Entretien', kind:'text' },
-      { key:'packSize', label:'Nombre dans le pack', kind:'number' },
-    ]
-  },
-  baby_care: {
-    categoryId: 'baby_care',
-    topCategory: 'baby',
-    label: 'Soin & hygiène bébé',
-    attributeFields: [
-      { key:'type', label:'Type', kind:'select', options:[
-        {value:'bath',label:'Bain'},{value:'skin',label:'Peau'},{value:'hair',label:'Cheveux'},{value:'health',label:'Santé'},{value:'accessory',label:'Accessoire'}
-      ]},
-      { key:'ageMinMonths', label:'Âge min (mois)', kind:'number' },
-      { key:'ageMaxMonths', label:'Âge max (mois)', kind:'number' },
-      { key:'hypoallergenic', label:'Hypoallergénique', kind:'boolean' },
-      { key:'dermatologicallyTested', label:'Testé dermatologiquement', kind:'boolean' },
-      { key:'fragranceFree', label:'Sans parfum', kind:'boolean' },
-      { key:'ingredients', label:'Ingrédients', kind:'textarea' },
-    ]
-  },
-  baby_diapering: {
-    categoryId: 'baby_diapering',
-    topCategory: 'baby',
-    label: 'Change & couches',
-    attributeFields: [
-      { key:'type', label:'Type', kind:'select', options:[
-        {value:'disposable',label:'Jetable'},{value:'cloth',label:'Lavable'},{value:'training',label:'Culotte d\'apprentissage'},{value:'swim',label:'Couches de bain'}
-      ]},
-      { key:'size', label:'Taille', kind:'text' },
-      { key:'weightRangeKg', label:'Poids bébé (kg)', kind:'text', help:'ex: 4-8 kg' },
-      { key:'countPerPack', label:'Nombre / paquet', kind:'number' },
-      { key:'fragranceFree', label:'Sans parfum', kind:'boolean' },
-    ]
-  },
-  baby_food: {
-    categoryId: 'baby_food',
-    topCategory: 'baby',
-    label: 'Alimentation bébé',
-    attributeFields: [
-      { key:'ageMinMonths', label:'Âge min (mois)', kind:'number' },
-      { key:'ageMaxMonths', label:'Âge max (mois)', kind:'number' },
-      { key:'texture', label:'Texture', kind:'select', options:[
-        {value:'liquid',label:'Liquide / lait'},{value:'puree',label:'Purée'},{value:'pieces',label:'Morceaux'},{value:'snack',label:'Snack'}
-      ]},
-      { key:'flavor', label:'Saveur', kind:'text' },
-      { key:'organic', label:'Bio', kind:'boolean' },
-      { key:'netWeight', label:'Poids net', kind:'text' },
-      { key:'allergens', label:'Allergènes', kind:'multiselect' },
-    ]
-  },
-  baby_gear: {
-    categoryId: 'baby_gear',
-    topCategory: 'baby',
-    label: 'Puériculture & mobilité',
-    attributeFields: [
-      { key:'type', label:'Type', kind:'select', options:[
-        {value:'stroller',label:'Poussette'},{value:'car_seat',label:'Siège auto'},{value:'carrier',label:'Porte-bébé'},{value:'high_chair',label:'Chaise haute'},{value:'bed',label:'Lit / berceau'},{value:'monitor',label:'Babyphone'},{value:'other',label:'Autre'}
-      ]},
-      { key:'ageMinMonths', label:'Âge min (mois)', kind:'number' },
-      { key:'ageMaxMonths', label:'Âge max (mois)', kind:'number' },
-      { key:'weightLimitKg', label:'Poids max (kg)', kind:'number' },
-      { key:'foldable', label:'Pliable', kind:'boolean' },
-      { key:'material', label:'Matériau', kind:'text' },
       { key:'color', label:'Couleur', kind:'text' },
     ]
   },
@@ -892,33 +546,6 @@ export const CATEGORY_SPECS: Record<CategoryId, CategorySpec> = {
       { key:'features', label:'Fonctions', kind:'multiselect' },
     ]
   },
-  home_appliance_major: {
-    categoryId: 'home_appliance_major',
-    topCategory: 'home',
-    label: 'Gros électroménager',
-    defaultOptions: [
-      { id:'color', name:'Couleur', values:[] },
-    ],
-    attributeFields: [
-      { key:'applianceType', label:'Type d\'appareil', kind:'select', options:[
-        { value:'fridge', label:'Réfrigérateur' },
-        { value:'freezer', label:'Congélateur' },
-        { value:'washing_machine', label:'Lave-linge' },
-        { value:'dryer', label:'Sèche-linge' },
-        { value:'dishwasher', label:'Lave-vaisselle' },
-        { value:'oven', label:'Four' },
-        { value:'cooktop', label:'Plaque de cuisson' },
-        { value:'microwave', label:'Micro-ondes' },
-      ]},
-      { key:'capacityL', label:'Capacité (L)', kind:'number' },
-      { key:'drumKg', label:'Capacité tambour (kg)', kind:'number' },
-      { key:'energyClass', label:'Classe énergie', kind:'text', help:'ex: A+++' },
-      { key:'noiseDb', label:'Bruit (dB)', kind:'number' },
-      { key:'dimensionsCm', label:'Dimensions (cm)', kind:'text', help:'ex: 60x60x85' },
-      { key:'powerW', label:'Puissance (W)', kind:'number' },
-      { key:'features', label:'Fonctions', kind:'multiselect' },
-    ]
-  },
   home_kitchenware: {
     categoryId: 'home_kitchenware',
     topCategory: 'home',
@@ -950,41 +577,7 @@ export const CATEGORY_SPECS: Record<CategoryId, CategorySpec> = {
       { key:'ingredients', label:'Ingrédients', kind:'textarea' },
     ]
   },
-  beauty_fragrance: {
-    categoryId: 'beauty_fragrance',
-    topCategory: 'beauty',
-    label: 'Parfum & fragrances',
-    attributeFields: [
-      {
-        key: 'for',
-        label: 'Pour',
-        kind: 'select',
-        options: [
-          { value: 'men', label: 'Homme' },
-          { value: 'women', label: 'Femme' },
-          { value: 'unisex', label: 'Unisexe' },
-        ],
-      },
-      { key: 'volume', label: 'Contenance (ml)', kind: 'text' },
-      {
-        key: 'concentration',
-        label: 'Concentration',
-        kind: 'select',
-        options: [
-          { value: 'eau_de_toilette', label: 'Eau de toilette' },
-          { value: 'eau_de_parfum', label: 'Eau de parfum' },
-          { value: 'parfum', label: 'Parfum' },
-          { value: 'mist', label: 'Brume' },
-        ],
-      },
-      {
-        key: 'notes',
-        label: 'Notes olfactives',
-        kind: 'textarea',
-        help: 'Ex: floral, boisé, agrumes, gourmand...',
-      },
-    ],
-  },
+
   // Sports / Toys
   sports_equipment: {
     categoryId: 'sports_equipment',
@@ -1139,19 +732,13 @@ export function buildVariantMatrix(
   rowKey: OptionId = 'size',
   colKey: OptionId = 'color'
 ) {
-  const safeValue = (v: Variant | undefined, key: OptionId): string | undefined => {
-    if (!v || !v.options) return undefined
-    const val = v.options[key]
-    return typeof val === 'string' ? val : undefined
-  }
-
-  const rows = uniq(variants.map(v => safeValue(v, rowKey)).filter((v): v is string => Boolean(v)))
-  const cols = uniq(variants.map(v => safeValue(v, colKey)).filter((v): v is string => Boolean(v)))
+  const rows = uniq(variants.map(v => v.options[rowKey]).filter(Boolean))
+  const cols = uniq(variants.map(v => v.options[colKey]).filter(Boolean))
   const map: Record<string, Record<string, Variant | undefined>> = {}
   for (const r of rows) {
     map[r] = {}
     for (const c of cols) {
-      map[r][c] = variants.find(v => safeValue(v, rowKey) === r && safeValue(v, colKey) === c)
+      map[r][c] = variants.find(v => v.options[rowKey] === r && v.options[colKey] === c)
     }
   }
   return { rows, cols, map }

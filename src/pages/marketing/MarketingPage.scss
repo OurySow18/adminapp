@@ -1,0 +1,560 @@
+.marketingPage {
+  display: flex;
+  width: 100%;
+  color: #2b2b2b;
+}
+
+.marketingPage__container {
+  flex: 6;
+}
+
+.marketingPage__content {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.marketingPage__container {
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  min-height: 100vh;
+}
+
+.marketingPage__header {
+  display: flex;
+  gap: 12px;
+}
+
+.marketingPage__header--between {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.marketingPage__header .eyebrow,
+.marketingPage__listHeader .eyebrow {
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.marketingPage__header .eyebrow {
+  margin-bottom: 4px;
+}
+
+.marketingPage__header h1 {
+  margin: 0;
+  font-size: 24px;
+  color: #0f172a;
+}
+
+.marketingPage__header .subtitle {
+  color: #666;
+  margin-top: 4px;
+}
+
+.marketingPage__listHeader h2 {
+  margin: 0;
+}
+
+.marketingPage__listMeta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.marketingPage__header .button,
+.marketingPage__header .ghost {
+  height: fit-content;
+}
+
+.marketingPage__form {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.formRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formRow label {
+  font-weight: 600;
+  color: #1f2937;
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.requiredStar {
+  color: #dc2626;
+  margin-left: 4px;
+}
+
+.formRow input,
+.formRow select {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 14px;
+  background: #fff;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 42px;
+}
+
+.formRow input[list] {
+  background-image: none;
+  padding-right: 12px;
+}
+
+.formRow input[list]::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  display: none;
+}
+
+.badgeField {
+  position: relative;
+  width: 100%;
+}
+
+.badgeField__list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.12);
+  padding: 6px;
+  display: grid;
+  gap: 4px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.badgeField__option {
+  background: #f8fafc;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.badgeField__option:hover {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.formRow select {
+  max-width: 100%;
+  appearance: none;
+  line-height: 1.2;
+  padding-right: 40px;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 12px 8px;
+}
+
+.formRow select option {
+  font-size: 14px;
+}
+
+.formRow input[type="file"] {
+  padding: 10px 12px;
+}
+
+.marketingPage__form,
+.marketingPage__list {
+  overflow: hidden;
+}
+
+.formRow input:focus,
+.formRow select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.formActions button {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #fff;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: 0 8px 16px rgba(37, 99, 235, 0.3);
+}
+
+.formActions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.helper {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.helper--error {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.error {
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.feedback {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.feedback--success {
+  background: #ecfdf3;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.feedback--error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.feedback--warning {
+  background: #fff7ed;
+  color: #92400e;
+  border: 1px solid #fed7aa;
+}
+
+.imagePreview {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.imagePreview__img {
+  max-width: 360px;
+  max-height: 220px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  object-fit: cover;
+}
+
+.marketingPage__list {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+}
+
+.marketingPage__listHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.marketingPage__listHeader--between {
+  justify-content: space-between;
+}
+
+.marketingPage__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.marketingPage__cardLink {
+  text-decoration: none;
+  color: inherit;
+}
+
+.marketingPage__card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.marketingPage__card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.08);
+}
+
+.bannerTable {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bannerTable__head,
+.bannerTable__row {
+  display: grid;
+  grid-template-columns: 1.4fr 0.9fr 2fr 0.6fr 0.6fr 1.1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.bannerTable__head {
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 13px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+.bannerTable__row {
+  font-size: 14px;
+  padding: 10px 8px;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.bannerTable__cell {
+  display: block;
+  color: #374151;
+}
+
+.bannerTable__cell--strong {
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.marketingPage__search {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.bannerTable__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.bannerTable__actions .ghost,
+.marketingPage__header .ghost,
+.marketingPage__header .button,
+.bannerTable__actions .button {
+  background: #2563eb;
+  color: #fff;
+  border: 1px solid #1d4ed8;
+  border-radius: 6px;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 120px;
+  justify-content: center;
+}
+
+.bannerTable__actions .ghost.secondary {
+  background: #f97316;
+  border-color: #ea580c;
+}
+
+.bannerTable__actions .ghost.neutral {
+  background: #f3f4f6;
+  color: #111827;
+  border-color: #e5e7eb;
+}
+
+.ghost:hover,
+.button:hover {
+  transform: translateY(-1px);
+  transition: all 0.15s ease;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.06);
+}
+
+.button.primary {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #fff;
+  border-color: #1d4ed8;
+}
+
+.pill {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pill--green {
+  background: #ecfdf3;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.pill--gray {
+  background: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #e5e7eb;
+}
+
+.pill--blue {
+  background: #e0e7ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+}
+
+.bannerTable__meta {
+  font-size: 12px;
+  color: #6b7280;
+  word-break: break-all;
+}
+
+.textRight {
+  text-align: right;
+}
+
+@media (max-width: 960px) {
+  .bannerTable__head,
+  .bannerTable__row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "title title"
+      "segment visibility"
+      "target target"
+      "order actions";
+    gap: 6px;
+  }
+
+  .bannerTable__head span:nth-child(1),
+  .bannerTable__row .bannerTable__cell--strong {
+    grid-area: title;
+  }
+  .bannerTable__head span:nth-child(2),
+  .bannerTable__row .bannerTable__cell:nth-child(2) {
+    grid-area: segment;
+  }
+  .bannerTable__head span:nth-child(3),
+  .bannerTable__row .bannerTable__cell:nth-child(3) {
+    grid-area: target;
+  }
+  .bannerTable__head span:nth-child(4),
+  .bannerTable__row .bannerTable__cell:nth-child(4) {
+    grid-area: order;
+  }
+  .bannerTable__head span:nth-child(5),
+  .bannerTable__row .bannerTable__cell:nth-child(5) {
+    grid-area: visibility;
+  }
+  .bannerTable__head span:nth-child(6),
+  .bannerTable__row .bannerTable__cell.bannerTable__actions {
+    grid-area: actions;
+    justify-content: flex-start;
+  }
+
+  .bannerTable__row {
+    align-items: flex-start;
+  }
+
+  .bannerTable__actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 960px) {
+  .marketingPage__content {
+    padding: 16px;
+  }
+
+  .marketingPage__header {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .marketingPage__header--between {
+    align-items: flex-start;
+  }
+
+  .marketingPage__listHeader--between {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .marketingPage__listMeta {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .marketingPage__search {
+    width: 100%;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .bannerTable__actions {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .marketingPage__content {
+    padding: 12px;
+  }
+
+  .formActions button {
+    width: 100%;
+  }
+
+  .bannerTable__actions .ghost,
+  .bannerTable__actions .button,
+  .marketingPage__header .button,
+  .marketingPage__header .ghost {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .bannerTable__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

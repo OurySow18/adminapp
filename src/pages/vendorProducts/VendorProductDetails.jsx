@@ -110,6 +110,13 @@ const ATTRIBUTE_LABELS = {
   flavor: "Saveur",
   deliveryType: "Mode de livraison",
   durationDays: "Duree (jours)",
+  ageMaxMonths: "Age maximum (mois)",
+  ageMinMonths: "Age minimum (mois)",
+  age_max_months: "Age maximum (mois)",
+  age_min_months: "Age minimum (mois)",
+  weightLimitKg: "Poids maximal (kg)",
+  weight_limit_kg: "Poids maximal (kg)",
+  type: "Type",
 };
 
 const ATTRIBUTE_FIELD_LABELS = Object.fromEntries(
@@ -526,10 +533,11 @@ const VendorProductDetails = () => {
       product.core?.media?.byOption ||
       product.draft?.core?.media?.byOption;
     if (!source || typeof source !== "object") return [];
-
+    console.log("Source: ", source)
     const collected = [];
     const walk = (node, prefix = "") => {
       if (!node || typeof node !== "object") return;
+      
       Object.entries(node).forEach(([key, value]) => {
         const label = prefix ? `${prefix} / ${key}` : key;
         if (Array.isArray(value)) {
@@ -580,18 +588,62 @@ const VendorProductDetails = () => {
       const optionValues = { ...baseOptions, price, stock };
       const imageKeys = Array.isArray(variant?.imageKeys) ? variant.imageKeys : [];
       const resolvedImages = [];
+      const pushUnique = (url) => {
+        if (typeof url !== "string") return;
+        const trimmed = url.trim();
+        if (!trimmed) return;
+        if (!resolvedImages.includes(trimmed)) {
+          resolvedImages.push(trimmed);
+        }
+      };
       imageKeys.forEach((key) => {
         if (typeof key !== "string") return;
         const normalized = key.trim().toLowerCase();
         if (normalized.startsWith("http")) {
-          resolvedImages.push(key);
+          pushUnique(key);
           return;
         }
         const mapped = imagesByColor.get(normalized);
         if (Array.isArray(mapped)) {
-          resolvedImages.push(...mapped);
+          mapped.forEach(pushUnique);
         }
       });
+      // fallbacks: direct images on variant
+      if (typeof variant.image === "string" && variant.image.trim()) {
+        pushUnique(variant.image);
+      }
+      if (Array.isArray(variant.images)) {
+        variant.images.forEach((url) => {
+          pushUnique(url);
+        });
+      }
+      // fallback: images by detected color if none resolved via keys
+      if (!resolvedImages.length) {
+        const colorValue =
+          baseOptions.color ||
+          baseOptions.Color ||
+          baseOptions.couleur ||
+          baseOptions.Couleur ||
+          variant.optionValues?.color ||
+          variant.optionValues?.couleur;
+        if (colorValue) {
+          const mapped = imagesByColor.get(String(colorValue).trim().toLowerCase());
+          if (Array.isArray(mapped)) {
+            mapped.forEach(pushUnique);
+          }
+        }
+        // if still none, try any string option value as a possible key (e.g. option id opt_xj7b)
+        if (!resolvedImages.length) {
+          Object.values(optionValues)
+            .filter((val) => typeof val === "string" && val.trim())
+            .forEach((val) => {
+              const mapped = imagesByColor.get(val.trim().toLowerCase());
+              if (Array.isArray(mapped)) {
+                mapped.forEach(pushUnique);
+              }
+            });
+        }
+      }
       return {
         idx: idx + 1,
         optionValues,
@@ -1038,6 +1090,25 @@ const VendorProductDetails = () => {
     []
   );
 
+  const renderAttributeValue = (value) => {
+    if (value === undefined || value === null) return "-";
+    if (typeof value === "boolean") return value ? "Oui" : "Non";
+    if (Array.isArray(value)) {
+      const cleaned = value
+        .filter((v) => v !== undefined && v !== null && String(v).trim() !== "")
+        .map((v) => (typeof v === "boolean" ? (v ? "Oui" : "Non") : v));
+      return cleaned.length ? cleaned.join(", ") : "-";
+    }
+    if (typeof value === "object") {
+      try {
+        return JSON.stringify(value);
+      } catch (err) {
+        return "-";
+      }
+    }
+    return String(value);
+  };
+
   const vendorDisplayId = useMemo(
     () =>
       firstValue(
@@ -1442,9 +1513,7 @@ const VendorProductDetails = () => {
                             `draft.core.attributes.${key}`
                           )}`}
                         >
-                          {typeof value === "object"
-                            ? JSON.stringify(value)
-                            : String(value)}
+                          {renderAttributeValue(value)}
                         </span>
                       </div>
                     ))}
@@ -1532,6 +1601,33 @@ const VendorProductDetails = () => {
                                     </span>
                                   )}
                                 </div>
+                                {(() => {
+                                  const displayImages =
+                                    (Array.isArray(variant.images) && variant.images.length
+                                      ? variant.images
+                                      : colorImages) || [];
+                                  const limited =
+                                    Array.isArray(displayImages) && displayImages.length
+                                      ? displayImages.slice(0, 4)
+                                      : [];
+                                  if (!limited.length) return null;
+                                  return (
+                                    <div className="vendorProductDetails__variantGallery vendorProductDetails__variantGallery--compact vendorProductDetails__variantGallery--inline">
+                                      {limited.map((url, idx) => (
+                                        <div
+                                          className="vendorProductDetails__variantImgWrapper"
+                                          key={url || idx}
+                                        >
+                                          <img
+                                            src={url}
+                                            alt={`Variante ${color} - ${idx + 1}`}
+                                            onClick={() => url && setImagePreview(url)}
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
                                 <div className="vendorProductDetails__variantOptionsGrid">
                                   {Object.entries(variant.optionValues)
                                     .filter(
@@ -1547,7 +1643,7 @@ const VendorProductDetails = () => {
                                         key={key}
                                       >
                                         <span className="vendorProductDetails__variantOptionLabel">
-                                          {key}
+                                          {getAttributeLabel(key)}
                                         </span>
                                         <span className="vendorProductDetails__variantOptionValue">
                                           {String(value)}
@@ -1579,6 +1675,22 @@ const VendorProductDetails = () => {
                                     </span>
                                   </div>
                                 </div>
+                                {Array.isArray(variant.images) && variant.images.length > 0 && (
+                                  <div className="vendorProductDetails__variantGallery vendorProductDetails__variantGallery--compact">
+                                    {variant.images.map((url, idx) => (
+                                      <div
+                                        className="vendorProductDetails__variantImgWrapper"
+                                        key={url || idx}
+                                      >
+                                        <img
+                                          src={url}
+                                          alt={`Variante ${color} - ${idx + 1}`}
+                                          onClick={() => url && setImagePreview(url)}
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>

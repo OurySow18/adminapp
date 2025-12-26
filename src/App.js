@@ -39,6 +39,11 @@ import VendorProductsList from "./pages/vendorProducts/VendorProductsList";
 import VendorProductDetails from "./pages/vendorProducts/VendorProductDetails";
 import PublicCatalogList from "./pages/publicCatalog/PublicCatalogList";
 import { SidebarProvider } from "./context/sidebarContext";
+import MarketingOverview from "./pages/marketing/MarketingOverview";
+import BannerList from "./pages/marketing/BannerList";
+import BannerEditor from "./pages/marketing/BannerEditor";
+import SponsorList from "./pages/marketing/SponsorList";
+import SponsorEditor from "./pages/marketing/SponsorEditor";
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -227,6 +232,62 @@ function App() {
               element={
                 <RequireAuth>
                   <PublicCatalogList />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/marketing"
+              element={
+                <RequireAuth>
+                  <MarketingOverview />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/marketing/banners"
+              element={
+                <RequireAuth>
+                  <BannerList />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/marketing/banners/new"
+              element={
+                <RequireAuth>
+                  <BannerEditor />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/marketing/banners/:bannerId"
+              element={
+                <RequireAuth>
+                  <BannerEditor />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/marketing/sponsors"
+              element={
+                <RequireAuth>
+                  <SponsorList />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/marketing/sponsors/new"
+              element={
+                <RequireAuth>
+                  <SponsorEditor />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/marketing/sponsors/:sponsorId"
+              element={
+                <RequireAuth>
+                  <SponsorEditor />
                 </RequireAuth>
               }
             />

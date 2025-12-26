@@ -382,6 +382,11 @@
   grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
 }
 
+.vendorProductDetails__variantGallery--inline {
+  margin-top: 10px;
+  justify-content: flex-start;
+}
+
 .vendorProductDetails__card--highlight {
   border: 1px solid rgba(37, 99, 235, 0.15);
   box-shadow: 0 12px 28px rgba(37, 99, 235, 0.15);

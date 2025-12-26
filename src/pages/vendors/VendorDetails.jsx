@@ -3,14 +3,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
+import ConfirmModal from "../../components/modal/ConfirmModal";
 import {
   collection,
   deleteField,
   doc,
   getDocs,
   onSnapshot,
+  query,
   serverTimestamp,
   updateDoc,
+  where,
   writeBatch,
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
@@ -156,6 +159,19 @@ const toStatusFlag = (value) => {
   return false;
 };
 
+const getPartnerFlag = (vendor, profile) => {
+  if (typeof vendor?.isPartner === "boolean") return vendor.isPartner;
+  if (typeof vendor?.partner === "boolean") return vendor.partner;
+  if (typeof profile?.isPartner === "boolean") return profile.isPartner;
+  if (typeof profile?.partner === "boolean") return profile.partner;
+  const fallback =
+    vendor?.isPartner ??
+    vendor?.partner ??
+    profile?.isPartner ??
+    profile?.partner;
+  return toStatusFlag(fallback);
+};
+
 const getProductLabel = (product) => {
   if (!product || typeof product !== "object") return "";
   return (
@@ -202,6 +218,10 @@ const VendorDetails = () => {
   const [locationError, setLocationError] = useState(null);
   const [locationMessage, setLocationMessage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [partnerConfirm, setPartnerConfirm] = useState({
+    open: false,
+    enabled: false,
+  });
 
   useEffect(() => {
     if (!id) return;
@@ -264,14 +284,28 @@ const VendorDetails = () => {
 
   const logoUrl = useMemo(() => {
     const profileSection = getProfileSection(vendor);
+    const companySection = company || vendor?.company;
     return (
       profileSection?.logo ||
       profileSection?.company?.logoUrl ||
+      companySection?.logoUrl ||
       vendor?.logo ||
       vendor?.companyLogo ||
       null
     );
-  }, [vendor]);
+  }, [vendor, company]);
+
+  const coverUrl = useMemo(() => {
+    const profileSection = getProfileSection(vendor);
+    const companySection = company || vendor?.company;
+    return (
+      profileSection?.company?.coverUrl ||
+      companySection?.coverUrl ||
+      vendor?.coverUrl ||
+      vendor?.companyCover ||
+      null
+    );
+  }, [vendor, company]);
 
   const vendorStatus = vendor
     ? getVendorStatusLabel(normalizedStatus)
@@ -729,6 +763,57 @@ const VendorDetails = () => {
     return processed;
   }, [syncLegacyProductDoc]);
 
+  const updatePublicProductsForVendor = useCallback(
+    async (enabled) => {
+      if (!vendorIdentifiers.length) return 0;
+      const candidates = vendorIdentifiers.filter(
+        (value) => typeof value === "string" && value.trim()
+      );
+      if (!candidates.length) return 0;
+
+      const chunkSize = 10;
+      let processed = 0;
+      const timestamp = serverTimestamp();
+      const updates = {
+        mm_status: enabled,
+        active: enabled,
+        isActive: enabled,
+        updatedAt: timestamp,
+      };
+
+      for (let i = 0; i < candidates.length; i += chunkSize) {
+        const chunk = candidates.slice(i, i + chunkSize);
+        const [byVendorId, byCoreVendorId] = await Promise.all([
+          getDocs(
+            query(
+              collection(db, "products_public"),
+              where("vendorId", "in", chunk)
+            )
+          ),
+          getDocs(
+            query(
+              collection(db, "products_public"),
+              where("core.vendorId", "in", chunk)
+            )
+          ),
+        ]);
+
+        const docs = new Map();
+        byVendorId.forEach((docSnap) => docs.set(docSnap.id, docSnap));
+        byCoreVendorId.forEach((docSnap) => docs.set(docSnap.id, docSnap));
+        if (!docs.size) continue;
+
+        const batch = writeBatch(db);
+        docs.forEach((docSnap) => batch.update(docSnap.ref, updates));
+        await batch.commit();
+        processed += docs.size;
+      }
+
+      return processed;
+    },
+    [vendorIdentifiers]
+  );
+
   const blockedProducts = useMemo(
     () =>
       products.filter(
@@ -952,6 +1037,19 @@ const VendorDetails = () => {
         const adminEmail = auth.currentUser?.email ?? null;
         const adminUid = auth.currentUser?.uid ?? null;
         const normalizedReason = reason?.trim();
+        const preBlockSnapshot = {
+          status: vendor?.status ?? vendor?.vendorStatus ?? null,
+          vendorStatus: vendor?.vendorStatus ?? vendor?.status ?? null,
+          profileStatus: vendor?.profile?.status ?? null,
+          active: vendor?.active ?? null,
+          isActive: vendor?.isActive ?? null,
+          profileActive: vendor?.profile?.active ?? null,
+          profileIsActive: vendor?.profile?.isActive ?? null,
+          lockCatalog: vendor?.lockCatalog ?? null,
+          lockEdits: vendor?.lockEdits ?? null,
+          profileLockCatalog: vendor?.profile?.lockCatalog ?? null,
+          profileLockEdits: vendor?.profile?.lockEdits ?? null,
+        };
         const updates = {
           status: "blocked",
           vendorStatus: "blocked",
@@ -969,6 +1067,7 @@ const VendorDetails = () => {
           "profile.lockEdits": true,
           "profile.active": false,
           "profile.isActive": false,
+          preBlockSnapshot,
         };
 
         if (adminEmail) {
@@ -1004,6 +1103,7 @@ const VendorDetails = () => {
           targetProducts,
           normalizedReason
         );
+        const publicCount = await updatePublicProductsForVendor(false);
 
         if (updatedCount > 0) {
           setActionMessage(
@@ -1011,6 +1111,11 @@ const VendorDetails = () => {
           );
         } else {
           setActionMessage("Le vendeur a ete bloque.");
+        }
+        if (publicCount > 0) {
+          setActionMessage(
+            `Le vendeur a ete bloque et ${publicCount} produit(s) publics ont ete masques.`
+          );
         }
 
         await refreshProducts();
@@ -1026,7 +1131,14 @@ const VendorDetails = () => {
 
       return success;
     },
-    [vendor, products, fetchProductsForVendor, blockProductsForVendor, refreshProducts]
+    [
+      vendor,
+      products,
+      fetchProductsForVendor,
+      blockProductsForVendor,
+      refreshProducts,
+      updatePublicProductsForVendor,
+    ]
   );
 
   const handleUnblockVendor = useCallback(async () => {
@@ -1038,34 +1150,42 @@ const VendorDetails = () => {
     try {
       const timestamp = serverTimestamp();
       const vendorRef = doc(db, "vendors", vendor.id);
-        await updateDoc(vendorRef, {
-          status: "under_review",
-          vendorStatus: "under_review",
-          "profile.status": "under_review",
-          blocked: false,
-          "profile.blocked": false,
-          active: false,
-          isActive: false,
-          lockCatalog: false,
-          lockEdits: false,
-          blockedAt: deleteField(),
-          blockedReason: deleteField(),
-          blockedBy: deleteField(),
-          blockedByUid: deleteField(),
-          updatedAt: timestamp,
-          "profile.blockedAt": deleteField(),
-          "profile.blockedReason": deleteField(),
-          "profile.blockedBy": deleteField(),
-          "profile.blockedByUid": deleteField(),
-          "profile.active": false,
-          "profile.isActive": false,
-          "profile.lockCatalog": false,
-          "profile.lockEdits": false,
-        });
+      const preBlock = vendor?.preBlockSnapshot || vendor?.profile?.preBlockSnapshot || {};
+      const restoreValue = (value, fallback) =>
+        value === undefined || value === null ? fallback : value;
+      const restored = {
+        status: restoreValue(preBlock.status, "under_review"),
+        vendorStatus: restoreValue(preBlock.vendorStatus, "under_review"),
+        "profile.status": restoreValue(preBlock.profileStatus, "under_review"),
+        active: restoreValue(preBlock.active, true),
+        isActive: restoreValue(preBlock.isActive, true),
+        "profile.active": restoreValue(preBlock.profileActive, true),
+        "profile.isActive": restoreValue(preBlock.profileIsActive, true),
+        lockCatalog: restoreValue(preBlock.lockCatalog, false),
+        lockEdits: restoreValue(preBlock.lockEdits, false),
+        "profile.lockCatalog": restoreValue(preBlock.profileLockCatalog, false),
+        "profile.lockEdits": restoreValue(preBlock.profileLockEdits, false),
+      };
+      await updateDoc(vendorRef, {
+        ...restored,
+        blocked: false,
+        "profile.blocked": false,
+        blockedAt: deleteField(),
+        blockedReason: deleteField(),
+        blockedBy: deleteField(),
+        blockedByUid: deleteField(),
+        updatedAt: timestamp,
+        "profile.blockedAt": deleteField(),
+        "profile.blockedReason": deleteField(),
+        "profile.blockedBy": deleteField(),
+        "profile.blockedByUid": deleteField(),
+        preBlockSnapshot: deleteField(),
+      });
 
       setActionMessage(
-        "Le vendeur a ete debloque. Son dossier repasse en revue."
+        "Le vendeur a ete debloque. Les valeurs precedentes ont ete restaurees."
       );
+      await updatePublicProductsForVendor(true);
       success = true;
     } catch (err) {
       console.error("Erreur deblocage vendeur:", err);
@@ -1077,7 +1197,47 @@ const VendorDetails = () => {
     }
 
     return success;
-  }, [vendor]);
+  }, [vendor, updatePublicProductsForVendor]);
+
+  const handlePartnerToggle = useCallback(
+    async (enabled) => {
+      if (!vendor?.id) return;
+      setActionBusy(true);
+      setActionError(null);
+      setActionMessage(null);
+      try {
+        const timestamp = serverTimestamp();
+        const vendorRef = doc(db, "vendors", vendor.id);
+        await updateDoc(vendorRef, {
+          isPartner: enabled,
+          partner: enabled,
+          "profile.isPartner": enabled,
+          "profile.partner": enabled,
+          updatedAt: timestamp,
+          "profile.updatedAt": timestamp,
+        });
+        setActionMessage(
+          enabled
+            ? "Vendeur marque comme partenaire."
+            : "Vendeur retire des partenaires."
+        );
+      } catch (err) {
+        console.error("Partner toggle failed:", err);
+        setActionError("Impossible de mettre a jour le statut partenaire.");
+      } finally {
+        setActionBusy(false);
+      }
+    },
+    [vendor]
+  );
+
+  const openPartnerConfirm = (enabled) => {
+    setPartnerConfirm({ open: true, enabled });
+  };
+
+  const closePartnerConfirm = () => {
+    setPartnerConfirm({ open: false, enabled: false });
+  };
 
   const handleBlockAllProducts = useCallback(
     async (reason) => {
@@ -1466,6 +1626,10 @@ const VendorDetails = () => {
   const hasProducts = products.length > 0;
   const hasBlockedProducts = blockedProducts.length > 0;
   const canModerateProducts = vendorIdentifiers.length > 0;
+  const isPartner = useMemo(
+    () => getPartnerFlag(vendor, profile),
+    [vendor, profile]
+  );
 
   const statusHistory = useMemo(() => {
     if (!vendor) return [];
@@ -1536,9 +1700,13 @@ const VendorDetails = () => {
             ? "À compléter"
             : "Complet",
       },
+      {
+        label: "Partenaire",
+        value: isPartner ? "Oui" : "Non",
+      },
     ];
     return base;
-  }, [vendor, profile, requiredDocs.length]);
+  }, [vendor, profile, requiredDocs.length, isPartner]);
 
   if (loading) {
     return (
@@ -1587,6 +1755,16 @@ const VendorDetails = () => {
                 ← Retour
               </button>
               <div className="vendorDetails__headerTitle">
+                {coverUrl && (
+                  <div
+                    className="vendorDetails__cover"
+                    onClick={() => setImagePreview(coverUrl)}
+                    role="presentation"
+                  >
+                    <img src={coverUrl} alt="Couverture vendeur" />
+                    <div className="vendorDetails__coverFade" />
+                  </div>
+                )}
                 {logoUrl && (
                   <img
                     src={logoUrl}
@@ -1601,6 +1779,9 @@ const VendorDetails = () => {
             </div>
             <div className="vendorDetails__headerRight">
               <span className="vendorDetails__statusLabel">{vendorStatus}</span>
+              {isPartner && (
+                <span className="vendorDetails__partnerBadge">Partenaire</span>
+              )}
             </div>
           </div>
 
@@ -1656,7 +1837,7 @@ const VendorDetails = () => {
                   <button
                     type="button"
                     className="vendorDetails__actionButton vendorDetails__actionButton--success"
-                    disabled={actionBusy || !isApproved}
+                    disabled={actionBusy}
                     onClick={() => openDialog({ type: "unblockVendor" })}
                   >
                     Debloquer le vendeur
@@ -1669,6 +1850,25 @@ const VendorDetails = () => {
                     onClick={() => openDialog({ type: "blockVendor" })}
                   >
                     Bloquer le vendeur
+                  </button>
+                )}
+                {isPartner ? (
+                  <button
+                    type="button"
+                    className="vendorDetails__actionButton vendorDetails__actionButton--danger"
+                    disabled={actionBusy}
+                    onClick={() => openPartnerConfirm(false)}
+                  >
+                    Retirer partenaire
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="vendorDetails__actionButton vendorDetails__actionButton--success"
+                    disabled={actionBusy}
+                    onClick={() => openPartnerConfirm(true)}
+                  >
+                    Marquer partenaire
                   </button>
                 )}
               </div>
@@ -1687,7 +1887,9 @@ const VendorDetails = () => {
                 <button
                   type="button"
                   className="vendorDetails__actionButton vendorDetails__actionButton--ghost"
-                  disabled={actionBusy || !canModerateProducts || !hasBlockedProducts}
+                  disabled={
+                    actionBusy || !canModerateProducts || !hasBlockedProducts || isBlocked
+                  }
                   onClick={() =>
                     openDialog({ type: "reactivateAllProducts" })
                   }
@@ -2266,6 +2468,28 @@ const VendorDetails = () => {
           </div>
         </div>
       )}
+      <ConfirmModal
+        open={partnerConfirm.open}
+        title={
+          partnerConfirm.enabled
+            ? "Marquer comme partenaire"
+            : "Retirer le statut partenaire"
+        }
+        onClose={closePartnerConfirm}
+        onConfirm={() => {
+          handlePartnerToggle(partnerConfirm.enabled);
+          closePartnerConfirm();
+        }}
+        confirmText="Confirmer"
+        cancelText="Annuler"
+        loading={actionBusy}
+      >
+        <p>
+          {partnerConfirm.enabled
+            ? "Confirmez-vous le marquage de ce vendeur comme partenaire ?"
+            : "Confirmez-vous le retrait du statut partenaire ?"}
+        </p>
+      </ConfirmModal>
       {imagePreview && (
         <div
           className="vendorDetails__imageOverlay"
@@ -2273,7 +2497,7 @@ const VendorDetails = () => {
           role="presentation"
         >
           <div
-            className="vendorDetails__imageModal"
+            className="vendorDetails__imageModal vendorDetails__imageModal--contain"
             onClick={(event) => event.stopPropagation()}
           >
             <button

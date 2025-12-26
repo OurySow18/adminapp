@@ -28,6 +28,9 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import ManageSearchIcon from "@mui/icons-material/ManageSearch";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import BlockIcon from "@mui/icons-material/Block";
+import CampaignIcon from "@mui/icons-material/Campaign";
+import PhotoLibraryIcon from "@mui/icons-material/PhotoLibrary";
+import StarOutlineIcon from "@mui/icons-material/StarOutline";
 import MenuIcon from "@mui/icons-material/Menu";
 import MenuOpenIcon from "@mui/icons-material/MenuOpen";
 import CloseIcon from "@mui/icons-material/Close";
@@ -85,6 +88,7 @@ const Sidbar = () => {
     loading: true,
     error: false,
   });
+  const [marketingMenuOpen, setMarketingMenuOpen] = useState(true);
 
   const vendorMenuItems = useMemo(
     () => [
@@ -257,6 +261,13 @@ const Sidbar = () => {
     () => location.pathname.startsWith("/drivers"),
     [location.pathname]
   );
+  const marketingActiveKey = useMemo(() => {
+    const normalizedPath = location.pathname.replace(/\/+$/, "");
+    if (normalizedPath === "/admin/marketing") return "overview";
+    if (normalizedPath.startsWith("/admin/marketing/banners")) return "banners";
+    if (normalizedPath.startsWith("/admin/marketing/sponsors")) return "sponsors";
+    return null;
+  }, [location.pathname]);
 
   const vendorActiveKey = useMemo(() => {
     const normalizedPath = location.pathname.replace(/\/+$/, "");
@@ -283,6 +294,12 @@ const Sidbar = () => {
       setVendorMenuOpen(true);
     }
   }, [vendorActiveKey, vendorMenuOpen]);
+
+  useEffect(() => {
+    if (marketingActiveKey && !marketingMenuOpen) {
+      setMarketingMenuOpen(true);
+    }
+  }, [marketingActiveKey, marketingMenuOpen]);
 
   const handleToggleClick = () => {
     if (isMobile) {
@@ -356,6 +373,10 @@ const Sidbar = () => {
 
 const toggleVendorProductsMenu = () => {
   setVendorProductsMenuOpen((prev) => !prev);
+};
+
+const toggleMarketingMenu = () => {
+  setMarketingMenuOpen((prev) => !prev);
 };
 
 const logout = async () => {
@@ -475,6 +496,89 @@ return (
               <span>Catalogue publique</span>
             </li>
           </Link>
+          <li className={`menu-group ${marketingMenuOpen ? "open" : ""}`}>
+            <div className="menu-group__header">
+              <Link
+                to="/admin/marketing"
+                style={{ textDecoration: "none" }}
+                className="menu-group__primary"
+                onClick={handleNavLinkClick}
+              >
+                <CampaignIcon className="icon" />
+                <span>Marketing</span>
+              </Link>
+              <button
+                type="button"
+                className={`menu-group__chevron ${
+                  marketingMenuOpen ? "menu-group__chevron--open" : ""
+                }`}
+                onClick={toggleMarketingMenu}
+                aria-label={
+                  marketingMenuOpen
+                    ? "Reduire le sous-menu Marketing"
+                    : "Deployer le sous-menu Marketing"
+                }
+              >
+                <ExpandMoreIcon />
+              </button>
+            </div>
+
+            {marketingMenuOpen && (
+              <ul className="submenu" id="sidebar-marketing-submenu">
+                <li
+                  className={`submenu__item ${
+                    marketingActiveKey === "overview" ? "active" : ""
+                  }`}
+                >
+                  <Link
+                    to="/admin/marketing"
+                    className="submenu__link"
+                    style={{ textDecoration: "none" }}
+                    onClick={handleNavLinkClick}
+                  >
+                    <div className="submenu__linkLabel">
+                      <CampaignIcon className="icon icon--sm" />
+                      <span>Contenu marketing</span>
+                    </div>
+                  </Link>
+                </li>
+                <li
+                  className={`submenu__item ${
+                    marketingActiveKey === "banners" ? "active" : ""
+                  }`}
+                >
+                  <Link
+                    to="/admin/marketing/banners"
+                    className="submenu__link"
+                    style={{ textDecoration: "none" }}
+                    onClick={handleNavLinkClick}
+                  >
+                    <div className="submenu__linkLabel">
+                      <PhotoLibraryIcon className="icon icon--sm" />
+                      <span>Banniere</span>
+                    </div>
+                  </Link>
+                </li>
+                <li
+                  className={`submenu__item ${
+                    marketingActiveKey === "sponsors" ? "active" : ""
+                  }`}
+                >
+                  <Link
+                    to="/admin/marketing/sponsors"
+                    className="submenu__link"
+                    style={{ textDecoration: "none" }}
+                    onClick={handleNavLinkClick}
+                  >
+                    <div className="submenu__linkLabel">
+                      <StarOutlineIcon className="icon icon--sm" />
+                      <span>Sponsors</span>
+                    </div>
+                  </Link>
+                </li>
+              </ul>
+            )}
+          </li>
           <li className={`menu-group ${vendorProductsMenuOpen ? "open" : ""}`}>
             <div className="menu-group__header">
               <Link
