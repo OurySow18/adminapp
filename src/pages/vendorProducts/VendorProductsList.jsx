@@ -51,7 +51,70 @@ const formatDateForSearch = (value) => {
     : "";
 };
 
-const VendorProductsList = () => {
+const MONMARCHE_VENDOR_ID = "89xYCymLLyTSGeAw1oZvNcHLIFO2";
+const MONMARCHE_NAME = "monmarché";
+
+const isValidVendorId = (value) => {
+  if (value === undefined || value === null || value === "") return false;
+  const normalized = String(value).trim();
+  if (!normalized) return false;
+  return normalized !== "_" && normalized !== "root";
+};
+
+const resolveRowVendorId = (row) => {
+  const candidates = [
+    row.vendorId,
+    row.raw?.vendorId,
+    row.raw?.core?.vendorId,
+    row.raw?.draft?.core?.vendorId,
+    row.vendorDisplayId,
+  ];
+  for (const candidate of candidates) {
+    if (isValidVendorId(candidate)) return candidate;
+  }
+  return undefined;
+};
+
+const normalizeLabel = (value) => {
+  if (!value) return "";
+  return String(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+};
+
+const resolveRowVendorName = (row) =>
+  firstValue(
+    row.vendorName,
+    row.raw?.vendorName,
+    row.raw?.core?.vendorName,
+    row.raw?.draft?.core?.vendorName,
+    row.raw?.vendor?.name,
+    row.raw?.vendor?.displayName,
+    row.raw?.vendor?.company?.name,
+    row.raw?.profile?.displayName,
+    row.raw?.profile?.company?.name,
+    row.raw?.company?.name,
+    row.raw?.storeName,
+    row.vendorDisplayId
+  );
+
+const isMonmarcheRow = (row) => {
+  const vendorId = resolveRowVendorId(row);
+  if (vendorId === MONMARCHE_VENDOR_ID) return true;
+  if (row?.vendorDisplayId === MONMARCHE_VENDOR_ID) return true;
+  if (
+    typeof row?.docPath === "string" &&
+    row.docPath.includes(MONMARCHE_VENDOR_ID)
+  ) {
+    return true;
+  }
+  const vendorName = normalizeLabel(resolveRowVendorName(row));
+  return vendorName.includes(MONMARCHE_NAME);
+};
+
+const VendorProductsList = ({ scope = "vendors" }) => {
   const { statusId } = useParams();
 
   const normalizedStatus = useMemo(() => {
@@ -65,12 +128,22 @@ const VendorProductsList = () => {
   const [pageSize, setPageSize] = useState(25);
   const [searchQuery, setSearchQuery] = useState("");
 
+  const scopeFilteredRows = useMemo(() => {
+    if (scope === "monmarche") {
+      return rows.filter((row) => isMonmarcheRow(row));
+    }
+    if (scope === "vendors") {
+      return rows.filter((row) => !isMonmarcheRow(row));
+    }
+    return rows;
+  }, [rows, scope]);
+
   const statusFilteredRows = useMemo(() => {
-    if (!normalizedStatus) return rows;
-    return rows.filter((row) =>
+    if (!normalizedStatus) return scopeFilteredRows;
+    return scopeFilteredRows.filter((row) =>
       doesProductMatchFilter(row, normalizedStatus)
     );
-  }, [rows, normalizedStatus]);
+  }, [scopeFilteredRows, normalizedStatus]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
@@ -117,12 +190,16 @@ const VendorProductsList = () => {
       setRows(dataset);
     } catch (err) {
       console.error("Failed to load vendor products:", err);
-      setError("Impossible de charger les produits vendeurs.");
+      setError(
+        scope === "monmarche"
+          ? "Impossible de charger les produits Monmarché."
+          : "Impossible de charger les produits vendeurs."
+      );
       setRows([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     loadProducts();
@@ -142,12 +219,22 @@ const VendorProductsList = () => {
       renderCell: (params) => {
         const row = params.row;
         const vendorId = encodeURIComponent(row.vendorId || "_");
-        const productId = encodeURIComponent(row.productId);
+        const productId = encodeURIComponent(row.productId || row.id);
+        const monmarcheDocPath =
+          scope === "monmarche" ? `products/${productId}` : null;
         return (
           <div className="vendorProducts__actionsCell">
             <Link
-              to={`/vendor-products/${vendorId}/${productId}`}
-              state={{ source: row.source, docPath: row.docPath }}
+              to={
+                scope === "monmarche"
+                  ? `/vendor-products/_/${productId}`
+                  : `/vendor-products/${vendorId}/${productId}`
+              }
+              state={
+                scope === "monmarche"
+                  ? { source: "products", docPath: monmarcheDocPath }
+                  : { source: row.source, docPath: row.docPath }
+              }
               className="vendorProducts__actionsLink"
             >
               Voir
@@ -157,7 +244,7 @@ const VendorProductsList = () => {
       },
     };
     return vendorProductColumns.concat(actionColumn);
-  }, []);
+  }, [scope]);
 
   if (shouldRedirect) {
     return <Navigate to="/vendor-products" replace />;
@@ -166,6 +253,12 @@ const VendorProductsList = () => {
   const statusLabel = normalizedStatus
     ? getVendorProductFilterLabel(normalizedStatus)
     : null;
+  const baseTitle =
+    scope === "monmarche" ? "Produits Monmarché" : "Produits vendeurs";
+  const descriptionText =
+    scope === "monmarche"
+      ? "Catalogue Monmarché issu de la collection products."
+      : "Gestion des articles issus du catalogue vendeur.";
 
   return (
     <div className="vendorProducts">
@@ -175,12 +268,10 @@ const VendorProductsList = () => {
         <div className="vendorProducts__header">
           <div>
             <h1>
-              {statusLabel
-                ? `Produits vendeurs - ${statusLabel}`
-                : "Produits vendeurs"}
+              {statusLabel ? `${baseTitle} - ${statusLabel}` : baseTitle}
             </h1>
             <p>
-              Gestion des articles issus du catalogue vendeur.{" "}
+              {descriptionText}{" "}
               {displayedRows.length} élément(s) affiché(s).
             </p>
           </div>

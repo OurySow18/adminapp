@@ -54,6 +54,8 @@ import {
 } from "../../utils/vendorProductsRepository";
 import { useSidebar } from "../../context/sidebarContext";
 
+const MONMARCHE_VENDOR_ID = "89xYCymLLyTSGeAw1oZvNcHLIFO2";
+
 const createEmptyVendorStats = () => ({
   total: 0,
   byStatus: VENDOR_STATUS_VALUES.reduce(
@@ -212,7 +214,10 @@ const Sidbar = () => {
     const loadStats = async () => {
       setVendorProductsStatsState({ loading: true, error: false });
       try {
-        const stats = await loadVendorProductStats();
+        const stats = await loadVendorProductStats({
+          excludeVendorIds: [MONMARCHE_VENDOR_ID],
+          excludeVendorName: "monmarche",
+        });
         if (!cancelled) {
           setVendorProductsStats(stats);
           setVendorProductsStatsState({ loading: false, error: false });
@@ -251,6 +256,10 @@ const Sidbar = () => {
 
   const isPublicCatalogActive = useMemo(
     () => location.pathname.startsWith("/catalogue-public"),
+    [location.pathname]
+  );
+  const isMonmarcheProductsActive = useMemo(
+    () => location.pathname.startsWith("/monmarche-products"),
     [location.pathname]
   );
   const isAdminsActive = useMemo(
@@ -579,6 +588,16 @@ return (
               </ul>
             )}
           </li>
+          <Link
+            to="/monmarche-products"
+            style={{ textDecoration: "none" }}
+            onClick={handleNavLinkClick}
+          >
+            <li className={isMonmarcheProductsActive ? "active" : ""}>
+              <Inventory2Icon className="icon" />
+              <span>Produits Monmarché</span>
+            </li>
+          </Link>
           <li className={`menu-group ${vendorProductsMenuOpen ? "open" : ""}`}>
             <div className="menu-group__header">
               <Link

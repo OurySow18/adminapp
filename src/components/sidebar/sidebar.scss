@@ -90,6 +90,10 @@
         border-radius: 8px;
         transition: background 0.2s ease;
 
+        &.active {
+          background-color: #ece8ff;
+        }
+
         &:hover {
           background-color: #ece8ff;
         }

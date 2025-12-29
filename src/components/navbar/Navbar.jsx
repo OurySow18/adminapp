@@ -192,9 +192,12 @@ const Navbar = () => {
       setEndPromptOpen(false);
       return;
     }
+    const promptKey = `workSessionPrompted:${currentUser.uid}:${getTodayId()}`;
     if (resumePromptedRef.current) return;
+    if (sessionStorage.getItem(promptKey) === "true") return;
     if (!activeShift || activeShift.endTime) return;
     resumePromptedRef.current = true;
+    sessionStorage.setItem(promptKey, "true");
     setResumePromptOpen(true);
   }, [currentUser, activeShift]);
 

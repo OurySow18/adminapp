@@ -23,6 +23,7 @@ import {
 } from "../../utils/vendorStatus";
 import { format } from "date-fns";
 
+
 const formatDateTime = (value) => {
   if (!value) return "-";
 
@@ -319,6 +320,7 @@ const VendorDetails = () => {
     vendor?.name ||
     vendor?.companyName ||
     "Vendeur";
+
 
   const vendorIdentifiers = useMemo(() => {
     if (!vendor) return [];

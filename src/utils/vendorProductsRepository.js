@@ -513,6 +513,40 @@ export const loadPublicCatalogRows = async () => {
   return rows;
 };
 
+const normalizeLabel = (value) => {
+  if (!value) return "";
+  return String(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+};
+
+const resolveEntryVendorName = (entry) =>
+  firstValue(
+    entry?.raw?.vendorName,
+    entry?.raw?.core?.vendorName,
+    entry?.raw?.draft?.core?.vendorName,
+    entry?.raw?.vendor?.name,
+    entry?.raw?.vendor?.displayName,
+    entry?.raw?.vendor?.company?.name,
+    entry?.raw?.profile?.displayName,
+    entry?.raw?.profile?.company?.name,
+    entry?.raw?.company?.name,
+    entry?.raw?.storeName,
+    entry?.vendorDisplayId
+  );
+
+const resolveEntryVendorId = (entry) =>
+  firstValue(
+    entry?.vendorDisplayId,
+    entry?.raw?.vendorId,
+    entry?.raw?.core?.vendorId,
+    entry?.raw?.draft?.core?.vendorId,
+    entry?.raw?.vendor?.vendorId,
+    entry?.raw?.vendor?.id
+  );
+
 export const createEmptyVendorProductStats = () => ({
   total: 0,
   byStatus: VENDOR_PRODUCT_FILTER_ORDER.reduce((acc, key) => {
@@ -534,10 +568,25 @@ export const summarizeVendorProductRows = (rows = []) => {
   return stats;
 };
 
-export const loadVendorProductStats = async () => {
+export const loadVendorProductStats = async (options = {}) => {
+  const { excludeVendorIds = [], excludeVendorName = "" } = options;
+  const excludedIds = new Set(
+    Array.isArray(excludeVendorIds) ? excludeVendorIds : []
+  );
+  const excludedName = normalizeLabel(excludeVendorName);
   const entries = await fetchVendorProductEntries();
   const stats = createEmptyVendorProductStats();
   for (const entry of entries) {
+    const entryVendorId = resolveEntryVendorId(entry);
+    if (entryVendorId && excludedIds.has(entryVendorId)) {
+      continue;
+    }
+    if (excludedName) {
+      const vendorName = normalizeLabel(resolveEntryVendorName(entry));
+      if (vendorName.includes(excludedName)) {
+        continue;
+      }
+    }
     stats.total += 1;
     const flags = extractVendorProductFlags(entry.raw);
     const candidate = {

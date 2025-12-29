@@ -196,7 +196,7 @@ function App() {
                 index
                 element={
                   <RequireAuth>
-                    <VendorProductsList />
+                    <VendorProductsList scope="vendors" />
                   </RequireAuth>
                 }
               />
@@ -204,7 +204,7 @@ function App() {
                 path="status/:statusId"
                 element={
                   <RequireAuth>
-                    <VendorProductsList />
+                    <VendorProductsList scope="vendors" />
                   </RequireAuth>
                 }
               />
@@ -221,6 +221,18 @@ function App() {
                 element={
                   <RequireAuth>
                     <VendorProductDetails />
+                  </RequireAuth>
+                }
+              />
+            </Route>
+
+            {/*Monmarche products*/}
+            <Route path="monmarche-products">
+              <Route
+                index
+                element={
+                  <RequireAuth>
+                    <VendorProductsList scope="monmarche" />
                   </RequireAuth>
                 }
               />
