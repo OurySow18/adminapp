@@ -82,12 +82,26 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
+  align-items: start;
 }
 
 .formRow {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.formField label {
+  font-weight: 600;
+  color: #1f2937;
+  max-width: 100%;
+  word-break: break-word;
 }
 
 .formRow label {
@@ -114,6 +128,18 @@
   min-height: 42px;
 }
 
+.formField input,
+.formField select {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 14px;
+  background: #f8fafc;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 42px;
+}
+
 .formRow input[list] {
   background-image: none;
   padding-right: 12px;
@@ -122,6 +148,11 @@
 .formRow input[list]::-webkit-calendar-picker-indicator {
   opacity: 0;
   display: none;
+}
+
+.marketingPage__form .button.primary {
+  align-self: flex-start;
+  min-width: 220px;
 }
 
 .badgeField {
@@ -314,6 +345,8 @@
 }
 
 .bannerTable {
+  --banner-columns: minmax(0, 2.2fr) minmax(0, 0.8fr) minmax(0, 1.2fr)
+    minmax(0, 0.7fr) minmax(0, 0.7fr) minmax(0, 1.3fr);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -322,7 +355,7 @@
 .bannerTable__head,
 .bannerTable__row {
   display: grid;
-  grid-template-columns: 1.4fr 0.9fr 2fr 0.6fr 0.6fr 1.1fr;
+  grid-template-columns: var(--banner-columns);
   gap: 8px;
   align-items: center;
 }
@@ -348,6 +381,7 @@
 .bannerTable__cell {
   display: block;
   color: #374151;
+  min-width: 0;
 }
 
 .bannerTable__cell--strong {
@@ -355,6 +389,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .marketingPage__search {
@@ -402,6 +437,12 @@
   border-color: #e5e7eb;
 }
 
+.bannerTable__actions .ghost.danger {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
 .ghost:hover,
 .button:hover {
   transform: translateY(-1px);
@@ -413,6 +454,19 @@
   background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   color: #fff;
   border-color: #1d4ed8;
+}
+
+.marketingPage__form .marketingPage__card {
+  margin: 16px 0;
+}
+
+.marketingPage__form .marketingPage__card img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 10px;
+  margin: 10px 0;
+  background: #f8fafc;
 }
 
 .pill {
@@ -498,6 +552,20 @@
   }
 }
 
+@media (max-width: 640px) {
+  .bannerTable__actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bannerTable__actions .ghost,
+  .bannerTable__actions .button {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 @media (max-width: 960px) {
   .marketingPage__content {
     padding: 16px;
@@ -533,6 +601,13 @@
 
   .bannerTable__actions {
     width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .marketingPage__form .button.primary {
+    width: 100%;
+    align-self: stretch;
   }
 }
 

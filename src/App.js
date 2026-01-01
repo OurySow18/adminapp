@@ -44,6 +44,8 @@ import BannerList from "./pages/marketing/BannerList";
 import BannerEditor from "./pages/marketing/BannerEditor";
 import SponsorList from "./pages/marketing/SponsorList";
 import SponsorEditor from "./pages/marketing/SponsorEditor";
+import BestsellerList from "./pages/marketing/BestsellerList";
+import BestsellerEditor from "./pages/marketing/BestsellerEditor";
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -276,6 +278,30 @@ function App() {
               element={
                 <RequireAuth>
                   <BannerEditor />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/marketing/bestsellers"
+              element={
+                <RequireAuth>
+                  <BestsellerList />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/marketing/bestsellers/new"
+              element={
+                <RequireAuth>
+                  <BestsellerEditor />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/marketing/bestsellers/:bestsellerId"
+              element={
+                <RequireAuth>
+                  <BestsellerEditor />
                 </RequireAuth>
               }
             />

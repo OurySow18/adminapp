@@ -24,6 +24,12 @@ const MarketingOverview = () => (
               <p>Créez les visuels principaux et contenus de marque.</p>
             </div>
           </Link>
+          <Link to="/admin/marketing/bestsellers" className="marketingPage__cardLink">
+            <div className="marketingPage__card">
+              <h2>Bestsellers</h2>
+              <p>Gérez les produits les plus mis en avant.</p>
+            </div>
+          </Link>
           <Link to="/admin/marketing/sponsors" className="marketingPage__cardLink">
             <div className="marketingPage__card">
               <h2>Sponsors</h2>

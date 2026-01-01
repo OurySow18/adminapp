@@ -31,6 +31,7 @@ import BlockIcon from "@mui/icons-material/Block";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import PhotoLibraryIcon from "@mui/icons-material/PhotoLibrary";
 import StarOutlineIcon from "@mui/icons-material/StarOutline";
+import WhatshotIcon from "@mui/icons-material/Whatshot";
 import MenuIcon from "@mui/icons-material/Menu";
 import MenuOpenIcon from "@mui/icons-material/MenuOpen";
 import CloseIcon from "@mui/icons-material/Close";
@@ -274,6 +275,8 @@ const Sidbar = () => {
     const normalizedPath = location.pathname.replace(/\/+$/, "");
     if (normalizedPath === "/admin/marketing") return "overview";
     if (normalizedPath.startsWith("/admin/marketing/banners")) return "banners";
+    if (normalizedPath.startsWith("/admin/marketing/bestsellers"))
+      return "bestsellers";
     if (normalizedPath.startsWith("/admin/marketing/sponsors")) return "sponsors";
     return null;
   }, [location.pathname]);
@@ -565,6 +568,23 @@ return (
                     <div className="submenu__linkLabel">
                       <PhotoLibraryIcon className="icon icon--sm" />
                       <span>Banniere</span>
+                    </div>
+                  </Link>
+                </li>
+                <li
+                  className={`submenu__item ${
+                    marketingActiveKey === "bestsellers" ? "active" : ""
+                  }`}
+                >
+                  <Link
+                    to="/admin/marketing/bestsellers"
+                    className="submenu__link"
+                    style={{ textDecoration: "none" }}
+                    onClick={handleNavLinkClick}
+                  >
+                    <div className="submenu__linkLabel">
+                      <WhatshotIcon className="icon icon--sm" />
+                      <span>Bestseller</span>
                     </div>
                   </Link>
                 </li>

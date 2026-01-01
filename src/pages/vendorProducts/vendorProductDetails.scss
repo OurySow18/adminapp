@@ -408,6 +408,10 @@
   border: 1px solid #e2e8f0;
 }
 
+.vendorProductDetails__deliveryItem--full {
+  grid-column: 1 / -1;
+}
+
 .vendorProductDetails__deliveryLabel {
   font-size: 12px;
   font-weight: 700;

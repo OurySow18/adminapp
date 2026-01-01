@@ -1,69 +1,421 @@
 .app.dark{
-    background-color: #111;
-    color: rgb(156, 156, 156);
+    --dark-bg: #0b1120;
+    --dark-surface: #111827;
+    --dark-surface-2: #0f172a;
+    --dark-border: #1f2937;
+    --dark-text: #e2e8f0;
+    --dark-muted: #94a3b8;
+    --dark-accent: #ff6f00;
+
+    background-color: var(--dark-bg);
+    color: var(--dark-text);
 
     .chatGrid{
         stroke: rgba(228, 228, 228, 0.219);
     }
 
     .table{
-        background-color: #111;
+        background-color: var(--dark-surface-2);
 
         .tableCell{
-            color: gray;
+            color: var(--dark-text);
         }
     }
 
     .navbar{
-        color: #999;
-        border-color: #333;
+        color: var(--dark-text);
+        border-color: var(--dark-border);
+        background-color: var(--dark-surface-2);
 
         .search{
-            border-color: gray;
+            border-color: var(--dark-border);
+        }
+
+        .navbar__roleBadge {
+            background-color: rgba(148, 163, 184, 0.12);
+            color: var(--dark-text);
+        }
+
+        .navbar__userLabel {
+            color: var(--dark-muted);
         }
     }
 
     .sidebar {
-        background-color: #111;
-        border-color: #333;
+        background-color: var(--dark-surface-2);
+        border-color: var(--dark-border);
 
         .top{
             .logo{
-                color: #333;
+                color: var(--dark-muted);
             }
         }
 
         hr{
-            border-color: #333;
+            border-color: var(--dark-border);
         }
 
         ul{
             li{
                &:hover{
-                   background-color: #333;
+                   background-color: rgba(148, 163, 184, 0.12);
                } 
 
                .icon{
-                   color: #999;
+                   color: var(--dark-muted);
                }
+
+               span{
+                   color: var(--dark-muted);
+               }
+            }
+
+            .menu-group__header {
+                color: var(--dark-text);
+            }
+
+            .menu-group__primary {
+                color: var(--dark-text);
+
+                &:hover {
+                    background-color: rgba(148, 163, 184, 0.12);
+                }
+            }
+
+            .menu-group__chevron {
+                color: var(--dark-muted);
+            }
+
+            .submenu {
+                .submenu__item {
+                    &.active,
+                    &:hover {
+                        background-color: rgba(148, 163, 184, 0.12);
+                    }
+                }
+
+                .submenu__link {
+                    color: var(--dark-text);
+                }
+
+                .submenu__badge {
+                    background-color: rgba(148, 163, 184, 0.2);
+                    color: var(--dark-text);
+                }
             }
         }
     }
 
     .datatable{
+        background: var(--dark-surface);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+        .datatableTitle{
+            color: var(--dark-text);
+        }
+
+        .datatableTitle__search{
+            background-color: var(--dark-surface-2);
+            border-color: var(--dark-border);
+            color: var(--dark-text);
+        }
+
     .datagrid{
-            color: gray;
+            color: var(--dark-text);
             border: none;
 
             .viewButton, 
             .deleteButton,
             .cellWithStatus{
-                color: gray;
+                color: var(--dark-text);
                 border: none;
             }
         }
     }
-    input{
-        background-color: transparent;
+
+    .home,
+    .vendorProducts,
+    .vendorDetails,
+    .marketing,
+    .list,
+    .single,
+    .new,
+    .order,
+    .delivery{
+        background-color: var(--dark-bg);
+    }
+
+    .home .listContainer,
+    .order .listContainer,
+    .vendorProducts__table,
+    .vendorDetails__card,
+    .vendorDetails__header,
+    .vendorDetails__productRow,
+    .vendorDetails__productsTable,
+    .vendorDetails__infoGrid--highlight,
+    .marketingPage__card,
+    .marketingPage__listTable,
+    .widget{
+        background-color: var(--dark-surface);
+        color: var(--dark-text);
+        border-color: var(--dark-border);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .marketingPage__container{
+        background: linear-gradient(180deg, #0b1120 0%, #0f172a 100%);
+    }
+
+    .marketingPage__header h1,
+    .marketingPage__listHeader h2{
+        color: var(--dark-text);
+    }
+
+    .marketingPage__header .subtitle,
+    .marketingPage__header .eyebrow,
+    .marketingPage__listHeader .eyebrow{
+        color: var(--dark-muted);
+    }
+
+    .marketingPage__form,
+    .marketingPage__list{
+        background: var(--dark-surface);
+        border-color: var(--dark-border);
+        box-shadow: 0 18px 32px rgba(0, 0, 0, 0.35);
+    }
+
+    .marketingPage__search,
+    .formRow input,
+    .formRow select,
+    .badgeField__list{
+        background-color: var(--dark-surface-2);
+        color: var(--dark-text);
+        border-color: var(--dark-border);
+    }
+
+    .badgeField__option{
+        background-color: #0b1220;
+        color: var(--dark-text);
+    }
+
+    .badgeField__option:hover{
+        background-color: rgba(99, 102, 241, 0.2);
+        border-color: rgba(99, 102, 241, 0.35);
+    }
+
+    .bannerTable__head{
+        background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+        color: var(--dark-text);
+    }
+
+    .bannerTable__row{
+        background: var(--dark-surface-2);
+        border-color: var(--dark-border);
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+    }
+
+    .bannerTable__cell{
+        color: var(--dark-text);
+    }
+
+    .bannerTable__meta{
+        color: var(--dark-muted);
+    }
+
+    .pill--gray{
+        background: rgba(148, 163, 184, 0.18);
+        color: var(--dark-text);
+        border-color: rgba(148, 163, 184, 0.28);
+    }
+
+    .marketingPage__header .ghost,
+    .marketingPage__header .button,
+    .bannerTable__actions .ghost,
+    .bannerTable__actions .button{
+        color: #fff;
+    }
+
+    .bannerTable__actions .ghost.neutral{
+        background: rgba(148, 163, 184, 0.2);
+        border-color: rgba(148, 163, 184, 0.45);
+        color: var(--dark-text);
+    }
+
+    .bannerTable__actions .ghost.danger{
+        background: rgba(248, 113, 113, 0.2);
+        border-color: rgba(248, 113, 113, 0.5);
+        color: #fecaca;
+    }
+
+    .widget{
+        .title{
+            color: #cbd5f5;
+        }
+
+        .counter{
+            color: #ffffff;
+        }
+
+        .substats__item{
+            background: rgba(15, 23, 42, 0.8);
+            border-color: rgba(148, 163, 184, 0.2);
+            color: #e2e8f0;
+        }
+
+        .link{
+            color: #ffffff;
+            border-color: rgba(255, 255, 255, 0.7);
+        }
+    }
+
+    .vendorProducts__header h1,
+    .vendorProducts__header p,
+    .order .listTitle,
+    .listOrderTitel,
+    .vendorDetails__actionsMeta,
+    .vendorDetails__statLabel,
+    .vendorDetails__statValue{
+        color: var(--dark-text);
+    }
+
+    .order .listTitle{
+        color: var(--dark-text);
+    }
+
+    .vendorProducts__header p{
+        color: var(--dark-muted);
+    }
+
+    .vendorProducts__searchInput{
+        background-color: var(--dark-surface-2);
+        color: var(--dark-text);
+        border-color: var(--dark-border);
+    }
+
+    .vendorProducts__refresh{
+        background-color: #ff6f00;
+        color: #fff;
+    }
+
+    .vendorProducts__table{
+        background-color: var(--dark-surface);
+    }
+
+    .vendorProducts__datagrid{
+        color: var(--dark-text);
+    }
+
+    .vendorProducts__datagrid .MuiDataGrid-columnHeaders,
+    .vendorProducts__datagrid .MuiDataGrid-cell{
+        color: var(--dark-text);
+    }
+
+    .vendorProducts__datagrid .MuiDataGrid-columnHeaders{
+        background-color: var(--dark-surface-2);
+        border-bottom: 1px solid var(--dark-border);
+    }
+
+    .vendorProducts__datagrid .MuiDataGrid-row{
+        border-bottom: 1px solid var(--dark-border);
+    }
+
+    .vendorProducts__datagrid .cellWithImg--product .cellImg{
+        background: #0b1220;
+        border-color: var(--dark-border);
+    }
+
+    .vendorProducts__actionsLink{
+        color: #ffb37a;
+        border-color: rgba(255, 179, 122, 0.4);
+    }
+
+    .vendorProducts__actionsLink:hover{
+        background: rgba(255, 179, 122, 0.12);
+    }
+
+    .listOrder{
+        color: var(--dark-text);
+    }
+
+    .listOrderTitel{
+        color: var(--dark-text);
+    }
+
+    .listTitle{
+        color: var(--dark-text);
+    }
+
+    .listOrder__searchInput{
+        background-color: var(--dark-surface-2);
+        color: var(--dark-text);
+        border-color: var(--dark-border);
+    }
+
+    .listOrder__gridWrapper .datagrid,
+    .listOrder__gridWrapper .MuiDataGrid-root{
+        color: var(--dark-text);
+        background-color: var(--dark-surface);
+    }
+
+    .listOrder__gridWrapper .MuiDataGrid-columnHeaders{
+        background-color: var(--dark-surface-2);
+        border-bottom: 1px solid var(--dark-border);
+    }
+
+    .listOrder__gridWrapper .MuiDataGrid-columnHeaderTitle,
+    .listOrder__gridWrapper .MuiDataGrid-cell,
+    .listOrder__gridWrapper .MuiDataGrid-cellContent{
+        color: var(--dark-text) !important;
+    }
+
+    .listOrder__gridWrapper .MuiDataGrid-row{
+        border-bottom: 1px solid var(--dark-border);
+    }
+
+    .listOrder__gridWrapper .MuiCheckbox-root,
+    .listOrder__gridWrapper .MuiSvgIcon-root{
+        color: var(--dark-text) !important;
+    }
+
+    .listOrder__gridWrapper .MuiDataGrid-footerContainer,
+    .listOrder__gridWrapper .MuiTablePagination-root{
+        color: var(--dark-text);
+        border-top: 1px solid var(--dark-border);
+    }
+
+    .listOrder__gridWrapper .datagrid .cellAction .viewButton{
+        color: #93c5fd;
+        border-color: rgba(147, 197, 253, 0.5);
+    }
+
+    .MuiDataGrid-root{
+        color: var(--dark-text);
+        background-color: var(--dark-surface);
+        border-color: var(--dark-border);
+    }
+
+    .MuiDataGrid-root .MuiDataGrid-cell,
+    .MuiDataGrid-root .MuiDataGrid-columnHeaderTitle,
+    .MuiDataGrid-root .MuiDataGrid-cellContent,
+    .MuiDataGrid-root .MuiTablePagination-root,
+    .MuiDataGrid-root .MuiDataGrid-footerContainer{
+        color: var(--dark-text) !important;
+    }
+
+    .MuiDataGrid-root .MuiDataGrid-columnHeaders{
+        background-color: var(--dark-surface-2);
+        border-bottom: 1px solid var(--dark-border);
+    }
+
+    .MuiDataGrid-root .MuiDataGrid-row{
+        border-bottom: 1px solid var(--dark-border);
+    }
+
+    input,
+    textarea,
+    select{
+        background-color: var(--dark-surface-2);
+        color: var(--dark-text);
+        border-color: var(--dark-border);
     }
 }

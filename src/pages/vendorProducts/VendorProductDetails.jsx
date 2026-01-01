@@ -319,18 +319,27 @@ const VendorProductDetails = () => {
 
   const deliveryInfo = useMemo(() => {
     const get = (...paths) => firstValue(...paths);
+    const fulfillment =
+      get(product?.fulfillment, product?.core?.fulfillment, product?.draft?.core?.fulfillment) ||
+      {};
     const type = get(
       product?.deliveryType,
       product?.core?.deliveryType,
       product?.draft?.core?.deliveryType,
       product?.attributes?.deliveryType,
       product?.core?.attributes?.deliveryType,
-      product?.draft?.core?.attributes?.deliveryType
+      product?.draft?.core?.attributes?.deliveryType,
+      fulfillment?.deliveryType
     );
     const zones = get(
       product?.deliveryZones,
       product?.core?.deliveryZones,
-      product?.draft?.core?.deliveryZones
+      product?.draft?.core?.deliveryZones,
+      fulfillment?.vendorDeliveryAreas,
+      fulfillment?.vendorShipping?.localAreas,
+      fulfillment?.vendorShipping?.pickupPoints,
+      fulfillment?.vendorShipping?.nationalCarriers,
+      fulfillment?.vendorShipping?.internationalCarriers
     );
     const fee = get(
       product?.deliveryFee,
@@ -352,14 +361,149 @@ const VendorProductDetails = () => {
       product?.draft?.core?.deliveryTime,
       product?.shippingTime,
       product?.core?.shippingTime,
-      product?.draft?.core?.shippingTime
+      product?.draft?.core?.shippingTime,
+      fulfillment?.leadTimeDays
     );
     const mode = get(
       product?.deliveryMethod,
       product?.core?.deliveryMethod,
       product?.draft?.core?.deliveryMethod
     );
-    return { type, zones, fee, delay, mode };
+    const shippedBy = get(
+      fulfillment?.shippedBy,
+      product?.shippedBy,
+      product?.core?.shippedBy,
+      product?.draft?.core?.shippedBy
+    );
+    const deliveryOptions = get(
+      fulfillment?.deliveryOptions,
+      product?.deliveryOptions,
+      product?.core?.deliveryOptions,
+      product?.draft?.core?.deliveryOptions
+    );
+    const note = get(
+      fulfillment?.deliveryNote,
+      product?.deliveryNote,
+      product?.core?.deliveryNote,
+      product?.draft?.core?.deliveryNote
+    );
+
+    const currency = get(
+      product?.currency,
+      product?.pricing?.currency,
+      product?.core?.pricing?.currency,
+      product?.draft?.core?.pricing?.currency
+    );
+
+    const normalizeList = (value) =>
+      Array.isArray(value) ? value : value ? [value] : [];
+    const unique = (items) =>
+      Array.from(new Set(items.filter((item) => item !== undefined && item !== null && item !== "")));
+
+    const optionLabels = {
+      pickup: "Retrait",
+      local_delivery: "Livraison locale",
+      carrier: "Transporteur",
+      digital: "Digital",
+    };
+    const shippedByLabels = {
+      vendor: "Expédié par le vendeur",
+      platform: "Expédié par Monmarché",
+    };
+
+    const deliveryOptionValues = normalizeList(deliveryOptions).map((opt) => {
+      if (typeof opt === "string") return optionLabels[opt] || opt;
+      return "";
+    });
+
+    const shippingModes = [];
+    if (fulfillment?.vendorShipping?.localAreas?.length) {
+      shippingModes.push("Livraison locale");
+    }
+    if (fulfillment?.vendorShipping?.nationalCarriers?.length) {
+      shippingModes.push("Transporteur national");
+    }
+    if (fulfillment?.vendorShipping?.internationalCarriers?.length) {
+      shippingModes.push("Transporteur international");
+    }
+    if (fulfillment?.vendorShipping?.pickupPoints?.length) {
+      shippingModes.push("Point de retrait");
+    }
+
+    const modeValues = unique([
+      shippedByLabels[shippedBy] || shippedBy,
+      ...deliveryOptionValues,
+      ...shippingModes,
+      mode,
+      type,
+    ]).filter(Boolean);
+
+    const areaNames = [];
+    const rawZones = normalizeList(zones);
+    rawZones.forEach((entry) => {
+      if (!entry) return;
+      if (typeof entry === "string") {
+        areaNames.push(entry);
+        return;
+      }
+      if (typeof entry === "object") {
+        if (entry.city) areaNames.push(entry.city);
+        if (entry.coverage) areaNames.push(entry.coverage);
+        if (entry.label) areaNames.push(entry.label);
+        if (entry.address) areaNames.push(entry.address);
+      }
+    });
+
+    const fees = [];
+    rawZones.forEach((entry) => {
+      if (entry && typeof entry === "object") {
+        if (typeof entry.fee === "number") fees.push(entry.fee);
+        if (typeof entry.baseFee === "number") fees.push(entry.baseFee);
+      }
+    });
+
+    const delays = [];
+    rawZones.forEach((entry) => {
+      if (entry && typeof entry === "object") {
+        if (typeof entry.minDelayDays === "number") delays.push(`${entry.minDelayDays}j`);
+        if (typeof entry.maxDelayDays === "number") delays.push(`${entry.maxDelayDays}j`);
+        if (entry.estimatedDays) delays.push(String(entry.estimatedDays));
+      }
+    });
+
+    const formatFee = (value) => {
+      if (value === undefined || value === null || value === "") return "";
+      const printable =
+        typeof value === "number" ? value.toLocaleString("fr-FR") : String(value);
+      return currency ? `${printable} ${currency}` : printable;
+    };
+
+    const feeValue =
+      fee !== undefined && fee !== null && fee !== ""
+        ? formatFee(fee)
+        : fees.length
+        ? formatFee(Math.min(...fees)) +
+          (Math.max(...fees) !== Math.min(...fees)
+            ? ` - ${formatFee(Math.max(...fees))}`
+            : "")
+        : "";
+
+    const delayValue =
+      delay !== undefined && delay !== null && delay !== ""
+        ? typeof delay === "number"
+          ? `${delay} j`
+          : String(delay)
+        : delays.length
+        ? unique(delays).join(", ")
+        : "";
+
+    return {
+      modeLabel: modeValues.join(" · "),
+      zonesLabel: unique(areaNames).join(", "),
+      feeLabel: feeValue,
+      delayLabel: delayValue,
+      note,
+    };
   }, [product]);
 
   useEffect(() => {
@@ -1842,31 +1986,35 @@ const VendorProductDetails = () => {
                     <div className="vendorProductDetails__deliveryItem">
                       <span className="vendorProductDetails__deliveryLabel">Mode</span>
                       <span className="vendorProductDetails__deliveryValue">
-                        {deliveryInfo.mode || deliveryInfo.type || "—"}
+                        {deliveryInfo.modeLabel || "—"}
                       </span>
                     </div>
                     <div className="vendorProductDetails__deliveryItem">
                       <span className="vendorProductDetails__deliveryLabel">Zones / périmètre</span>
                       <span className="vendorProductDetails__deliveryValue">
-                        {Array.isArray(deliveryInfo.zones)
-                          ? deliveryInfo.zones.join(", ")
-                          : deliveryInfo.zones || "—"}
+                        {deliveryInfo.zonesLabel || "—"}
                       </span>
                     </div>
                     <div className="vendorProductDetails__deliveryItem">
                       <span className="vendorProductDetails__deliveryLabel">Frais</span>
                       <span className="vendorProductDetails__deliveryValue">
-                        {deliveryInfo.fee !== undefined && deliveryInfo.fee !== null && deliveryInfo.fee !== ""
-                          ? deliveryInfo.fee
-                          : "—"}
+                        {deliveryInfo.feeLabel || "—"}
                       </span>
                     </div>
                     <div className="vendorProductDetails__deliveryItem">
                       <span className="vendorProductDetails__deliveryLabel">Délai estimé</span>
                       <span className="vendorProductDetails__deliveryValue">
-                        {deliveryInfo.delay || "—"}
+                        {deliveryInfo.delayLabel || "—"}
                       </span>
                     </div>
+                    {deliveryInfo.note ? (
+                      <div className="vendorProductDetails__deliveryItem vendorProductDetails__deliveryItem--full">
+                        <span className="vendorProductDetails__deliveryLabel">Note</span>
+                        <span className="vendorProductDetails__deliveryValue">
+                          {deliveryInfo.note}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
                 </section>
               </section>

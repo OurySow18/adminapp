@@ -51,6 +51,7 @@ const Navbar = () => {
   const [startTasks, setStartTasks] = useState("");
   const [stopSummary, setStopSummary] = useState("");
   const [stopAchieved, setStopAchieved] = useState(null);
+  const [adminProfile, setAdminProfile] = useState(null);
   const [resumePromptOpen, setResumePromptOpen] = useState(false);
   const [endPromptOpen, setEndPromptOpen] = useState(false);
   const [endTimeValue, setEndTimeValue] = useState("");
@@ -142,6 +143,7 @@ const Navbar = () => {
       if (!currentUser) {
         setRoleLabel("");
         setUserLabel("");
+        setAdminProfile(null);
         return;
       }
 
@@ -160,8 +162,10 @@ const Navbar = () => {
         const adminDocSnap = await getDoc(adminDocRef);
 
         if (adminDocSnap.exists()) {
+          setAdminProfile(adminDocSnap.data() || null);
           setRoleLabel("Administrateur");
         } else {
+          setAdminProfile(null);
           // Si tu veux, tu peux laisser vide ou mettre "Utilisateur"
           setRoleLabel("");
         }
@@ -173,6 +177,16 @@ const Navbar = () => {
 
     fetchRole();
   }, [currentUser]);
+
+  const adminAvatar = useMemo(() => {
+    if (adminProfile?.img) return adminProfile.img;
+    if (adminProfile?.photoURL) return adminProfile.photoURL;
+    if (adminProfile?.avatarUrl) return adminProfile.avatarUrl;
+    if (adminProfile?.profile?.avatarUrl) return adminProfile.profile.avatarUrl;
+    if (adminProfile?.profile?.photoURL) return adminProfile.profile.photoURL;
+    if (currentUser?.photoURL) return currentUser.photoURL;
+    return Bild;
+  }, [adminProfile, currentUser]);
 
   useEffect(() => {
     if (!todayDocRef) {
@@ -587,7 +601,7 @@ const Navbar = () => {
             <div className="counter">2</div>
           </div>
           <div className="item">
-            <img src={Bild} alt="" className="avatar" />
+            <img src={adminAvatar} alt="" className="avatar" />
           </div>
         </div>
       </div>

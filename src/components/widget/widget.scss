@@ -1,16 +1,19 @@
 .widget{
-    display: flex ;
+    display: flex;
     margin-right: 20px;
     justify-content: space-between;
+    gap: 14px;
     flex: 1;
-    padding: 10px;
+    padding: 16px 18px;
 
     -webkit-box-shadow: 5px 4px 13px -7px #000000; 
     box-shadow: 5px 4px 13px -7px #000000;
     border-radius: 10px;
-    height: 100px;
+    min-height: 100px;
+    height: auto;
     color: inherit;
     text-decoration: none;
+    background: #fff;
 
     .left, 
     .right {
@@ -19,26 +22,54 @@
         justify-content: space-between;
 
         .title{
-            font-weight: bold;
-            font-style: 14px;
-            color: rgb(169, 160, 160);
+            font-weight: 700;
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #8a94a6;
         }
 
         .counter{
-            font-size : 28px;
-            font-weight: 300px;
+            font-size: 30px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.1;
+        }
+
+        .substats {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-size: 11px;
+            color: #6b7280;
+
+            .substats__item {
+                display: inline-flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                padding: 4px 8px;
+                border-radius: 999px;
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
+            }
         }
 
         .link{
             width: max-content;
-            font-size : 12px;
-            border-bottom: 1px solid gray;
+            font-size: 12px;
+            font-weight: 600;
+            color: #0f172a;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 2px;
+            transition: color 0.2s ease, border-color 0.2s ease;
         }
 
         .percentage{
             display: flex;
             align-items: center;
             font-size : 14px;
+            font-weight: 600;
 
             &.positive{
                 color: green;
@@ -50,8 +81,8 @@
 
         .icon{
             font-style: 18px;
-            padding: 5px; 
-            border-radius: 5px;
+            padding: 8px; 
+            border-radius: 10px;
             align-self: flex-end;
         }
     }
