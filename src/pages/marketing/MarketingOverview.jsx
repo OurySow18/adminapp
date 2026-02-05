@@ -26,8 +26,8 @@ const MarketingOverview = () => (
           </Link>
           <Link to="/admin/marketing/bestsellers" className="marketingPage__cardLink">
             <div className="marketingPage__card">
-              <h2>Bestsellers</h2>
-              <p>Gérez les produits les plus mis en avant.</p>
+              <h2>Recommandés</h2>
+              <p>Gérez les produits recommandés.</p>
             </div>
           </Link>
           <Link to="/admin/marketing/sponsors" className="marketingPage__cardLink">

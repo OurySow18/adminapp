@@ -72,6 +72,7 @@ const PublicCatalogList = () => {
     loadProducts();
   }, [loadProducts]);
 
+
   const filteredRows = useMemo(() => {
     const normalizedSearch = searchQuery.trim().toLowerCase();
     if (!normalizedSearch) return rows;

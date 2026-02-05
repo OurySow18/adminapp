@@ -9,6 +9,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
+import { ensureUniqueSlug } from "./slugUtils";
 const firstValue = (...values) => {
   for (const value of values) {
     if (value !== undefined && value !== null && value !== "") {
@@ -739,6 +740,18 @@ export const updateVendorProductAdminStatus = async ({
       if (vendorName && !sanitizedPayload.vendorName) {
         sanitizedPayload.vendorName = vendorName;
       }
+      if (!publicSnap.exists() || !publicSnap.data()?.slug) {
+        const titleCandidate =
+          sanitizedPayload.title ||
+          sanitizedPayload.name ||
+          productData?.title ||
+          productData?.name ||
+          productData?.core?.title ||
+          productData?.core?.name;
+        if (titleCandidate) {
+          sanitizedPayload.slug = await ensureUniqueSlug(titleCandidate, productId);
+        }
+      }
     }
     const payload = shouldHydrate
       ? { ...sanitizedPayload, ...basePayload }
@@ -778,7 +791,21 @@ export const applyVendorProductDraftChanges = async ({
   const publicSnap = await getDoc(publicRef);
   const writes = [];
   if (publicSnap.exists()) {
-    writes.push(setDoc(publicRef, valuesPayload, { merge: true }));
+    let slugPayload = {};
+    if (!publicSnap.data()?.slug) {
+      const titleCandidate =
+        productData?.title ||
+        productData?.name ||
+        productData?.core?.title ||
+        productData?.core?.name;
+      if (titleCandidate) {
+        const slug = await ensureUniqueSlug(titleCandidate, productId);
+        if (slug) {
+          slugPayload = { slug };
+        }
+      }
+    }
+    writes.push(setDoc(publicRef, { ...valuesPayload, ...slugPayload }, { merge: true }));
   }
 
   const refsToWrite = await collectVendorProductRefs({

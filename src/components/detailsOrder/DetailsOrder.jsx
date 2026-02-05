@@ -1,4 +1,3 @@
-//import "./detailsOrder.scss";
 import "../../style/orderDetails.scss"
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -6,6 +5,7 @@ import Sidebar from "../sidebar/Sidebar";
 import Navbar from "../navbar/Navbar";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
+import { resolveOrderDate } from "../../utils/orderDate";
 
 import { db } from "../../firebase";
 import {
@@ -14,11 +14,12 @@ import {
   updateDoc,
   setDoc,
   collection,
+  increment,
 } from "firebase/firestore";
 
 const DetailsOrder = ({ title, btnValidation }) => {
   const [orderDetails, setOrderDetails] = useState([]);
-  const isProcessing = false;
+  const [isProcessing, setIsProcessing] = useState(false);
   const navigate = useNavigate();
   const params = useParams();
 
@@ -60,10 +61,8 @@ const DetailsOrder = ({ title, btnValidation }) => {
     }
   };
   const generatePrintContent = () => {
-    const currentDate = new Date();
-    const formattedDate = `${currentDate.getDate()}/${
-      currentDate.getMonth() + 1
-    }/${currentDate.getFullYear()}`;
+    const orderDate = resolveOrderDate(orderDetails);
+    const formattedDate = format(orderDate, "dd/MM/yyyy");
 
     const headerContent = `
       <div class="invoice-header">
@@ -483,6 +482,93 @@ const DetailsOrder = ({ title, btnValidation }) => {
     }
   };
 
+  const fakeOrderEmailHtml = (message) => `
+    <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Information sur votre commande - MonMarche</title></head>
+    <body style="font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif">
+      <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #eee">
+        <div style="background:#ff6f00;color:#fff;padding:12px;text-align:center">
+          <h1 style="margin:0;font-size:20px">Information Importante</h1>
+        </div>
+        <div style="padding:20px">
+          <p>Bonjour,</p>
+          <p>${message}</p>
+          <p>Merci,</p>
+          <p>Service Client MonMarché</p>
+        </div>
+        <div style="background:#ff6f00;color:#fff;padding:10px;text-align:center;font-size:12px">
+          &copy; ${new Date().getFullYear()} MonMarche
+        </div>
+      </div>
+    </body></html>`;
+
+  const notifyFakeOrder = async (message) => {
+    const to =
+      orderDetails?.mail_invoice ||
+      orderDetails?.email ||
+      orderDetails?.deliverInfos?.email;
+    if (!to) return;
+    const newEmail = doc(collection(db, "mail"));
+    await setDoc(newEmail, {
+      to,
+      message: {
+        subject: "Commande signalée comme fausse",
+        text: message,
+        html: fakeOrderEmailHtml(message),
+      },
+    });
+  };
+
+  const markAsFakeOrder = async () => {
+    if (isProcessing) return;
+    if (orderDetails?.fakeOrder) {
+      alert("Cette commande est déjà marquée comme fausse.");
+      return;
+    }
+
+    const defaultMessage =
+      "Votre commande a été marquée comme fausse. Si ce n’est pas le cas, merci de contacter le service client MonMarché. Si c’était juste pour tester, merci de ne plus recommencer. En cas de récidive, votre compte sera suspendu.";
+
+    const userMessage = window.prompt(
+      "Message à envoyer au client (modifiable) :",
+      defaultMessage
+    );
+    if (userMessage === null) return;
+    const finalMessage = userMessage.trim() || defaultMessage;
+
+    const ok = window.confirm(
+      "Confirmer le marquage en fausse commande ?"
+    );
+    if (!ok) return;
+
+    setIsProcessing(true);
+    try {
+      const orderRef = doc(db, "orders", params.id);
+      await updateDoc(orderRef, {
+        fakeOrder: true,
+        fakeOrderMessage: finalMessage,
+        fakeOrderAt: new Date(),
+      });
+
+      const userId = orderDetails?.userId;
+      if (userId) {
+        await updateDoc(doc(db, "users", userId), {
+          fakeOrdersCount: increment(1),
+        });
+      } else {
+        console.warn("Aucun userId sur la commande, compteur non mis à jour.");
+      }
+
+      await notifyFakeOrder(finalMessage);
+      alert("Commande marquée comme fausse.");
+    } catch (e) {
+      console.error("Erreur fake order:", e);
+      alert("Une erreur est survenue lors du marquage.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <div className="details">
       <Sidebar />
@@ -565,6 +651,16 @@ const DetailsOrder = ({ title, btnValidation }) => {
               type="text"
               value={orderDetails?.delivered ? "Livré" : "Non livré"}
               className={orderDetails?.delivered ? "delivered" : "notDelivered"}
+              disabled
+            />
+          </div>
+
+          <div className="formGroup">
+            <label>Statut fausse commande:</label>
+            <input
+              type="text"
+              value={orderDetails?.fakeOrder ? "Fausse commande" : "Non"}
+              className={orderDetails?.fakeOrder ? "pending" : "paid"}
               disabled
             />
           </div>
@@ -714,8 +810,15 @@ const DetailsOrder = ({ title, btnValidation }) => {
           </div>
         </div>
         <div className="actionsBar">
-          <button onClick={goBack}>Revenir en arrière</button>
-          <button onClick={printOrder}>Imprimer la commande</button>
+          <button className="btnSecondary" onClick={goBack}>
+            Revenir en arrière
+          </button>
+          <button className="btnPrimary" onClick={printOrder}>
+            Imprimer la commande
+          </button>
+          <button className="btnDanger" onClick={markAsFakeOrder}>
+            Fausse commande
+          </button>
         </div>
       </div>
     </div>

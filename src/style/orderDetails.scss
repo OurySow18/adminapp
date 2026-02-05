@@ -234,5 +234,45 @@ ul {
     gap: 12px;
     margin-top: 16px;
     flex-wrap: wrap;
+
+    button {
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.05s ease, opacity 0.15s ease;
+      margin-left: 0;
+      margin-top: 0;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .btnSecondary {
+      background: #e0e0e0 !important;
+      color: #333;
+    }
+
+    .btnPrimary {
+      background: #ff6f00 !important;
+      color: #fff;
+    }
+
+    .btnDanger {
+      background: #d32f2f !important;
+      color: #fff;
+    }
+
+    .btnSecondary:hover,
+    .btnPrimary:hover,
+    .btnDanger:hover {
+      opacity: 0.92;
+    }
   }
 }

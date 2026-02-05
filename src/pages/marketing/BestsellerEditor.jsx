@@ -2,9 +2,8 @@ import "./MarketingPage.scss";
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
@@ -47,16 +46,35 @@ const resolveProductCurrency = (data = {}) =>
   data.draft?.core?.pricing?.currency ||
   "GNF";
 
+const resolveVendorId = (data = {}) =>
+  data.vendorId ||
+  data.core?.vendorId ||
+  data.vendor?.id ||
+  data.vendor?.vendorId ||
+  data.vendor?.uid ||
+  "";
+
+const resolveVendorName = (data = {}) =>
+  data.vendorName ||
+  data.vendor?.name ||
+  data.vendor?.storeName ||
+  data.storeName ||
+  data.vendorLabel ||
+  "";
+
 const BestsellerEditor = () => {
   const { bestsellerId } = useParams();
   const isEdit = Boolean(bestsellerId);
-  const navigate = useNavigate();
 
   const [vendorId, setVendorId] = useState("");
   const [vendorName, setVendorName] = useState("");
   const [productId, setProductId] = useState("");
   const [status, setStatus] = useState("active");
+  const [recommendedRank, setRecommendedRank] = useState("");
   const [savedProduct, setSavedProduct] = useState(null);
+  const [originalProductId, setOriginalProductId] = useState("");
+  const [recommendedCreatedAt, setRecommendedCreatedAt] = useState(null);
+  const [recommendedCreatedBy, setRecommendedCreatedBy] = useState(null);
 
   const [vendors, setVendors] = useState([]);
   const [products, setProducts] = useState([]);
@@ -71,34 +89,44 @@ const BestsellerEditor = () => {
   const [formSuccess, setFormSuccess] = useState(null);
 
   useEffect(() => {
-    const loadBestseller = async () => {
+    const loadRecommended = async () => {
       if (!isEdit) return;
       setLoadingItem(true);
       try {
-        const snap = await getDoc(doc(db, "bestseller", bestsellerId));
+        const snap = await getDoc(doc(db, "products_public", bestsellerId));
         if (snap.exists()) {
           const data = snap.data() || {};
-          setVendorId(data.vendorId || "");
-          setVendorName(data.vendorName || "");
-          setProductId(data.productId || "");
-          setStatus(data.status || "active");
+          const resolvedVendorId = resolveVendorId(data);
+          setVendorId(resolvedVendorId);
+          setVendorName(resolveVendorName(data));
+          setProductId(snap.id);
+          setOriginalProductId(snap.id);
+          setStatus(data.recommended ? "active" : "inactive");
+          setRecommendedRank(
+            data.recommendedRank !== undefined && data.recommendedRank !== null
+              ? String(data.recommendedRank)
+              : ""
+          );
+          setRecommendedCreatedAt(data.recommendedCreatedAt || null);
+          setRecommendedCreatedBy(data.recommendedCreatedBy || null);
           setSavedProduct({
-            title: data.title || "",
-            imageUrl: data.imageUrl || "",
-            price: data.price ?? null,
-            currency: data.currency || "GNF",
+            title: resolveProductTitle(data),
+            imageUrl: resolveProductImage(data),
+            price: resolveProductPrice(data),
+            currency: resolveProductCurrency(data),
+            recommended: Boolean(data.recommended),
           });
         } else {
-          setFormError("Bestseller introuvable.");
+          setFormError("Produit recommandé introuvable.");
         }
       } catch (err) {
-        console.error("Failed to load bestseller:", err);
-        setFormError("Impossible de charger le bestseller.");
+        console.error("Failed to load recommended product:", err);
+        setFormError("Impossible de charger le produit recommandé.");
       } finally {
         setLoadingItem(false);
       }
     };
-    loadBestseller();
+    loadRecommended();
   }, [bestsellerId, isEdit]);
 
   useEffect(() => {
@@ -141,18 +169,15 @@ const BestsellerEditor = () => {
 
   useEffect(() => {
     const loadProducts = async () => {
-      if (!vendorId) {
-        setProducts([]);
-        setProductsLoading(false);
-        return;
-      }
       setProductsLoading(true);
       try {
-        const q = query(
-          collection(db, "vendor_products"),
-          where("vendorId", "==", vendorId),
-          limit(200)
-        );
+        const q = vendorId
+          ? query(
+              collection(db, "products_public"),
+              where("vendorId", "==", vendorId),
+              limit(200)
+            )
+          : query(collection(db, "products_public"), limit(200));
         const snapshot = await getDocs(q);
         const items = [];
         snapshot.forEach((docSnap) => {
@@ -163,6 +188,8 @@ const BestsellerEditor = () => {
             imageUrl: resolveProductImage(data),
             price: resolveProductPrice(data),
             currency: resolveProductCurrency(data),
+            recommended: Boolean(data.recommended),
+            vendorId: resolveVendorId(data),
           });
         });
         setProducts(items);
@@ -184,12 +211,15 @@ const BestsellerEditor = () => {
     }
   }, [vendorId, vendors]);
 
+  
+
   useEffect(() => {
-    if (!vendorId) {
-      setProductId("");
-      setProducts([]);
-    }
-  }, [vendorId]);
+    if (!productId) return;
+    const selected = products.find((product) => product.id === productId);
+    if (!selected || !selected.vendorId) return;
+    if (vendorId && vendorId === selected.vendorId) return;
+    setVendorId(selected.vendorId);
+  }, [productId, products, vendorId]);
 
   const sortedVendors = useMemo(() => {
     const list = [...vendors];
@@ -200,12 +230,16 @@ const BestsellerEditor = () => {
   }, [vendors]);
 
   const filteredVendors = useMemo(() => {
+    const selected = products.find((product) => product.id === productId);
+    if (selected?.vendorId) {
+      return sortedVendors.filter((vendor) => vendor.id === selected.vendorId);
+    }
     const q = vendorSearch.trim().toLowerCase();
     if (!q) return sortedVendors;
     return sortedVendors.filter((vendor) =>
       vendor.label.toLowerCase().includes(q)
     );
-  }, [sortedVendors, vendorSearch]);
+  }, [sortedVendors, vendorSearch, products, productId]);
 
   const sortedProducts = useMemo(() => {
     const list = [...products];
@@ -217,11 +251,14 @@ const BestsellerEditor = () => {
 
   const filteredProducts = useMemo(() => {
     const q = productSearch.trim().toLowerCase();
-    if (!q) return sortedProducts;
-    return sortedProducts.filter((product) =>
+    const base = vendorId
+      ? sortedProducts.filter((product) => product.vendorId === vendorId)
+      : sortedProducts;
+    if (!q) return base;
+    return base.filter((product) =>
       product.label.toLowerCase().includes(q)
     );
-  }, [sortedProducts, productSearch]);
+  }, [sortedProducts, productSearch, vendorId]);
 
   const selectedProduct = useMemo(
     () => products.find((product) => product.id === productId) || null,
@@ -245,59 +282,100 @@ const BestsellerEditor = () => {
       setFormError("Veuillez choisir un statut.");
       return;
     }
-
-    const productInfo = selectedProduct || savedProduct;
-    if (!productInfo) {
-      setFormError("Informations produit indisponibles.");
+    if (!recommendedRank.trim()) {
+      setFormError("Veuillez définir un rang.");
+      return;
+    }
+    const parsedRank = Number(recommendedRank);
+    if (Number.isNaN(parsedRank) || parsedRank < 0) {
+      setFormError("Le rang doit être un nombre valide.");
       return;
     }
 
+      const productInfo = selectedProduct || savedProduct;
+      if (!productInfo) {
+        setFormError("Informations produit indisponibles.");
+        return;
+      }
+
     const updatedBy =
       auth.currentUser?.email || auth.currentUser?.uid || "system";
-    const payload = {
-      vendorId,
-      vendorName,
-      productId,
-      title: productInfo.label || productInfo.title || "",
-      imageUrl: productInfo.imageUrl || "",
-      price: productInfo.price ?? null,
-      currency: productInfo.currency || "GNF",
-      status,
-      updatedAt: new Date().toISOString(),
-      updatedBy,
-    };
+    const now = new Date().toISOString();
 
     try {
       setSubmitting(true);
+      const targetRef = doc(db, "products_public", productId);
+      const targetSnap = await getDoc(targetRef);
+      if (!targetSnap.exists()) {
+        setFormError("Produit introuvable.");
+        setSubmitting(false);
+        return;
+      }
+      const targetData = targetSnap.data() || {};
+      if (!isEdit && targetData.recommended) {
+        setFormError("Ce produit est déjà dans la liste des recommandés.");
+        setSubmitting(false);
+        return;
+      }
+      if (isEdit && productId !== originalProductId && targetData.recommended) {
+        setFormError("Ce produit est déjà dans la liste des recommandés.");
+        setSubmitting(false);
+        return;
+      }
+      const shouldActivate = status === "active";
+      const createdAtValue =
+        targetData.recommendedCreatedAt || recommendedCreatedAt || now;
+      const createdByValue =
+        targetData.recommendedCreatedBy || recommendedCreatedBy || updatedBy;
+
       if (isEdit) {
-        await updateDoc(doc(db, "bestseller", bestsellerId), payload);
-        setFormSuccess("Bestseller mis à jour.");
-      } else {
-        await addDoc(collection(db, "bestseller"), {
-          ...payload,
-          createdAt: new Date().toISOString(),
-          createdBy: updatedBy,
+        if (originalProductId && originalProductId !== productId) {
+          await updateDoc(doc(db, "products_public", originalProductId), {
+            recommended: false,
+            recommendedRank: null,
+            recommendedUpdatedAt: now,
+            recommendedUpdatedBy: updatedBy,
+          });
+        }
+        await updateDoc(targetRef, {
+          recommended: shouldActivate,
+          recommendedRank: parsedRank,
+          recommendedCreatedAt: createdAtValue,
+          recommendedCreatedBy: createdByValue,
+          recommendedUpdatedAt: now,
+          recommendedUpdatedBy: updatedBy,
         });
-        setFormSuccess("Bestseller créé.");
+        setFormSuccess("Recommandation mise à jour.");
+      } else {
+        await updateDoc(targetRef, {
+          recommended: shouldActivate,
+          recommendedRank: parsedRank,
+          recommendedCreatedAt: createdAtValue,
+          recommendedCreatedBy: createdByValue,
+          recommendedUpdatedAt: now,
+          recommendedUpdatedBy: updatedBy,
+        });
+        setFormSuccess("Produit recommandé créé.");
         setVendorId("");
         setVendorName("");
         setProductId("");
         setStatus("active");
+        setRecommendedRank("");
         setSavedProduct(null);
       }
     } catch (err) {
-      console.error("Failed to save bestseller:", err);
-      setFormError("Impossible d'enregistrer le bestseller.");
+      console.error("Failed to save recommended:", err);
+      setFormError("Impossible d'enregistrer le recommandé.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const previewTitle = selectedProduct?.label || savedProduct?.title || "";
-  const previewImage = selectedProduct?.imageUrl || savedProduct?.imageUrl || "";
-  const previewPrice = selectedProduct?.price ?? savedProduct?.price ?? null;
-  const previewCurrency =
-    selectedProduct?.currency || savedProduct?.currency || "GNF";
+    const previewTitle = selectedProduct?.label || savedProduct?.title || "";
+    const previewImage = selectedProduct?.imageUrl || savedProduct?.imageUrl || "";
+    const previewPrice = selectedProduct?.price ?? savedProduct?.price ?? null;
+    const previewCurrency =
+      selectedProduct?.currency || savedProduct?.currency || "GNF";
 
   return (
     <div className="marketingPage">
@@ -307,9 +385,9 @@ const BestsellerEditor = () => {
         <div className="marketingPage__content">
           <div className="marketingPage__header marketingPage__header--between">
             <div>
-              <h1>{isEdit ? "Modifier le bestseller" : "Créer un bestseller"}</h1>
+              <h1>{isEdit ? "Modifier un recommandé" : "Créer un recommandé"}</h1>
               <p className="subtitle">
-                Données enregistrées dans la collection bestseller.
+                Données enregistrées dans la collection products_public.
               </p>
             </div>
             <Link to="/admin/marketing/bestsellers" className="ghost">
@@ -390,6 +468,17 @@ const BestsellerEditor = () => {
                   <option value="active">Actif</option>
                   <option value="inactive">Inactif</option>
                 </select>
+              </div>
+              <div className="formField">
+                <label htmlFor="recommendedRank">Rang</label>
+                <input
+                  id="recommendedRank"
+                  type="number"
+                  min="0"
+                  placeholder="Ex: 1"
+                  value={recommendedRank}
+                  onChange={(e) => setRecommendedRank(e.target.value)}
+                />
               </div>
             </div>
 

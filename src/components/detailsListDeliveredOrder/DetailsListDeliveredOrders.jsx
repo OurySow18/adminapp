@@ -6,6 +6,7 @@ import Sidebar from "../sidebar/Sidebar";
 import Navbar from "../navbar/Navbar";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
+import { resolveOrderDate } from "../../utils/orderDate";
 
 import { db } from "../../firebase";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -44,10 +45,8 @@ const DetailsListDeliveredOrder = ({ title, btnValidation }) => {
   }
 
   const generatePrintContent = () => {
-    const currentDate = new Date();
-    const formattedDate = `${currentDate.getDate()}/${
-      currentDate.getMonth() + 1
-    }/${currentDate.getFullYear()}`;
+    const orderDate = resolveOrderDate(orderDetails);
+    const formattedDate = format(orderDate, "dd/MM/yyyy");
 
     const headerContent = `
       <div class="invoice-header">

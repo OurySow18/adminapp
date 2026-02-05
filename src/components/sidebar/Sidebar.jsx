@@ -584,7 +584,7 @@ return (
                   >
                     <div className="submenu__linkLabel">
                       <WhatshotIcon className="icon icon--sm" />
-                      <span>Bestseller</span>
+                      <span>Recommandés</span>
                     </div>
                   </Link>
                 </li>
