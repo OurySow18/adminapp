@@ -199,6 +199,47 @@ const getSection = (vendor, key) => {
   return profile?.[key] ?? vendor?.[key] ?? {};
 };
 
+const PROTECTED_VENDOR_EMAIL = "monmarchegn@gmail.com";
+
+const sanitizeForFirestore = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => sanitizeForFirestore(item))
+      .filter((item) => item !== undefined);
+  }
+  if (typeof value === "object") {
+    if (
+      value instanceof Date ||
+      typeof value?.toDate === "function" ||
+      typeof value?.seconds === "number"
+    ) {
+      return value;
+    }
+    const output = {};
+    Object.entries(value).forEach(([key, nestedValue]) => {
+      const sanitizedValue = sanitizeForFirestore(nestedValue);
+      if (sanitizedValue !== undefined) {
+        output[key] = sanitizedValue;
+      }
+    });
+    return output;
+  }
+  return value;
+};
+
+const buildArchivedDocId = (sourcePath, fallback) => {
+  const base = (sourcePath || fallback || "item").toString();
+  const normalized = base
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 120);
+  return normalized || `item_${Date.now()}`;
+};
+
 const VendorDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -210,6 +251,7 @@ const VendorDetails = () => {
   const [actionMessage, setActionMessage] = useState(null);
   const [dialog, setDialog] = useState(null);
   const [dialogReason, setDialogReason] = useState("");
+  const [dialogValidationError, setDialogValidationError] = useState("");
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState(null);
@@ -313,6 +355,21 @@ const VendorDetails = () => {
     : "-";
   const isBlocked = normalizedStatus === "blocked";
   const isApproved = normalizedStatus === "approved";
+  const normalizedVendorEmail = useMemo(() => {
+    const candidates = [
+      company?.email,
+      vendor?.email,
+      vendor?.contactEmail,
+      vendor?.profile?.email,
+      vendor?.profile?.company?.email,
+      vendor?.company?.email,
+    ];
+    const email = candidates.find(
+      (value) => typeof value === "string" && value.trim()
+    );
+    return email ? email.trim().toLowerCase() : "";
+  }, [company, vendor]);
+  const isProtectedVendor = normalizedVendorEmail === PROTECTED_VENDOR_EMAIL;
 
   const fallbackDisplayName =
     vendor?.displayName ||
@@ -816,6 +873,109 @@ const VendorDetails = () => {
     [vendorIdentifiers]
   );
 
+  const fetchPublicProductSnapshotsForVendor = useCallback(async () => {
+    if (!vendorIdentifiers.length) return [];
+    const candidates = vendorIdentifiers.filter(
+      (value) => typeof value === "string" && value.trim()
+    );
+    if (!candidates.length) return [];
+
+    const chunkSize = 10;
+    const docsByPath = new Map();
+
+    for (let i = 0; i < candidates.length; i += chunkSize) {
+      const chunk = candidates.slice(i, i + chunkSize);
+      const [byVendorId, byCoreVendorId] = await Promise.all([
+        getDocs(
+          query(
+            collection(db, "products_public"),
+            where("vendorId", "in", chunk)
+          )
+        ),
+        getDocs(
+          query(
+            collection(db, "products_public"),
+            where("core.vendorId", "in", chunk)
+          )
+        ),
+      ]);
+
+      byVendorId.forEach((docSnap) => docsByPath.set(docSnap.ref.path, docSnap));
+      byCoreVendorId.forEach((docSnap) => docsByPath.set(docSnap.ref.path, docSnap));
+    }
+
+    return Array.from(docsByPath.values());
+  }, [vendorIdentifiers]);
+
+  const fetchVendorProductSnapshotsForDeletion = useCallback(async () => {
+    if (!vendorIdentifiers.length) return [];
+    const candidates = vendorIdentifiers.filter(
+      (value) => typeof value === "string" && value.trim()
+    );
+    if (!candidates.length) return [];
+
+    const docsByPath = new Map();
+    const addSnapshotDocs = (snapshot) => {
+      snapshot?.forEach((docSnap) => docsByPath.set(docSnap.ref.path, docSnap));
+    };
+
+    for (const vendorId of candidates) {
+      try {
+        const nestedSnapshot = await getDocs(
+          collection(db, "vendor_products", vendorId, "products")
+        );
+        addSnapshotDocs(nestedSnapshot);
+      } catch (err) {
+        if (
+          err?.code !== "permission-denied" &&
+          err?.code !== "not-found" &&
+          err?.code !== "failed-precondition"
+        ) {
+          console.warn(
+            `Lecture vendor_products/${vendorId}/products impossible.`,
+            err
+          );
+        }
+      }
+    }
+
+    const rootFields = [
+      "vendorId",
+      "core.vendorId",
+      "draft.core.vendorId",
+      "vendorUid",
+      "vendorUID",
+      "vendor_id",
+      "userId",
+      "ownerId",
+    ];
+    const chunkSize = 10;
+    for (let i = 0; i < candidates.length; i += chunkSize) {
+      const chunk = candidates.slice(i, i + chunkSize);
+      for (const field of rootFields) {
+        try {
+          const snapshot = await getDocs(
+            query(collection(db, "vendor_products"), where(field, "in", chunk))
+          );
+          addSnapshotDocs(snapshot);
+        } catch (err) {
+          if (
+            err?.code !== "permission-denied" &&
+            err?.code !== "not-found" &&
+            err?.code !== "failed-precondition"
+          ) {
+            console.warn(
+              `Lecture vendor_products via ${field} impossible.`,
+              err
+            );
+          }
+        }
+      }
+    }
+
+    return Array.from(docsByPath.values());
+  }, [vendorIdentifiers]);
+
   const blockedProducts = useMemo(
     () =>
       products.filter(
@@ -1029,6 +1189,12 @@ const VendorDetails = () => {
   const handleBlockVendor = useCallback(
     async (reason) => {
       if (!vendor?.id) return false;
+      if (isProtectedVendor) {
+        setActionError(
+          "Le compte Monmarche est protege et ne peut pas etre bloque."
+        );
+        return false;
+      }
       setActionBusy(true);
       setActionError(null);
       let success = false;
@@ -1135,6 +1301,7 @@ const VendorDetails = () => {
     },
     [
       vendor,
+      isProtectedVendor,
       products,
       fetchProductsForVendor,
       blockProductsForVendor,
@@ -1200,6 +1367,161 @@ const VendorDetails = () => {
 
     return success;
   }, [vendor, updatePublicProductsForVendor]);
+
+  const handleArchiveAndDeleteVendor = useCallback(
+    async (reason) => {
+      if (!vendor?.id) return false;
+      if (isProtectedVendor) {
+        setActionError(
+          "Le compte Monmarche est protege et ne peut pas etre supprime."
+        );
+        return false;
+      }
+      if (!isBlocked) {
+        setActionError(
+          "La suppression est autorisee uniquement pour un vendeur bloque."
+        );
+        return false;
+      }
+
+      setActionBusy(true);
+      setActionError(null);
+      setActionMessage(null);
+      let success = false;
+
+      try {
+        const normalizedReason = reason?.trim();
+        if (!normalizedReason) {
+          setActionError("Le motif de suppression est obligatoire.");
+          return false;
+        }
+
+        const actorEmail = auth.currentUser?.email ?? null;
+        const actorUid = auth.currentUser?.uid ?? null;
+        const actor = actorEmail || actorUid || "admin";
+        const deletedVendorRef = doc(db, "deletedVendors", vendor.id);
+
+        const vendorProductSnapshots =
+          await fetchVendorProductSnapshotsForDeletion();
+        const publicProductSnapshots =
+          await fetchPublicProductSnapshotsForVendor();
+
+        const archiveEntries = [];
+
+        const archivedVendorPayload = {
+          ...sanitizeForFirestore(vendor),
+          archivedFromPath: `vendors/${vendor.id}`,
+          archivedAt: serverTimestamp(),
+          archivedBy: actor,
+          deletedAt: serverTimestamp(),
+          deletedBy: actor,
+          deletedByEmail: actorEmail,
+          deletedByUid: actorUid,
+          deleteReason: normalizedReason,
+          archivedVendorProductsCount: vendorProductSnapshots.length,
+          deletedPublicProductsCount: publicProductSnapshots.length,
+        };
+        archiveEntries.push({
+          ref: deletedVendorRef,
+          payload: archivedVendorPayload,
+        });
+
+        const refsToDeleteByPath = new Map();
+        const addDeleteRef = (ref) => {
+          if (!ref?.path) return;
+          refsToDeleteByPath.set(ref.path, ref);
+        };
+
+        vendorProductSnapshots.forEach((docSnap, index) => {
+          const sourcePath = docSnap.ref.path;
+          addDeleteRef(docSnap.ref);
+
+          const archiveDocId = buildArchivedDocId(
+            sourcePath,
+            `vendor_products_${index}`
+          );
+          const archiveRef = doc(
+            db,
+            "deletedVendors",
+            vendor.id,
+            "products",
+            archiveDocId
+          );
+
+          archiveEntries.push({
+            ref: archiveRef,
+            payload: {
+              ...sanitizeForFirestore({ id: docSnap.id, ...docSnap.data() }),
+              archivedAt: serverTimestamp(),
+              archivedBy: actor,
+              deletedAt: serverTimestamp(),
+              deletedBy: actor,
+              deletedByEmail: actorEmail,
+              deletedByUid: actorUid,
+              deleteReason: normalizedReason,
+              archivedFromPath: sourcePath,
+              archivedFromCollection: "vendor_products",
+              originalProductId: docSnap.id,
+            },
+          });
+        });
+
+        publicProductSnapshots.forEach((docSnap) => {
+          addDeleteRef(docSnap.ref);
+        });
+
+        vendorIdentifiers
+          .filter((value) => typeof value === "string" && value.trim())
+          .forEach((value) => {
+            addDeleteRef(doc(db, "vendor_products", value));
+          });
+
+        const archiveChunkSize = 350;
+        for (let i = 0; i < archiveEntries.length; i += archiveChunkSize) {
+          const chunk = archiveEntries.slice(i, i + archiveChunkSize);
+          const batch = writeBatch(db);
+          chunk.forEach(({ ref, payload }) => {
+            batch.set(ref, payload, { merge: true });
+          });
+          await batch.commit();
+        }
+
+        addDeleteRef(doc(db, "vendors", vendor.id));
+        const refsToDelete = Array.from(refsToDeleteByPath.values());
+        const deleteChunkSize = 450;
+        for (let i = 0; i < refsToDelete.length; i += deleteChunkSize) {
+          const chunk = refsToDelete.slice(i, i + deleteChunkSize);
+          const batch = writeBatch(db);
+          chunk.forEach((ref) => batch.delete(ref));
+          await batch.commit();
+        }
+
+        success = true;
+        window.alert(
+          "Le vendeur et tous ses produits ont ete supprimes de l'application."
+        );
+        navigate("/vendors");
+      } catch (err) {
+        console.error("Erreur suppression archivee vendeur:", err);
+        setActionError(
+          "Impossible d'archiver puis supprimer ce vendeur pour le moment."
+        );
+      } finally {
+        setActionBusy(false);
+      }
+
+      return success;
+    },
+    [
+      vendor,
+      isBlocked,
+      isProtectedVendor,
+      vendorIdentifiers,
+      fetchVendorProductSnapshotsForDeletion,
+      fetchPublicProductSnapshotsForVendor,
+      navigate,
+    ]
+  );
 
   const handlePartnerToggle = useCallback(
     async (enabled) => {
@@ -1494,16 +1816,24 @@ const VendorDetails = () => {
   const closeDialog = useCallback(() => {
     setDialog(null);
     setDialogReason("");
+    setDialogValidationError("");
   }, []);
 
   const openDialog = useCallback((payload) => {
     setDialogReason("");
+    setDialogValidationError("");
     setDialog(payload);
   }, []);
 
   const handleDialogConfirm = useCallback(async () => {
     if (!dialog) return;
     const reason = dialogReason.trim();
+    const reasonRequired = dialog.type === "deleteVendor";
+    if (reasonRequired && !reason) {
+      setDialogValidationError("Le motif de suppression est obligatoire.");
+      return;
+    }
+    setDialogValidationError("");
     let success = false;
 
     switch (dialog.type) {
@@ -1532,6 +1862,9 @@ const VendorDetails = () => {
           success = await handleToggleProduct(dialog.product, false);
         }
         break;
+      case "deleteVendor":
+        success = await handleArchiveAndDeleteVendor(reason);
+        break;
       default:
         break;
     }
@@ -1542,12 +1875,14 @@ const VendorDetails = () => {
   }, [
     dialog,
     dialogReason,
+    setDialogValidationError,
     handleApproveVendor,
     handleBlockVendor,
     handleUnblockVendor,
     handleBlockAllProducts,
     handleReactivateAllProducts,
     handleToggleProduct,
+    handleArchiveAndDeleteVendor,
     closeDialog,
   ]);
 
@@ -1555,7 +1890,9 @@ const VendorDetails = () => {
     dialog &&
     (dialog.type === "blockVendor" ||
       dialog.type === "blockProduct" ||
-      dialog.type === "blockAllProducts");
+      dialog.type === "blockAllProducts" ||
+      dialog.type === "deleteVendor");
+  const dialogReasonRequired = dialog?.type === "deleteVendor";
 
   const dialogProductLabel =
     dialog?.product && getProductLabel(dialog.product)
@@ -1579,6 +1916,8 @@ const VendorDetails = () => {
         return `Bloquer le produit${dialogProductLabel ? ` : ${dialogProductLabel}` : ""}`;
       case "reactivateProduct":
         return `Reactiver le produit${dialogProductLabel ? ` : ${dialogProductLabel}` : ""}`;
+      case "deleteVendor":
+        return "Supprimer le vendeur";
       default:
         return "";
     }
@@ -1601,6 +1940,8 @@ const VendorDetails = () => {
         return "Ce produit sera immediatement indisponible pour les clients.";
       case "reactivateProduct":
         return "Ce produit redeviendra visible sur la plateforme.";
+      case "deleteVendor":
+        return "Cette action est irreversible. Le vendeur sera archive dans deletedVendors puis supprime des collections actives.";
       default:
         return "";
     }
@@ -1620,6 +1961,8 @@ const VendorDetails = () => {
       case "reactivateAllProducts":
       case "reactivateProduct":
         return "Reactiver";
+      case "deleteVendor":
+        return "Supprimer";
       default:
         return "Confirmer";
     }
@@ -1848,7 +2191,7 @@ const VendorDetails = () => {
                   <button
                     type="button"
                     className="vendorDetails__actionButton vendorDetails__actionButton--danger"
-                    disabled={actionBusy || !isApproved}
+                    disabled={actionBusy || !isApproved || isProtectedVendor}
                     onClick={() => openDialog({ type: "blockVendor" })}
                   >
                     Bloquer le vendeur
@@ -1873,7 +2216,20 @@ const VendorDetails = () => {
                     Marquer partenaire
                   </button>
                 )}
+                <button
+                  type="button"
+                  className="vendorDetails__actionButton vendorDetails__actionButton--danger"
+                  disabled={actionBusy || !isBlocked || isProtectedVendor}
+                  onClick={() => openDialog({ type: "deleteVendor" })}
+                >
+                  Supprimer le vendeur
+                </button>
               </div>
+              {isProtectedVendor && (
+                <p className="vendorDetails__actionsMeta">
+                  Ce compte Monmarche est protege et ne peut pas etre bloque ou supprime.
+                </p>
+              )}
 
               <div className="vendorDetails__actionGroup vendorDetails__actionGroup--secondary">
                 <button
@@ -2435,18 +2791,37 @@ const VendorDetails = () => {
                 {dialogDescription}
               </p>
             )}
+            {dialog?.type === "deleteVendor" && (
+              <p className="vendorDetails__dialogWarning">
+                Attention: la suppression est definitive. Assurez-vous d'avoir
+                verifie les informations avant de confirmer.
+              </p>
+            )}
             {dialogRequiresReason && (
               <div className="vendorDetails__dialogField">
                 <label htmlFor="vendor-dialog-reason">
-                  Motif (optionnel)
+                  {dialogReasonRequired
+                    ? "Motif de suppression (obligatoire)"
+                    : "Motif (optionnel)"}
                 </label>
                 <textarea
                   id="vendor-dialog-reason"
                   rows={4}
                   value={dialogReason}
-                  onChange={(event) => setDialogReason(event.target.value)}
+                  onChange={(event) => {
+                    setDialogReason(event.target.value);
+                    if (dialogValidationError) {
+                      setDialogValidationError("");
+                    }
+                  }}
                   placeholder="Expliquez la raison de cette action"
+                  required={dialogReasonRequired}
                 />
+                {dialogValidationError && (
+                  <p className="vendorDetails__dialogError">
+                    {dialogValidationError}
+                  </p>
+                )}
               </div>
             )}
             <div className="vendorDetails__dialogActions">
@@ -2462,7 +2837,10 @@ const VendorDetails = () => {
                 type="button"
                 className="vendorDetails__dialogButton vendorDetails__dialogButton--confirm"
                 onClick={handleDialogConfirm}
-                disabled={actionBusy}
+                disabled={
+                  actionBusy ||
+                  (dialogReasonRequired && !dialogReason.trim())
+                }
               >
                 {dialogConfirmLabel}
               </button>

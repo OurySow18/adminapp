@@ -77,13 +77,13 @@ const Sidbar = () => {
     toggleMobileSidebar,
     closeSidebar,
   } = useSidebar();
-  const [vendorMenuOpen, setVendorMenuOpen] = useState(true);
+  const [vendorMenuOpen, setVendorMenuOpen] = useState(false);
   const [vendorStats, setVendorStats] = useState(createEmptyVendorStats);
   const [vendorStatsState, setVendorStatsState] = useState({
     loading: true,
     error: false,
   });
-  const [vendorProductsMenuOpen, setVendorProductsMenuOpen] = useState(true);
+  const [vendorProductsMenuOpen, setVendorProductsMenuOpen] = useState(false);
   const [vendorProductsStats, setVendorProductsStats] = useState(
     createEmptyVendorProductStats
   );
@@ -91,7 +91,11 @@ const Sidbar = () => {
     loading: true,
     error: false,
   });
-  const [marketingMenuOpen, setMarketingMenuOpen] = useState(true);
+  const [marketingMenuOpen, setMarketingMenuOpen] = useState(false);
+  const normalizedPath = useMemo(
+    () => location.pathname.replace(/\/+$/, "") || "/",
+    [location.pathname]
+  );
 
   const vendorMenuItems = useMemo(
     () => [
@@ -240,7 +244,6 @@ const Sidbar = () => {
   }, []);
 
   const vendorProductsActiveKey = useMemo(() => {
-    const normalizedPath = location.pathname.replace(/\/+$/, "");
     if (normalizedPath.startsWith("/vendor-products/status/")) {
       const statusFromPath = normalizedPath
         .split("/vendor-products/status/")[1]
@@ -253,7 +256,7 @@ const Sidbar = () => {
       return "all";
     }
     return null;
-  }, [location.pathname]);
+  }, [normalizedPath]);
 
   const isPublicCatalogActive = useMemo(
     () => location.pathname.startsWith("/catalogue-public"),
@@ -272,17 +275,15 @@ const Sidbar = () => {
     [location.pathname]
   );
   const marketingActiveKey = useMemo(() => {
-    const normalizedPath = location.pathname.replace(/\/+$/, "");
     if (normalizedPath === "/admin/marketing") return "overview";
     if (normalizedPath.startsWith("/admin/marketing/banners")) return "banners";
     if (normalizedPath.startsWith("/admin/marketing/bestsellers"))
       return "bestsellers";
     if (normalizedPath.startsWith("/admin/marketing/sponsors")) return "sponsors";
     return null;
-  }, [location.pathname]);
+  }, [normalizedPath]);
 
   const vendorActiveKey = useMemo(() => {
-    const normalizedPath = location.pathname.replace(/\/+$/, "");
     if (normalizedPath.startsWith("/vendors/status/")) {
       const statusFromPath = normalizedPath.split("/vendors/status/")[1];
       const normalizedStatus = normalizeVendorStatus(statusFromPath);
@@ -293,7 +294,19 @@ const Sidbar = () => {
       return "all";
     }
     return null;
-  }, [location.pathname]);
+  }, [normalizedPath]);
+
+  const isDashboardActive = normalizedPath === "/";
+  const isUsersActive = normalizedPath.startsWith("/users");
+  const isProductsActive = normalizedPath.startsWith("/products");
+  const isZonesActive = normalizedPath.startsWith("/zones");
+  const isOrdersActive = normalizedPath.startsWith("/orders");
+  const isDeliveryActive = normalizedPath.startsWith("/delivery");
+  const isDeliveredOrdersActive =
+    normalizedPath.startsWith("/delivredOrders");
+  const isMarketingParentActive = marketingActiveKey !== null;
+  const isVendorProductsParentActive = vendorProductsActiveKey !== null;
+  const isVendorsParentActive = vendorActiveKey !== null;
 
   useEffect(() => {
     if (vendorProductsActiveKey && !vendorProductsMenuOpen) {
@@ -452,7 +465,7 @@ return (
             style={{ textDecoration: "none" }}
             onClick={handleNavLinkClick}
           >
-            <li>
+            <li className={isDashboardActive ? "active" : ""}>
               <DashboardIcon className="icon" />
               <span>Tableau de bord</span>
             </li>
@@ -463,7 +476,7 @@ return (
             style={{ textDecoration: "none" }}
             onClick={handleNavLinkClick}
           >
-            <li>
+            <li className={isUsersActive ? "active" : ""}>
               <PersonOutlineOutlinedIcon className="icon" />
               <span>Utilisateurs</span>
             </li>
@@ -493,7 +506,7 @@ return (
             style={{ textDecoration: "none" }}
             onClick={handleNavLinkClick}
           >
-            <li>
+            <li className={isProductsActive ? "active" : ""}>
               <StoreIcon className="icon" />
               <span>Produits</span>
             </li>
@@ -513,7 +526,9 @@ return (
               <Link
                 to="/admin/marketing"
                 style={{ textDecoration: "none" }}
-                className="menu-group__primary"
+                className={`menu-group__primary ${
+                  isMarketingParentActive ? "active" : ""
+                }`}
                 onClick={handleNavLinkClick}
               >
                 <CampaignIcon className="icon" />
@@ -623,7 +638,9 @@ return (
               <Link
                 to="/vendor-products"
                 style={{ textDecoration: "none" }}
-                className="menu-group__primary"
+                className={`menu-group__primary ${
+                  isVendorProductsParentActive ? "active" : ""
+                }`}
                 onClick={handleNavLinkClick}
               >
                 <Inventory2Icon className="icon" />
@@ -679,7 +696,9 @@ return (
               <Link
                 to="/vendors"
                 style={{ textDecoration: "none" }}
-                className="menu-group__primary"
+                className={`menu-group__primary ${
+                  isVendorsParentActive ? "active" : ""
+                }`}
                 onClick={handleNavLinkClick}
               >
                 <StorefrontIcon className="icon" />
@@ -735,7 +754,7 @@ return (
             style={{ textDecoration: "none" }}
             onClick={handleNavLinkClick}
           >
-            <li>
+            <li className={isZonesActive ? "active" : ""}>
               <AddLocationIcon className="icon" />
               <span>Zones</span>
             </li>
@@ -745,7 +764,7 @@ return (
             style={{ textDecoration: "none" }}
             onClick={handleNavLinkClick}
           >
-            <li>
+            <li className={isOrdersActive ? "active" : ""}>
               <CreditCardIcon className="icon" />
               <span>Commandes</span>
             </li>
@@ -756,7 +775,7 @@ return (
             style={{ textDecoration: "none" }}
             onClick={handleNavLinkClick}
           >
-            <li>
+            <li className={isDeliveryActive ? "active" : ""}>
               <LocalShippingIcon className="icon" />
               <span>Livraisons</span>
             </li>
@@ -766,7 +785,7 @@ return (
             style={{ textDecoration: "none" }}
             onClick={handleNavLinkClick}
           >
-            <li>
+            <li className={isDeliveredOrdersActive ? "active" : ""}>
               <LocalPrintshopSharpIcon className="icon" />
               <span>Commandes livrees</span>
             </li>

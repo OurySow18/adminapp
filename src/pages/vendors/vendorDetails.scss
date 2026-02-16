@@ -710,6 +710,17 @@
   margin: 0;
 }
 
+.vendorDetails__dialogWarning {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(183, 28, 28, 0.08);
+  border: 1px solid rgba(183, 28, 28, 0.25);
+  color: #8b1c1c;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .vendorDetails__dialogField {
   display: flex;
   flex-direction: column;
@@ -741,6 +752,12 @@
       background: #fff;
     }
   }
+}
+
+.vendorDetails__dialogError {
+  margin: 0;
+  color: #b71c1c;
+  font-size: 12px;
 }
 
 .vendorDetails__dialogActions {
