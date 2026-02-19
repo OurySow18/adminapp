@@ -20,6 +20,8 @@ import { auth, db } from "../../firebase";
 import {
   getVendorStatusLabel,
   resolveVendorStatus,
+  isVendorPaused,
+  isVendorPauseRequested,
 } from "../../utils/vendorStatus";
 import { format } from "date-fns";
 
@@ -188,6 +190,91 @@ const getProductLabel = (product) => {
   );
 };
 
+const getProductAvailabilityFlag = (product) => {
+  const candidates = [
+    product?.mm_status,
+    product?.core?.mm_status,
+    product?.draft?.core?.mm_status,
+    product?.active,
+    product?.isActive,
+    product?.core?.active,
+    product?.core?.isActive,
+    product?.draft?.core?.active,
+    product?.draft?.core?.isActive,
+    product?.status,
+    product?.core?.status,
+    product?.draft?.core?.status,
+  ];
+
+  for (const value of candidates) {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (!normalized) continue;
+      if (
+        ["true", "1", "active", "approved", "published", "visible"].includes(
+          normalized
+        )
+      ) {
+        return true;
+      }
+      if (
+        ["false", "0", "inactive", "archived", "blocked", "hidden"].includes(
+          normalized
+        )
+      ) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+};
+
+const parseStatusFlagOrNull = (value) => {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return null;
+    if (
+      [
+        "true",
+        "1",
+        "oui",
+        "yes",
+        "active",
+        "actif",
+        "approved",
+        "published",
+        "enabled",
+        "visible",
+      ].includes(normalized)
+    ) {
+      return true;
+    }
+    if (
+      [
+        "false",
+        "0",
+        "non",
+        "no",
+        "inactive",
+        "inactif",
+        "blocked",
+        "bloque",
+        "hidden",
+        "archived",
+      ].includes(normalized)
+    ) {
+      return false;
+    }
+  }
+  return null;
+};
+
 const getProfileSection = (vendor) => {
   if (!vendor || typeof vendor !== "object") return {};
   return vendor.profile || vendor.vendor || vendor || {};
@@ -353,6 +440,8 @@ const VendorDetails = () => {
   const vendorStatus = vendor
     ? getVendorStatusLabel(normalizedStatus)
     : "-";
+  const isPaused = isVendorPaused(vendor);
+  const isPauseRequested = isVendorPauseRequested(vendor);
   const isBlocked = normalizedStatus === "blocked";
   const isApproved = normalizedStatus === "approved";
   const normalizedVendorEmail = useMemo(() => {
@@ -822,6 +911,137 @@ const VendorDetails = () => {
     return processed;
   }, [syncLegacyProductDoc]);
 
+  const pauseProductsForVendor = useCallback(
+    async (targetProducts) => {
+      if (!Array.isArray(targetProducts) || targetProducts.length === 0) {
+        return 0;
+      }
+
+      const chunkSize = 400;
+      let processed = 0;
+      const legacyUpdates = [];
+
+      for (let index = 0; index < targetProducts.length; index += chunkSize) {
+        const chunk = targetProducts.slice(index, index + chunkSize);
+        const batch = writeBatch(db);
+
+        chunk.forEach((product) => {
+          const productRef = getPrimaryProductDocRef(product, db);
+          const updateTimestamp = serverTimestamp();
+          const payload = {
+            mm_status: false,
+            "core.mm_status": false,
+            "draft.core.mm_status": false,
+            updatedAt: updateTimestamp,
+            "core.updatedAt": updateTimestamp,
+            "draft.core.updatedAt": updateTimestamp,
+            "pauseSnapshot.vendor.wasAvailable":
+              getProductAvailabilityFlag(product),
+            "pauseSnapshot.vendor.mmStatus": parseStatusFlagOrNull(
+              product?.mm_status
+            ),
+            "pauseSnapshot.vendor.coreMmStatus": parseStatusFlagOrNull(
+              product?.core?.mm_status
+            ),
+            "pauseSnapshot.vendor.draftCoreMmStatus": parseStatusFlagOrNull(
+              product?.draft?.core?.mm_status
+            ),
+            "pauseSnapshot.vendor.capturedAt": updateTimestamp,
+            "pauseSnapshot.vendor.version": 1,
+          };
+
+          batch.update(productRef, payload);
+          legacyUpdates.push({ product, payload });
+        });
+
+        await batch.commit();
+        processed += chunk.length;
+      }
+
+      await Promise.all(
+        legacyUpdates.map(({ product, payload }) =>
+          syncLegacyProductDoc(product, payload)
+        )
+      );
+
+      return processed;
+    },
+    [syncLegacyProductDoc]
+  );
+
+  const restoreProductsAfterPause = useCallback(
+    async (targetProducts) => {
+      if (!Array.isArray(targetProducts) || targetProducts.length === 0) {
+        return 0;
+      }
+
+      const chunkSize = 400;
+      let processed = 0;
+      const legacyUpdates = [];
+
+      for (let index = 0; index < targetProducts.length; index += chunkSize) {
+        const chunk = targetProducts.slice(index, index + chunkSize);
+        const batch = writeBatch(db);
+
+        chunk.forEach((product) => {
+          const productRef = getPrimaryProductDocRef(product, db);
+          const updateTimestamp = serverTimestamp();
+          const snap = product?.pauseSnapshot?.vendor || {};
+          const previousMmStatus = parseStatusFlagOrNull(snap.mmStatus);
+          const previousCoreMmStatus = parseStatusFlagOrNull(snap.coreMmStatus);
+          const previousDraftCoreMmStatus = parseStatusFlagOrNull(
+            snap.draftCoreMmStatus
+          );
+          const previousWasAvailable = parseStatusFlagOrNull(snap.wasAvailable);
+          const fallbackAvailability =
+            previousWasAvailable ??
+            parseStatusFlagOrNull(getProductAvailabilityFlag(product)) ??
+            false;
+
+          const payload = {
+            mm_status:
+              previousMmStatus === null
+                ? fallbackAvailability
+                : previousMmStatus,
+            "core.mm_status":
+              previousCoreMmStatus === null
+                ? previousMmStatus === null
+                  ? fallbackAvailability
+                  : previousMmStatus
+                : previousCoreMmStatus,
+            "draft.core.mm_status":
+              previousDraftCoreMmStatus === null
+                ? previousCoreMmStatus === null
+                  ? previousMmStatus === null
+                    ? fallbackAvailability
+                    : previousMmStatus
+                  : previousCoreMmStatus
+                : previousDraftCoreMmStatus,
+            updatedAt: updateTimestamp,
+            "core.updatedAt": updateTimestamp,
+            "draft.core.updatedAt": updateTimestamp,
+            "pauseSnapshot.vendor": deleteField(),
+          };
+
+          batch.update(productRef, payload);
+          legacyUpdates.push({ product, payload });
+        });
+
+        await batch.commit();
+        processed += chunk.length;
+      }
+
+      await Promise.all(
+        legacyUpdates.map(({ product, payload }) =>
+          syncLegacyProductDoc(product, payload)
+        )
+      );
+
+      return processed;
+    },
+    [syncLegacyProductDoc]
+  );
+
   const updatePublicProductsForVendor = useCallback(
     async (enabled) => {
       if (!vendorIdentifiers.length) return 0;
@@ -906,6 +1126,89 @@ const VendorDetails = () => {
 
     return Array.from(docsByPath.values());
   }, [vendorIdentifiers]);
+
+  const pausePublicProductsForVendor = useCallback(async () => {
+    const docs = await fetchPublicProductSnapshotsForVendor();
+    if (!docs.length) return 0;
+
+    const chunkSize = 400;
+    let processed = 0;
+
+    for (let index = 0; index < docs.length; index += chunkSize) {
+      const chunk = docs.slice(index, index + chunkSize);
+      const batch = writeBatch(db);
+
+      chunk.forEach((docSnap) => {
+        const raw = docSnap.data() || {};
+        const updateTimestamp = serverTimestamp();
+        const snapshotMmStatus = parseStatusFlagOrNull(raw.mm_status);
+        const snapshotActive = parseStatusFlagOrNull(raw.active);
+        const snapshotIsActive = parseStatusFlagOrNull(raw.isActive);
+        const snapshotWasAvailable =
+          snapshotMmStatus ?? snapshotActive ?? snapshotIsActive ?? false;
+        batch.update(docSnap.ref, {
+          mm_status: false,
+          active: false,
+          isActive: false,
+          updatedAt: updateTimestamp,
+          "pauseSnapshot.public.wasAvailable": snapshotWasAvailable,
+          "pauseSnapshot.public.mmStatus": snapshotMmStatus,
+          "pauseSnapshot.public.active": snapshotActive,
+          "pauseSnapshot.public.isActive": snapshotIsActive,
+          "pauseSnapshot.public.capturedAt": updateTimestamp,
+          "pauseSnapshot.public.version": 1,
+        });
+      });
+
+      await batch.commit();
+      processed += chunk.length;
+    }
+
+    return processed;
+  }, [fetchPublicProductSnapshotsForVendor]);
+
+  const restorePublicProductsAfterPause = useCallback(async () => {
+    const docs = await fetchPublicProductSnapshotsForVendor();
+    if (!docs.length) return 0;
+
+    const chunkSize = 400;
+    let processed = 0;
+
+    for (let index = 0; index < docs.length; index += chunkSize) {
+      const chunk = docs.slice(index, index + chunkSize);
+      const batch = writeBatch(db);
+
+      chunk.forEach((docSnap) => {
+        const raw = docSnap.data() || {};
+        const snap = raw?.pauseSnapshot?.public || {};
+        const previousWasAvailable = parseStatusFlagOrNull(snap.wasAvailable);
+        const previousMmStatus = parseStatusFlagOrNull(snap.mmStatus);
+        const previousActive = parseStatusFlagOrNull(snap.active);
+        const previousIsActive = parseStatusFlagOrNull(snap.isActive);
+        const fallback = previousWasAvailable ?? false;
+        const mmStatus =
+          previousMmStatus === null ? fallback : previousMmStatus;
+        const active =
+          previousActive === null ? mmStatus : previousActive;
+        const isActive =
+          previousIsActive === null ? active : previousIsActive;
+        const updateTimestamp = serverTimestamp();
+
+        batch.update(docSnap.ref, {
+          mm_status: mmStatus,
+          active,
+          isActive,
+          updatedAt: updateTimestamp,
+          "pauseSnapshot.public": deleteField(),
+        });
+      });
+
+      await batch.commit();
+      processed += chunk.length;
+    }
+
+    return processed;
+  }, [fetchPublicProductSnapshotsForVendor]);
 
   const fetchVendorProductSnapshotsForDeletion = useCallback(async () => {
     if (!vendorIdentifiers.length) return [];
@@ -1367,6 +1670,252 @@ const VendorDetails = () => {
 
     return success;
   }, [vendor, updatePublicProductsForVendor]);
+
+  const handlePauseVendor = useCallback(
+    async (reason) => {
+      if (!vendor?.id) return false;
+      if (isProtectedVendor) {
+        setActionError(
+          "Le compte Monmarche est protege et ne peut pas etre mis en pause."
+        );
+        return false;
+      }
+      if (isBlocked) {
+        setActionError(
+          "Un vendeur bloque ne peut pas etre mis en pause."
+        );
+        return false;
+      }
+      if (!isPauseRequested && !isApproved) {
+        setActionError(
+          "Le vendeur doit etre approuve avant une mise en pause."
+        );
+        return false;
+      }
+      if (isPaused) {
+        setActionError("Ce vendeur est deja en pause.");
+        return false;
+      }
+
+      setActionBusy(true);
+      setActionError(null);
+      let success = false;
+
+      try {
+        const isValidationFlow = isPauseRequested;
+        const timestamp = serverTimestamp();
+        const vendorRef = doc(db, "vendors", vendor.id);
+        const adminEmail = auth.currentUser?.email ?? null;
+        const adminUid = auth.currentUser?.uid ?? null;
+        const normalizedReason = reason?.trim();
+        const requestedDaysRaw =
+          vendor?.pause?.requestedDays ??
+          vendor?.profile?.pause?.requestedDays ??
+          vendor?.pauseRequestedDays;
+        const requestedDaysNumber = Number(requestedDaysRaw);
+        const hasRequestedDays =
+          Number.isFinite(requestedDaysNumber) && requestedDaysNumber > 0;
+        const pauseResumeAtDate = hasRequestedDays
+          ? new Date(Date.now() + requestedDaysNumber * 24 * 60 * 60 * 1000)
+          : null;
+        const requestedAtValue =
+          vendor?.pause?.requestedAt ??
+          vendor?.profile?.pause?.requestedAt ??
+          vendor?.pauseRequestedAt ??
+          timestamp;
+        const pauseResumeAtValue =
+          vendor?.pause?.resumeAt ??
+          vendor?.pause?.pauseResumeAt ??
+          vendor?.pauseResumeAt ??
+          vendor?.profile?.pauseResumeAt ??
+          pauseResumeAtDate;
+
+        const prePauseSnapshot = {
+          status: vendor?.status ?? vendor?.vendorStatus ?? "approved",
+          vendorStatus: vendor?.vendorStatus ?? vendor?.status ?? "approved",
+          profileStatus: vendor?.profile?.status ?? "approved",
+        };
+
+        const updates = {
+          status: "paused",
+          vendorStatus: "paused",
+          "profile.status": "paused",
+          isPaused: true,
+          paused: true,
+          "profile.isPaused": true,
+          "profile.paused": true,
+          pauseStartedAt: timestamp,
+          pauseRequestedAt: requestedAtValue,
+          "pause.requestedAt": requestedAtValue,
+          "pause.active": true,
+          pauseApprovedAt: timestamp,
+          "pause.approvedAt": timestamp,
+          "pause.pauseStartedAt": timestamp,
+          "pause.startedAt": timestamp,
+          pauseResumedAt: deleteField(),
+          "pause.resumedAt": deleteField(),
+          "pause.resumedBy": deleteField(),
+          "pause.resumedByUid": deleteField(),
+          updatedAt: timestamp,
+          prePauseSnapshot,
+        };
+
+        if (adminEmail) {
+          updates.pauseApprovedBy = adminEmail;
+          updates["pause.approvedBy"] = adminEmail;
+        } else {
+          updates.pauseApprovedBy = "admin";
+          updates["pause.approvedBy"] = "admin";
+        }
+        if (adminUid) {
+          updates.pauseApprovedByUid = adminUid;
+          updates["pause.approvedByUid"] = adminUid;
+        }
+        if (hasRequestedDays) {
+          updates.pauseRequestedDays = requestedDaysNumber;
+          updates["pause.requestedDays"] = requestedDaysNumber;
+        }
+        if (pauseResumeAtValue) {
+          updates.pauseResumeAt = pauseResumeAtValue;
+          updates["pause.pauseResumeAt"] = pauseResumeAtValue;
+          updates["pause.resumeAt"] = pauseResumeAtValue;
+        }
+        if (normalizedReason) {
+          updates.pauseReason = normalizedReason;
+          updates["pause.reason"] = normalizedReason;
+        }
+
+        await updateDoc(vendorRef, updates);
+
+        const targetProducts =
+          products.length > 0
+            ? products
+            : await fetchProductsForVendor();
+
+        const updatedCount = await pauseProductsForVendor(targetProducts);
+        const publicCount = await pausePublicProductsForVendor();
+
+        if (updatedCount > 0 || publicCount > 0) {
+          setActionMessage(
+            `${isValidationFlow ? "La pause a ete validee" : "Le vendeur est en pause"}. ${updatedCount} produit(s) vendor et ${publicCount} produit(s) publics ont ete masques.`
+          );
+        } else {
+          setActionMessage(
+            isValidationFlow
+              ? "La pause a ete validee."
+              : "Le vendeur est en pause."
+          );
+        }
+
+        await refreshProducts();
+        success = true;
+      } catch (err) {
+        console.error("Erreur mise en pause vendeur:", err);
+        setActionError(
+          "Impossible de mettre ce vendeur en pause pour le moment."
+        );
+      } finally {
+        setActionBusy(false);
+      }
+
+      return success;
+    },
+    [
+      vendor,
+      isProtectedVendor,
+      isBlocked,
+      isApproved,
+      isPaused,
+      isPauseRequested,
+      products,
+      fetchProductsForVendor,
+      pauseProductsForVendor,
+      pausePublicProductsForVendor,
+      refreshProducts,
+    ]
+  );
+
+  const handleResumeVendor = useCallback(async () => {
+    if (!vendor?.id) return false;
+    if (!isPaused) {
+      setActionError("Ce vendeur n'est pas en pause.");
+      return false;
+    }
+
+    setActionBusy(true);
+    setActionError(null);
+    let success = false;
+
+    try {
+      const timestamp = serverTimestamp();
+      const vendorRef = doc(db, "vendors", vendor.id);
+      const adminEmail = auth.currentUser?.email ?? null;
+      const adminUid = auth.currentUser?.uid ?? null;
+      const prePause = vendor?.prePauseSnapshot || {};
+      const restoreValue = (value, fallback) =>
+        value === undefined || value === null ? fallback : value;
+
+      const updates = {
+        status: restoreValue(prePause.status, "approved"),
+        vendorStatus: restoreValue(prePause.vendorStatus, "approved"),
+        "profile.status": restoreValue(prePause.profileStatus, "approved"),
+        isPaused: false,
+        paused: false,
+        "profile.isPaused": false,
+        "profile.paused": false,
+        pauseResumedAt: timestamp,
+        "pause.active": false,
+        "pause.resumedAt": timestamp,
+        updatedAt: timestamp,
+        prePauseSnapshot: deleteField(),
+      };
+      if (adminEmail) {
+        updates.pauseResumedBy = adminEmail;
+        updates["pause.resumedBy"] = adminEmail;
+      } else {
+        updates.pauseResumedBy = "admin";
+        updates["pause.resumedBy"] = "admin";
+      }
+      if (adminUid) {
+        updates.pauseResumedByUid = adminUid;
+        updates["pause.resumedByUid"] = adminUid;
+      }
+
+      await updateDoc(vendorRef, updates);
+
+      const targetProducts =
+        products.length > 0 ? products : await fetchProductsForVendor();
+      const updatedCount = await restoreProductsAfterPause(targetProducts);
+      const publicCount = await restorePublicProductsAfterPause();
+
+      if (updatedCount > 0 || publicCount > 0) {
+        setActionMessage(
+          `La pause est levee. ${updatedCount} produit(s) vendor et ${publicCount} produit(s) publics ont ete reactives.`
+        );
+      } else {
+        setActionMessage("La pause du vendeur a ete levee.");
+      }
+      await refreshProducts();
+      success = true;
+    } catch (err) {
+      console.error("Erreur reprise vendeur:", err);
+      setActionError(
+        "Impossible de lever la pause du vendeur pour le moment."
+      );
+    } finally {
+      setActionBusy(false);
+    }
+
+    return success;
+  }, [
+    vendor,
+    isPaused,
+    products,
+    fetchProductsForVendor,
+    restoreProductsAfterPause,
+    restorePublicProductsAfterPause,
+    refreshProducts,
+  ]);
 
   const handleArchiveAndDeleteVendor = useCallback(
     async (reason) => {
@@ -1846,6 +2395,12 @@ const VendorDetails = () => {
       case "unblockVendor":
         success = await handleUnblockVendor();
         break;
+      case "pauseVendor":
+        success = await handlePauseVendor(reason);
+        break;
+      case "resumeVendor":
+        success = await handleResumeVendor();
+        break;
       case "blockAllProducts":
         success = await handleBlockAllProducts(reason);
         break;
@@ -1879,6 +2434,8 @@ const VendorDetails = () => {
     handleApproveVendor,
     handleBlockVendor,
     handleUnblockVendor,
+    handlePauseVendor,
+    handleResumeVendor,
     handleBlockAllProducts,
     handleReactivateAllProducts,
     handleToggleProduct,
@@ -1889,6 +2446,7 @@ const VendorDetails = () => {
   const dialogRequiresReason =
     dialog &&
     (dialog.type === "blockVendor" ||
+      (dialog.type === "pauseVendor" && !dialog.fromRequest) ||
       dialog.type === "blockProduct" ||
       dialog.type === "blockAllProducts" ||
       dialog.type === "deleteVendor");
@@ -1908,6 +2466,10 @@ const VendorDetails = () => {
         return "Bloquer le vendeur";
       case "unblockVendor":
         return "Debloquer le vendeur";
+      case "pauseVendor":
+        return dialog?.fromRequest ? "Valider la pause" : "Mettre en pause";
+      case "resumeVendor":
+        return "Lever la pause";
       case "blockAllProducts":
         return "Bloquer tous les produits";
       case "reactivateAllProducts":
@@ -1932,6 +2494,12 @@ const VendorDetails = () => {
         return "Le vendeur ne pourra plus se connecter et ses produits seront desactives.";
       case "unblockVendor":
         return "Le statut du vendeur repassera en revue et il pourra a nouveau etre active.";
+      case "pauseVendor":
+        return dialog?.fromRequest
+          ? "Confirmez la validation de la pause demandee. Les produits seront bloques depuis l'admin."
+          : "La boutique sera temporairement masquee sans blocage definitif du compte.";
+      case "resumeVendor":
+        return "La boutique sortira de pause et redeviendra visible.";
       case "blockAllProducts":
         return "Tous les produits associes a ce vendeur deviendront inactifs.";
       case "reactivateAllProducts":
@@ -1958,6 +2526,10 @@ const VendorDetails = () => {
         return "Bloquer";
       case "unblockVendor":
         return "Debloquer";
+      case "pauseVendor":
+        return dialog?.fromRequest ? "Valider la pause" : "Mettre en pause";
+      case "resumeVendor":
+        return "Lever la pause";
       case "reactivateAllProducts":
       case "reactivateProduct":
         return "Reactiver";
@@ -2191,10 +2763,43 @@ const VendorDetails = () => {
                   <button
                     type="button"
                     className="vendorDetails__actionButton vendorDetails__actionButton--danger"
-                    disabled={actionBusy || !isApproved || isProtectedVendor}
+                    disabled={
+                      actionBusy ||
+                      (!isApproved && !isPaused) ||
+                      isProtectedVendor
+                    }
                     onClick={() => openDialog({ type: "blockVendor" })}
                   >
                     Bloquer le vendeur
+                  </button>
+                )}
+                {isPaused ? (
+                  <button
+                    type="button"
+                    className="vendorDetails__actionButton vendorDetails__actionButton--success"
+                    disabled={actionBusy || isBlocked}
+                    onClick={() => openDialog({ type: "resumeVendor" })}
+                  >
+                    Lever la pause
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="vendorDetails__actionButton vendorDetails__actionButton--ghost"
+                    disabled={
+                      actionBusy ||
+                      isBlocked ||
+                      isProtectedVendor ||
+                      (!isPauseRequested && !isApproved)
+                    }
+                    onClick={() =>
+                      openDialog({
+                        type: "pauseVendor",
+                        fromRequest: isPauseRequested,
+                      })
+                    }
+                  >
+                    {isPauseRequested ? "Valider la pause" : "Mettre en pause"}
                   </button>
                 )}
                 {isPartner ? (
@@ -2227,7 +2832,18 @@ const VendorDetails = () => {
               </div>
               {isProtectedVendor && (
                 <p className="vendorDetails__actionsMeta">
-                  Ce compte Monmarche est protege et ne peut pas etre bloque ou supprime.
+                  Ce compte Monmarche est protege et ne peut pas etre bloque, mis en pause ou supprime.
+                </p>
+              )}
+              {isPauseRequested && !isPaused && (
+                <p className="vendorDetails__actionsMeta">
+                  Demande de pause recue le{" "}
+                  {formatDateTime(
+                    vendor?.pause?.requestedAt ??
+                      vendor?.profile?.pause?.requestedAt ??
+                      vendor?.pauseRequestedAt
+                  )}
+                  . Cliquez sur "Valider la pause" pour appliquer le blocage des produits.
                 </p>
               )}
 

@@ -24,7 +24,7 @@ import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 import AddLocationIcon from "@mui/icons-material/AddLocation";
 import EditNoteIcon from "@mui/icons-material/EditNote";
 import ForwardToInboxIcon from "@mui/icons-material/ForwardToInbox";
-import DescriptionIcon from "@mui/icons-material/Description";
+import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
 import ManageSearchIcon from "@mui/icons-material/ManageSearch";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import BlockIcon from "@mui/icons-material/Block";
@@ -121,11 +121,11 @@ const Sidbar = () => {
         Icon: ForwardToInboxIcon,
       },
       {
-        key: "needs_docs",
-        label: "Documents manquants",
-        description: "Pièces justificatives à récupérer",
-        to: "/vendors/status/needs_docs",
-        Icon: DescriptionIcon,
+        key: "paused",
+        label: "En pause",
+        description: "Vendeurs temporairement en pause",
+        to: "/vendors/status/paused",
+        Icon: PauseCircleOutlineIcon,
       },
       {
         key: "under_review",

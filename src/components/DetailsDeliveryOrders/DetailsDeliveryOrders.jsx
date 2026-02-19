@@ -48,6 +48,49 @@ export default function DetailsDeliveryOrders({ title, btnValidation }) {
       currency: "GNF",
     });
 
+  const toNumber = (value, fallback = 0) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const buildArchivedOrderSnapshot = (orderData, deliveredAtFieldValue) => {
+    const cart = Array.isArray(orderData?.cart) ? orderData.cart : [];
+
+    const items = cart
+      .map((item) => {
+        const title = item?.name || item?.title || item?.productName;
+        if (!title) return null;
+
+        const qtyBulk = Math.max(0, Math.floor(toNumber(item?.quantityBulk, 0)));
+        const qtyDetail = Math.max(0, Math.floor(toNumber(item?.quantityDetail, 0)));
+        const qty = qtyBulk + qtyDetail;
+        const lineTotal = toNumber(
+          item?.totalAmount ?? item?.amount ?? item?.amountDetail ?? item?.amountBulk,
+          0
+        );
+        const unitPrice = qty > 0 ? lineTotal / qty : toNumber(item?.priceDetail ?? item?.priceBulk, 0);
+
+        return {
+          title,
+          qty: qty > 0 ? qty : 1,
+          price: Number.isFinite(unitPrice) ? unitPrice : 0,
+          ...(item?.vendorName ? { vendorName: item.vendorName } : {}),
+        };
+      })
+      .filter(Boolean);
+
+    const itemsTotal = items.reduce((sum, item) => sum + item.qty * item.price, 0);
+    const total = toNumber(orderData?.total ?? orderData?.totalAmount, itemsTotal);
+    const currency = orderData?.currency || "GNF";
+
+    return {
+      items,
+      total,
+      currency,
+      deliveredAt: deliveredAtFieldValue,
+    };
+  };
+
   // Flag dans "orders" (pour éviter re-traitement côté UI)
   const flagOrderDeliveredAndArchived = async () => {
     await updateDoc(doc(db, "orders", params.id), {
@@ -305,9 +348,19 @@ export default function DetailsDeliveryOrders({ title, btnValidation }) {
         return;
       }
       const data = orderSnap.data();
+      const deliveredAtField = serverTimestamp();
+      const archivedSnapshot = buildArchivedOrderSnapshot(data, deliveredAtField);
 
       const batch = writeBatch(db);
-      batch.set(archivedRef, { ...data, timeStamp: serverTimestamp() });
+      batch.set(archivedRef, {
+        ...data,
+        delivered: true,
+        archived: true,
+        deliveredAt: deliveredAtField,
+        orderSnapshot: archivedSnapshot,
+        reviewJobId: `review_${params.id}`,
+        timeStamp: serverTimestamp(),
+      });
       batch.delete(orderRef);
       await batch.commit();
 

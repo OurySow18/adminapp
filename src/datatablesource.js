@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import {
   resolveVendorStatus,
   getVendorStatusLabel,
+  isVendorPaused,
 } from "./utils/vendorStatus";
 const toDate = (value) => {
   if (!value) return undefined;
@@ -89,6 +90,11 @@ const getVendorRequiredDocs = (row) => {
 const getVendorOpsInfo = (row) => {
   const profile = getVendorProfile(row);
   return profile.ops || row.ops || {};
+};
+
+const getVendorPauseInfo = (row) => {
+  const profile = getVendorProfile(row);
+  return profile.pause || row.pause || {};
 };
 
 const getVendorTimestamp = (row, key) => {
@@ -455,7 +461,7 @@ export const vendorColumns = [
       const ops = getVendorOpsInfo(params.row);
       return firstValue(ops.productTypes, params.row.productTypes);
     },
-  }, 
+  },
   {
     field: "submittedAt",
     headerName: "Soumis le",
@@ -463,6 +469,90 @@ export const vendorColumns = [
     valueGetter: (params) =>
       formatDate(getVendorTimestamp(params.row, "submittedAt")),
   }, 
+];
+
+export const vendorPausedColumns = [
+  { field: "id", headerName: "ID", width: 90 },
+  {
+    field: "shopName",
+    headerName: "Nom de la boutique",
+    width: 240,
+    valueGetter: (params) => {
+      const company = getVendorCompany(params.row);
+      return firstValue(
+        company.name,
+        params.row.companyName,
+        params.row.name,
+        params.row.displayName
+      );
+    },
+  },
+  {
+    field: "pauseRequestedAt",
+    headerName: "Date de la requete",
+    width: 190,
+    valueGetter: (params) => {
+      const pause = getVendorPauseInfo(params.row);
+      return formatDate(
+        firstValue(
+          pause.requestedAt,
+          params.row.pauseRequestedAt,
+          params.row.requestedAt
+        )
+      );
+    },
+  },
+  {
+    field: "pauseStartedAt",
+    headerName: "Debut de la pause",
+    width: 190,
+    valueGetter: (params) => {
+      const pause = getVendorPauseInfo(params.row);
+      return formatDate(
+        firstValue(
+          params.row.pauseStartedAt,
+          pause.pauseStartedAt,
+          pause.startedAt
+        )
+      );
+    },
+  },
+  {
+    field: "pauseRequestedDays",
+    headerName: "Duree de la pause",
+    width: 170,
+    valueGetter: (params) => {
+      const pause = getVendorPauseInfo(params.row);
+      const days = firstValue(
+        pause.requestedDays,
+        params.row.pauseRequestedDays,
+        params.row.requestedDays
+      );
+      if (days === "-") return "-";
+      return `${days} jour(s)`;
+    },
+  },
+  {
+    field: "pauseResumeAt",
+    headerName: "Fin de la pause",
+    width: 190,
+    valueGetter: (params) => {
+      const pause = getVendorPauseInfo(params.row);
+      return formatDate(
+        firstValue(
+          params.row.pauseResumeAt,
+          pause.pauseResumeAt,
+          pause.resumeAt
+        )
+      );
+    },
+  },
+  {
+    field: "paused",
+    headerName: "En pause",
+    width: 110,
+    valueGetter: (params) => boolLabel(isVendorPaused(params.row), "Oui", "Non"),
+  },
 ];
 
 export const productColumns = [

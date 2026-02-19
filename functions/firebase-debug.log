@@ -1,0 +1,74 @@
+[debug] [2026-02-18T13:26:04.088Z] ----------------------------------------------------------------------
+[debug] [2026-02-18T13:26:04.093Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\aos\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:indexes
+[debug] [2026-02-18T13:26:04.093Z] CLI Version:   15.6.0
+[debug] [2026-02-18T13:26:04.093Z] Platform:      win32
+[debug] [2026-02-18T13:26:04.093Z] Node Version:  v24.13.0
+[debug] [2026-02-18T13:26:04.093Z] Time:          Wed Feb 18 2026 14:26:04 GMT+0100 (Mitteleuropäische Normalzeit)
+[debug] [2026-02-18T13:26:04.093Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-02-18T13:26:07.009Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-18T13:26:07.009Z] > authorizing via signed-in user (amadourys15@gmail.com)
+[debug] [2026-02-18T13:26:07.009Z] [iam] checking project monmarhe for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2026-02-18T13:26:07.010Z] Checked if tokens are valid: true, expires at: 1771424271284
+[debug] [2026-02-18T13:26:07.010Z] Checked if tokens are valid: true, expires at: 1771424271284
+[debug] [2026-02-18T13:26:07.011Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/monmarhe:testIamPermissions [none]
+[debug] [2026-02-18T13:26:07.011Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/monmarhe:testIamPermissions  x-goog-user-project=monmarhe
+[debug] [2026-02-18T13:26:07.011Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/monmarhe:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2026-02-18T13:26:07.900Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/monmarhe:testIamPermissions 200
+[debug] [2026-02-18T13:26:07.901Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/monmarhe:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'monmarhe'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2026-02-18T13:26:07.907Z] Checked if tokens are valid: true, expires at: 1771424271284
+[debug] [2026-02-18T13:26:07.908Z] Checked if tokens are valid: true, expires at: 1771424271284
+[debug] [2026-02-18T13:26:07.908Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/monmarhe/databases/(default) [none]
+[debug] [2026-02-18T13:26:08.241Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/monmarhe/databases/(default) 200
+[debug] [2026-02-18T13:26:08.241Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/monmarhe/databases/(default) {"name":"projects/monmarhe/databases/(default)","uid":"3f376ed1-b4d7-4b1d-95d5-12590a53313b","createTime":"2022-04-11T16:10:01.262235Z","updateTime":"2022-04-11T16:10:01.262235Z","locationId":"eur3","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2026-02-18T12:26:08.178213Z","appEngineIntegrationMode":"ENABLED","keyPrefix":"e","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"IJSk6IuS45IDMJH17fSthpAD"}
+[info] i  firestore: reading indexes from firestore.indexes.json... 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2026-02-18T13:26:08.246Z] Checked if tokens are valid: true, expires at: 1771424271284
+[debug] [2026-02-18T13:26:08.246Z] Checked if tokens are valid: true, expires at: 1771424271284
+[debug] [2026-02-18T13:26:08.246Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/monmarhe:test [none]
+[debug] [2026-02-18T13:26:08.246Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/monmarhe:test [omitted]
+[debug] [2026-02-18T13:26:09.084Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/monmarhe:test 200
+[debug] [2026-02-18T13:26:09.084Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/monmarhe:test {}
+[info] +  cloud.firestore: rules file firestore.rules compiled successfully 
+[info] i  firestore: deploying indexes... 
+[debug] [2026-02-18T13:26:09.086Z] Checked if tokens are valid: true, expires at: 1771424271284
+[debug] [2026-02-18T13:26:09.086Z] Checked if tokens are valid: true, expires at: 1771424271284
+[debug] [2026-02-18T13:26:09.086Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/monmarhe/databases/(default)/collectionGroups/-/indexes [none]
+[debug] [2026-02-18T13:26:09.161Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/monmarhe/databases/(default)/collectionGroups/-/indexes 200
+[debug] [2026-02-18T13:26:09.161Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/monmarhe/databases/(default)/collectionGroups/-/indexes {"indexes":[{"name":"projects/monmarhe/databases/(default)/collectionGroups/archivedOrders/indexes/CICAgOjXh4EJ","queryScope":"COLLECTION","fields":[{"fieldPath":"delivered","order":"ASCENDING"},{"fieldPath":"timeStamp","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/monmarhe/databases/(default)/collectionGroups/vendor_products/indexes/CICAgJim14AK","queryScope":"COLLECTION","fields":[{"fieldPath":"vendorId","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/monmarhe/databases/(default)/collectionGroups/archivedOrders/indexes/CICAgOjXh4EK","queryScope":"COLLECTION","fields":[{"fieldPath":"delivered","order":"ASCENDING"},{"fieldPath":"timeStamp.seconds","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/monmarhe/databases/(default)/collectionGroups/products_public/indexes/CICAgJj7z4EK","queryScope":"COLLECTION","fields":[{"fieldPath":"mm_status","order":"ASCENDING"},{"fieldPath":"recommended","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"vm_status","order":"ASCENDING"},{"fieldPath":"recommendedRank","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/monmarhe/databases/(default)/collectionGroups/products_public/indexes/CICAgJjF9oIK","queryScope":"COLLECTION","fields":[{"fieldPath":"bestseller","order":"ASCENDING"},{"fieldPath":"mm_status","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"vm_status","order":"ASCENDING"},{"fieldPath":"bestsellerRank","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/monmarhe/databases/(default)/collectionGroups/products/indexes/CICAgJiUpoMK","queryScope":"COLLECTION","fields":[{"fieldPath":"vendorId","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"}]}
+[debug] [2026-02-18T13:26:09.162Z] Checked if tokens are valid: true, expires at: 1771424271284
+[debug] [2026-02-18T13:26:09.162Z] Checked if tokens are valid: true, expires at: 1771424271284
+[debug] [2026-02-18T13:26:09.162Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/monmarhe/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* [none]
+[debug] [2026-02-18T13:26:09.238Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/monmarhe/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* 200
+[debug] [2026-02-18T13:26:09.239Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/monmarhe/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* {"fields":[{"name":"projects/monmarhe/databases/(default)/collectionGroups/__default__/fields/*","indexConfig":{"indexes":[{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"ASCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"DESCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","arrayConfig":"CONTAINS"}],"state":"READY"}]}}]}
+[debug] [2026-02-18T13:26:09.239Z] Checked if tokens are valid: true, expires at: 1771424271284
+[debug] [2026-02-18T13:26:09.239Z] Checked if tokens are valid: true, expires at: 1771424271284
+[debug] [2026-02-18T13:26:09.239Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/monmarhe/databases/(default) [none]
+[debug] [2026-02-18T13:26:09.330Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/monmarhe/databases/(default) 200
+[debug] [2026-02-18T13:26:09.330Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/monmarhe/databases/(default) {"name":"projects/monmarhe/databases/(default)","uid":"3f376ed1-b4d7-4b1d-95d5-12590a53313b","createTime":"2022-04-11T16:10:01.262235Z","updateTime":"2022-04-11T16:10:01.262235Z","locationId":"eur3","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2026-02-18T12:26:09.299338Z","appEngineIntegrationMode":"ENABLED","keyPrefix":"e","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"IN/YrIyS45IDMJH17fSthpAD"}
+[info] i  firestore: The following indexes are defined in your project but are not present in your firestore indexes file:
+	(archivedOrders) -- (delivered,ASCENDING) (timeStamp,ASCENDING)  -- Density:SPARSE_ALL 
+	(vendor_products) -- (vendorId,ASCENDING) (createdAt,DESCENDING)  -- Density:SPARSE_ALL 
+	(archivedOrders) -- (delivered,ASCENDING) (timeStamp.seconds,ASCENDING)  -- Density:SPARSE_ALL 
+	(products_public) -- (mm_status,ASCENDING) (recommended,ASCENDING) (status,ASCENDING) (vm_status,ASCENDING) (recommendedRank,ASCENDING)  -- Density:SPARSE_ALL 
+	(products_public) -- (bestseller,ASCENDING) (mm_status,ASCENDING) (status,ASCENDING) (vm_status,ASCENDING) (bestsellerRank,ASCENDING)  -- Density:SPARSE_ALL 
+	(products) -- (vendorId,ASCENDING) (createdAt,DESCENDING)  -- Density:SPARSE_ALL  
+[debug] [2026-02-18T13:26:59.475Z] ExitPromptError: User force closed the prompt with SIGINT
+    at Interface.sigint (C:\Users\aos\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\@inquirer\core\dist\commonjs\lib\create-prompt.js:101:37)
+    at Interface.emit (node:events:508:28)
+    at [_ttyWrite] [as _ttyWrite] (node:internal/readline/interface:1327:18)
+    at ReadStream.onkeypress (node:internal/readline/interface:284:20)
+    at ReadStream.emit (node:events:520:35)
+    at emitKeys (node:internal/readline/utils:371:14)
+    at emitKeys.next (<anonymous>)
+    at ReadStream.onData (node:internal/readline/emitKeypressEvents:64:36)
+    at ReadStream.emit (node:events:508:28)
+    at addChunk (node:internal/streams/readable:559:12)
+[error] 
+[error] Error: An unexpected error has occurred.
