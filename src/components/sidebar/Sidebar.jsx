@@ -301,6 +301,7 @@ const Sidbar = () => {
   const isProductsActive = normalizedPath.startsWith("/products");
   const isZonesActive = normalizedPath.startsWith("/zones");
   const isOrdersActive = normalizedPath.startsWith("/orders");
+  const isFakeOrdersActive = normalizedPath.startsWith("/fake-orders");
   const isDeliveryActive = normalizedPath.startsWith("/delivery");
   const isDeliveredOrdersActive =
     normalizedPath.startsWith("/delivredOrders");
@@ -767,6 +768,16 @@ return (
             <li className={isOrdersActive ? "active" : ""}>
               <CreditCardIcon className="icon" />
               <span>Commandes</span>
+            </li>
+          </Link>
+          <Link
+            to="/fake-orders"
+            style={{ textDecoration: "none" }}
+            onClick={handleNavLinkClick}
+          >
+            <li className={isFakeOrdersActive ? "active" : ""}>
+              <BlockIcon className="icon" />
+              <span>Fausses commandes</span>
             </li>
           </Link>
 

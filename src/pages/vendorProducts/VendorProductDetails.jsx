@@ -304,6 +304,12 @@ const VendorProductDetails = () => {
     typeof location.state?.docPath === "string" ? location.state.docPath : null;
   const stateSource =
     typeof location.state?.source === "string" ? location.state.source : null;
+  const stateViewMode =
+    typeof location.state?.viewMode === "string" ? location.state.viewMode : null;
+  const isPublicCatalogMode =
+    location.pathname.startsWith("/catalogue-public") ||
+    stateViewMode === "publicCatalog" ||
+    stateSource === "public";
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -520,34 +526,41 @@ const VendorProductDetails = () => {
       const attempted = new Set();
       const candidates = [];
 
-      if (docPathFromState) {
-        const segments = docPathFromState.split("/").filter(Boolean);
-        if (segments.length >= 2 && segments.length % 2 === 0) {
+      if (isPublicCatalogMode) {
+        candidates.push({
+          ref: doc(db, "products_public", productId),
+          scope: "public",
+        });
+      } else {
+        if (docPathFromState) {
+          const segments = docPathFromState.split("/").filter(Boolean);
+          if (segments.length >= 2 && segments.length % 2 === 0) {
+            candidates.push({
+              ref: doc(db, ...segments),
+              scope:
+                stateSource ||
+                (segments.length === 2 ? "root" : "vendor"),
+            });
+          }
+        }
+
+        candidates.push({
+          ref: doc(db, "vendor_products", productId),
+          scope: "root",
+        });
+
+        if (vendorId && vendorId !== "_" && vendorId !== "root") {
           candidates.push({
-            ref: doc(db, ...segments),
-            scope:
-              stateSource ||
-              (segments.length === 2 ? "root" : "vendor"),
+            ref: doc(db, "vendor_products", vendorId, "products", productId),
+            scope: "vendor",
           });
         }
-      }
 
-      candidates.push({
-        ref: doc(db, "vendor_products", productId),
-        scope: "root",
-      });
-
-      if (vendorId && vendorId !== "_" && vendorId !== "root") {
         candidates.push({
-          ref: doc(db, "vendor_products", vendorId, "products", productId),
-          scope: "vendor",
+          ref: doc(db, "products_public", productId),
+          scope: "public",
         });
       }
-
-      candidates.push({
-        ref: doc(db, "products_public", productId),
-        scope: "public",
-      });
 
       for (const candidate of candidates) {
         const path = candidate.ref.path;
@@ -602,7 +615,7 @@ const VendorProductDetails = () => {
       cancelled = true;
       if (typeof unsub === "function") unsub();
     };
-  }, [vendorId, productId, docPathFromState, stateSource]);
+  }, [vendorId, productId, docPathFromState, stateSource, isPublicCatalogMode]);
 
   useEffect(() => {
     setStatusUpdateState({ loading: false, error: null, success: null });
@@ -875,7 +888,8 @@ const VendorProductDetails = () => {
     return [];
   }, [product]);
 
-  const pendingDraftChanges = draftStatus && draftChanges.length > 0;
+  const pendingDraftChanges =
+    !isPublicCatalogMode && draftStatus && draftChanges.length > 0;
 
   const hasDraftChange = useCallback(
     (...paths) => {
@@ -1317,6 +1331,15 @@ const VendorProductDetails = () => {
 
   const handleValidateChanges = async () => {
     if (!product || !pendingDraftChanges) return;
+    if (isPublicCatalogMode || product?.__scope === "public") {
+      setStatusUpdateState({
+        loading: false,
+        error:
+          "La validation des modifications est disponible uniquement depuis Produits vendeurs.",
+        success: null,
+      });
+      return;
+    }
     setStatusUpdateState({ loading: true, error: null, success: null });
     try {
       await applyVendorProductDraftChanges({
@@ -1403,7 +1426,7 @@ const VendorProductDetails = () => {
             </div>
             <div className="vendorProductDetails__headerRight">
               <div className="vendorProductDetails__actions">
-                {pendingDraftChanges && (
+                {pendingDraftChanges && product?.__scope !== "public" && (
                   <button
                     type="button"
                     className="vendorProductDetails__actionBtn vendorProductDetails__actionBtn--pending"

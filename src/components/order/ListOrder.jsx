@@ -2,7 +2,7 @@ import "./ListOrder.scss";
 import React, { useState, useEffect, useMemo } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
-import { Link, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { DataGrid } from "@mui/x-data-grid";
 
 const formatDateTime = (value) => {
@@ -18,13 +18,32 @@ const formatDateTime = (value) => {
   return Number.isNaN(parsed.getTime()) ? "" : parsed.toLocaleString("fr-FR");
 };
 
-const ListOrder = ({ typeColumns, title }) => {
+const toTimeNumber = (value) => {
+  if (!value) return 0;
+  if (typeof value === "number") return value;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value?.toDate === "function") {
+    const date = value.toDate();
+    return date instanceof Date ? date.getTime() : 0;
+  }
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+  }
+  if (typeof value === "object" && typeof value.seconds === "number") {
+    const millis = value.seconds * 1000;
+    if (typeof value.nanoseconds === "number") {
+      return millis + Math.floor(value.nanoseconds / 1e6);
+    }
+    return millis;
+  }
+  return 0;
+};
+
+const ListOrder = ({ typeColumns, showFakeOrders = false }) => {
   const [data, setData] = useState([]);
   const [pageSize, setPageSize] = useState(9);
   const [searchQuery, setSearchQuery] = useState("");
-
-  const params = useParams();
-  //console.log(params)
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
@@ -33,11 +52,19 @@ const ListOrder = ({ typeColumns, title }) => {
         const list = [];
         snapshot.docs.forEach((doc) => {
           const orderData = doc.data();
-          if (!orderData.payed) {
-            list.push({ id: doc.id, ...orderData });
-          }
+
+          const isFakeOrder = orderData?.fakeOrder === true;
+          const shouldInclude = showFakeOrders ? isFakeOrder : !isFakeOrder;
+          if (!shouldInclude) return;
+
+          // Vue "Commandes" garde le comportement actuel (non payées).
+          if (!showFakeOrders && orderData?.payed) return;
+
+          list.push({ id: doc.id, ...orderData });
         });
-        list.sort((a, b) => (b.timeStamp || 0) - (a.timeStamp || 0));
+        list.sort(
+          (a, b) => toTimeNumber(b.timeStamp) - toTimeNumber(a.timeStamp)
+        );
         setData(list);
       },
       (error) => {
@@ -47,7 +74,7 @@ const ListOrder = ({ typeColumns, title }) => {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [showFakeOrders]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
@@ -101,7 +128,9 @@ const ListOrder = ({ typeColumns, title }) => {
     <div className="listOrder">
       <div className="listOrder__header">
         <div className="listOrderTitel">
-          Nombre de Commandes: {filteredRows.length}
+          {showFakeOrders
+            ? `Nombre de fausses commandes: ${filteredRows.length}`
+            : `Nombre de Commandes: ${filteredRows.length}`}
         </div>
         <input
           type="search"

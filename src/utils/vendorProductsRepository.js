@@ -7,6 +7,7 @@ import {
   getDocs,
   serverTimestamp,
   setDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { ensureUniqueSlug } from "./slugUtils";
@@ -66,6 +67,15 @@ const splitPath = (path) =>
         .filter(Boolean)
     : [];
 
+const normalizeDraftFieldPath = (path) => {
+  if (typeof path !== "string") return "";
+  return path
+    .trim()
+    .replace(/^draft\.core\./, "")
+    .replace(/^core\./, "")
+    .replace(/^draft\./, "");
+};
+
 const getValueAtPath = (source, path) => {
   if (!source || typeof source !== "object" || !path) return undefined;
   return splitPath(path).reduce((acc, segment) => {
@@ -121,7 +131,9 @@ const extractVendorProductFlags = (raw = {}) => {
     "draft_status",
     "draftStatus",
     "core.draft_status",
+    "core.draftStatus",
     "draft.core.draft_status",
+    "draft.core.draftStatus",
   ]);
   const draftChanges = Array.isArray(raw.draftChanges)
     ? raw.draftChanges
@@ -147,15 +159,47 @@ const derivePrimaryFilterKey = (flags) => {
   return null;
 };
 
-const buildUpdatePayloadFromPaths = (source, paths) => {
+const resolveDraftChangesList = (raw) => {
+  if (!raw || typeof raw !== "object") return [];
+  if (Array.isArray(raw.draftChanges)) return raw.draftChanges;
+  if (Array.isArray(raw.core?.draftChanges)) return raw.core.draftChanges;
+  if (Array.isArray(raw.draft?.core?.draftChanges)) return raw.draft.core.draftChanges;
+  return [];
+};
+
+const getDraftSourceValue = (source, rawPath, normalizedPath) => {
+  const candidates = [
+    rawPath,
+    normalizedPath ? `draft.core.${normalizedPath}` : null,
+    normalizedPath ? `draft.${normalizedPath}` : null,
+    normalizedPath ? `core.${normalizedPath}` : null,
+    normalizedPath,
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    const value = getValueAtPath(source, candidate);
+    if (value !== undefined) return value;
+  }
+  return undefined;
+};
+
+const buildPublicUpdatePayloadFromDraftChanges = (source, rawPaths) => {
   if (!source || typeof source !== "object") return {};
   const payload = {};
-  paths.forEach((path) => {
-    if (typeof path !== "string" || !path.trim()) return;
-    const value = getValueAtPath(source, path);
+  const seen = new Set();
+
+  rawPaths.forEach((rawPath) => {
+    if (typeof rawPath !== "string" || !rawPath.trim()) return;
+    const normalizedPath = normalizeDraftFieldPath(rawPath);
+    if (!normalizedPath) return;
+    if (seen.has(normalizedPath)) return;
+    seen.add(normalizedPath);
+
+    const value = getDraftSourceValue(source, rawPath.trim(), normalizedPath);
     if (value === undefined) return;
-    setValueAtPath(payload, path, value);
+    setValueAtPath(payload, normalizedPath, value);
   });
+
   return payload;
 };
 
@@ -771,16 +815,17 @@ export const applyVendorProductDraftChanges = async ({
   if (!productData || typeof productData !== "object") {
     throw new Error("Donn�es produit indisponibles pour la validation.");
   }
-  const draftChanges = Array.isArray(productData.draftChanges)
-    ? productData.draftChanges.filter(
-        (field) => typeof field === "string" && field.trim().length > 0
-      )
-    : [];
+  const draftChanges = resolveDraftChangesList(productData).filter(
+    (field) => typeof field === "string" && field.trim().length > 0
+  );
   if (!draftChanges.length) {
     throw new Error("Aucune modification � valider.");
   }
 
-  const valuesPayload = buildUpdatePayloadFromPaths(productData, draftChanges);
+  const valuesPayload = buildPublicUpdatePayloadFromDraftChanges(
+    productData,
+    draftChanges
+  );
   if (!Object.keys(valuesPayload).length) {
     throw new Error(
       "Impossible de construire la mise � jour � partir des modifications."
@@ -789,23 +834,28 @@ export const applyVendorProductDraftChanges = async ({
 
   const publicRef = doc(db, "products_public", productId);
   const publicSnap = await getDoc(publicRef);
-  const writes = [];
-  if (publicSnap.exists()) {
-    let slugPayload = {};
-    if (!publicSnap.data()?.slug) {
-      const titleCandidate =
-        productData?.title ||
-        productData?.name ||
-        productData?.core?.title ||
-        productData?.core?.name;
-      if (titleCandidate) {
-        const slug = await ensureUniqueSlug(titleCandidate, productId);
-        if (slug) {
-          slugPayload = { slug };
-        }
+  if (!publicSnap.exists()) {
+    throw new Error(
+      "Produit public introuvable. Impossible de valider une modification sans fiche publiee."
+    );
+  }
+
+  let slugPayload = {};
+  if (!publicSnap.data()?.slug) {
+    const titleCandidate =
+      valuesPayload?.title ||
+      productData?.title ||
+      productData?.name ||
+      productData?.core?.title ||
+      productData?.core?.name ||
+      productData?.draft?.core?.title ||
+      productData?.draft?.core?.name;
+    if (titleCandidate) {
+      const slug = await ensureUniqueSlug(titleCandidate, productId);
+      if (slug) {
+        slugPayload = { slug };
       }
     }
-    writes.push(setDoc(publicRef, { ...valuesPayload, ...slugPayload }, { merge: true }));
   }
 
   const refsToWrite = await collectVendorProductRefs({
@@ -816,20 +866,24 @@ export const applyVendorProductDraftChanges = async ({
   const timestamp = serverTimestamp();
   const cleanupPayload = {
     draft_status: false,
+    draftStatus: false,
     draftChanges: deleteField(),
     updatedAt: timestamp,
     "core.draft_status": false,
+    "core.draftStatus": false,
     "core.draftChanges": deleteField(),
     "core.updatedAt": timestamp,
     "draft.core.draft_status": false,
+    "draft.core.draftStatus": false,
     "draft.core.draftChanges": deleteField(),
     "draft.core.updatedAt": timestamp,
   };
 
-  const cleanupWrites = refsToWrite.map((ref) =>
-    setDoc(ref, cleanupPayload, { merge: true })
-  );
-
-  await Promise.all([...writes, ...cleanupWrites]);
+  const batch = writeBatch(db);
+  batch.set(publicRef, { ...valuesPayload, ...slugPayload }, { merge: true });
+  refsToWrite.forEach((ref) => {
+    batch.set(ref, cleanupPayload, { merge: true });
+  });
+  await batch.commit();
 };
 

@@ -124,8 +124,12 @@ const PublicCatalogList = () => {
         return (
           <div className="vendorProducts__actionsCell">
             <Link
-              to={`/vendor-products/${vendorId}/${productId}`}
-              state={{ source: row.source, docPath: row.docPath }}
+              to={`/catalogue-public/${vendorId}/${productId}`}
+              state={{
+                source: row.source,
+                docPath: row.docPath,
+                viewMode: "publicCatalog",
+              }}
               className="vendorProducts__actionsLink"
             >
               Voir

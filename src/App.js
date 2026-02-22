@@ -250,6 +250,14 @@ function App() {
               }
             />
             <Route
+              path="catalogue-public/:vendorId/:productId"
+              element={
+                <RequireAuth>
+                  <VendorProductDetails />
+                </RequireAuth>
+              }
+            />
+            <Route
               path="admin/marketing"
               element={
                 <RequireAuth>
@@ -406,7 +414,40 @@ function App() {
                 index
                 element={
                   <RequireAuth>
-                    <Order typeColumns={orderColumns} title="orders" />
+                    <Order
+                      typeColumns={orderColumns}
+                      title="orders"
+                      listTitle="Commandes"
+                      showFakeOrders={false}
+                    />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path=":id"
+                element={
+                  <RequireAuth>
+                    <DetailsOrder
+                      title="orders"
+                      btnValidation="Valider la Commande"
+                    />
+                  </RequireAuth>
+                }
+              />
+            </Route>
+
+            {/*Fake Orders*/}
+            <Route path="fake-orders">
+              <Route
+                index
+                element={
+                  <RequireAuth>
+                    <Order
+                      typeColumns={orderColumns}
+                      title="orders"
+                      listTitle="Fausses commandes"
+                      showFakeOrders
+                    />
                   </RequireAuth>
                 }
               />

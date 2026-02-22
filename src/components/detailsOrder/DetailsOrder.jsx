@@ -1,14 +1,16 @@
 import "../../style/orderDetails.scss"
-import { Link } from "react-router-dom";
+import "./detailsOrderPage.scss";
 import { useState, useEffect } from "react";
 import Sidebar from "../sidebar/Sidebar";
 import Navbar from "../navbar/Navbar";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { resolveOrderDate } from "../../utils/orderDate";
+import ConfirmModal from "../modal/ConfirmModal";
 
 import { db } from "../../firebase";
 import {
+  serverTimestamp,
   doc,
   onSnapshot,
   updateDoc,
@@ -18,50 +20,109 @@ import {
 } from "firebase/firestore";
 
 const DetailsOrder = ({ title, btnValidation }) => {
-  const [orderDetails, setOrderDetails] = useState([]);
+  const [orderDetails, setOrderDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState(null);
+  const [actionError, setActionError] = useState(null);
+  const [fakeModalOpen, setFakeModalOpen] = useState(false);
+  const [fakeOrderMessage, setFakeOrderMessage] = useState("");
+  const [fakeModalError, setFakeModalError] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
   const params = useParams();
+  const listRoute = location.pathname.startsWith("/fake-orders")
+    ? "/fake-orders"
+    : "/orders";
 
   // Récupérer les détails de la commande depuis Firestore
   useEffect(() => {
+    setLoading(true);
+    setLoadError(null);
     const unsubscribe = onSnapshot(
       doc(db, title, params.id),
       (snapshot) => {
+        if (!snapshot.exists()) {
+          setOrderDetails(null);
+          setLoadError("Commande introuvable.");
+          setLoading(false);
+          return;
+        }
         setOrderDetails(snapshot.data());
+        setLoading(false);
       },
       (error) => {
         console.log(error);
+        setLoadError("Impossible de charger la commande.");
+        setLoading(false);
       }
     );
 
     return () => unsubscribe();
   }, [params.id, title]);
 
+  useEffect(() => {
+    if (!actionFeedback) return undefined;
+    const timer = setTimeout(() => setActionFeedback(null), 3500);
+    return () => clearTimeout(timer);
+  }, [actionFeedback]);
+
+  useEffect(() => {
+    if (!actionError) return undefined;
+    const timer = setTimeout(() => setActionError(null), 5000);
+    return () => clearTimeout(timer);
+  }, [actionError]);
+
   // Gérer le retour en arrière
   const goBack = () => {
-    navigate("/orders"); // Rediriger vers la page des produits
+    navigate(listRoute);
   };
-  function formatPrice(price) {
-    return parseFloat(price).toLocaleString("fr-FR", {
+
+  const formatPrice = (price) => {
+    const safe = Number(price);
+    return (Number.isFinite(safe) ? safe : 0).toLocaleString("fr-FR", {
       style: "currency",
       currency: "GNF",
     });
-  }
+  };
+
+  const formatDateTime = (value) => {
+    if (!value) return "—";
+    if (typeof value?.toDate === "function") {
+      return format(value.toDate(), "dd/MM/yyyy HH:mm:ss");
+    }
+    if (value instanceof Date) {
+      return format(value, "dd/MM/yyyy HH:mm:ss");
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime())
+      ? "—"
+      : format(parsed, "dd/MM/yyyy HH:mm:ss");
+  };
 
   const validateOrder = async () => {
+    if (isProcessing || orderDetails?.payed) return;
+    setIsProcessing(true);
+    setActionError(null);
     try {
       await updateDoc(doc(db, "orders", params.id), {
         payed: true,
       });
       await sendPerMail();
-      console.log("La commande a été validée avec succès !");
+      setActionFeedback("Commande validée et email envoyé.");
     } catch (error) {
       console.error("Erreur lors de la validation de la commande :", error);
+      setActionError("Impossible de valider la commande.");
+    } finally {
+      setIsProcessing(false);
     }
   };
   const generatePrintContent = () => {
-    const orderDate = resolveOrderDate(orderDetails);
+    const details = orderDetails || {};
+    const delivery = details.deliverInfos || {};
+    const cart = Array.isArray(details.cart) ? details.cart : [];
+    const orderDate = resolveOrderDate(details);
     const formattedDate = format(orderDate, "dd/MM/yyyy");
 
     const headerContent = `
@@ -84,18 +145,18 @@ const DetailsOrder = ({ title, btnValidation }) => {
     const customerInfo = `
       <div class="customer-info">
         <h3>Coordonnées du client :</h3>
-        <p>No Facture: ${orderDetails.orderId}</p>
-        <p>Nom: ${orderDetails.deliverInfos.name}</p>
-        <p>Adresse: ${orderDetails.deliverInfos.address}</p>
-        <p>Téléphone: ${orderDetails.deliverInfos.phone}</p>
-        <p>Description: ${orderDetails.deliverInfos.additionalInfo}</p>
+        <p>No Facture: ${details.orderId || ""}</p>
+        <p>Nom: ${delivery.name || ""}</p>
+        <p>Adresse: ${delivery.address || ""}</p>
+        <p>Téléphone: ${delivery.phone || ""}</p>
+        <p>Description: ${delivery.additionalInfo || ""}</p>
       </div>
     `;
 
     const footerContent = `
     <div class="invoice-footer">
-      <p>Montant Livraison: ${orderDetails.deliveryFee} GNF</p> 
-      <p>Total de la facture: ${orderDetails.total} GNF</p>
+      <p>Montant Livraison: ${details.deliveryFee || 0} GNF</p> 
+      <p>Total de la facture: ${details.total || 0} GNF</p>
       <p>Merci de votre achat.</p>
     </div>
     <!-- Signatures -->
@@ -124,7 +185,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
       </tr>
     </thead>
     <tbody>
-      ${orderDetails.cart
+      ${cart
         .map(
           (product) => `
         <tr>
@@ -300,12 +361,16 @@ const DetailsOrder = ({ title, btnValidation }) => {
   const printOrder = () => {
     const printContent = generatePrintContent();
     const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      setActionError("Impossible d'ouvrir la fenêtre d'impression.");
+      return;
+    }
     printWindow.document.write(printContent);
     printWindow.document.close();
     printWindow.print();
   };
 
-  const html = `
+  const buildPaymentEmailHtml = (details) => `
   <!DOCTYPE html>
   <html>
     <head>
@@ -376,22 +441,22 @@ const DetailsOrder = ({ title, btnValidation }) => {
       <table class="responsive-table">
         <tr>
           <td>
-            <p><strong>No Facture:</strong> ${orderDetails.orderId}</p>
-            <p><strong>Nom:</strong> ${orderDetails.deliverInfos?.name} </p>
+            <p><strong>No Facture:</strong> ${details?.orderId || ""}</p>
+            <p><strong>Nom:</strong> ${details?.deliverInfos?.name || ""} </p>
             <p><strong>Adresse:</strong> ${
-              orderDetails.deliverInfos?.address
+              details?.deliverInfos?.address || ""
             }</p>
             <p><strong>Téléphone:</strong> ${
-              orderDetails.deliverInfos?.phone
+              details?.deliverInfos?.phone || ""
             }</p>
             <p><strong>Informations supplémentaires:</strong> ${
-              orderDetails.deliverInfos?.additionalInfo
+              details?.deliverInfos?.additionalInfo || ""
             }</p>
             <p><strong>Type de paiement:</strong> ${
-              orderDetails.paymentType
+              details?.paymentType || ""
             }</p>
             <p><strong>Montant Total de la Facture:</strong> ${
-              orderDetails.total
+              details?.total || 0
             }</p>
           </td>
         </tr>
@@ -401,7 +466,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
           <td>
             <h2>Infos sur le paiement</h2>
             <p>Votre paiement a été accepté. Vous recevrez votre commande sous 48 heures. Un de nos livreurs vous contactera à ce numéro de téléphone : ${
-              orderDetails.deliverInfos?.phone
+              details?.deliverInfos?.phone || ""
             }</p>
             <p>Veuillez vous assurer que ce numéro soit joignable entre 8h et 17h.</p>
           </td>
@@ -413,7 +478,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
             <h2>Code de Scan</h2>
             <div style="text-align: center;">
               <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${
-                orderDetails?.scanNum
+                details?.scanNum || ""
               }" alt="QR Code pour la commande">
             </div>
           </td>
@@ -441,44 +506,22 @@ const DetailsOrder = ({ title, btnValidation }) => {
 
   const sendPerMail = async () => {
     try {
-      // Add a new document with a generated id
       const newEmail = doc(collection(db, "mail"));
-
-      // Récupérer le document utilisateur
-      //  const userDoc = await getDoc(doc(db, "users", orderDetails.userId));
-
       const userMail = orderDetails?.mail_invoice;
-      console.log("User email:", userMail);
-      //if (userMail) {
+      if (!userMail) return;
+      const html = buildPaymentEmailHtml(orderDetails);
 
-      // Créer un nouveau document dans la collection "mail"
       await setDoc(newEmail, {
         to: userMail,
         message: {
           subject: "Paiement validé",
           text: "Merci pour votre Commande",
           html: html,
-          /* attachments: [
-              {
-                content: html,
-                filename: uri
-              }
-            ]*/
         },
       });
-
-      // Afficher une alerte indiquant que la confirmation a été envoyée avec succès au client
-      window.alert("La confirmation a été envoyée avec succès au client.");
-      navigate("/orders");
-      /* } else {
-        console.error("No such user document!");
-        window.alert("Erreur : Utilisateur introuvable.");
-      }*/
     } catch (error) {
       console.error("Error sending email:", error);
-      window.alert(
-        "Une erreur s'est produite lors de l'envoi de l'email. Veuillez réessayer."
-      );
+      throw error;
     }
   };
 
@@ -519,35 +562,46 @@ const DetailsOrder = ({ title, btnValidation }) => {
     });
   };
 
+  const openFakeOrderModal = () => {
+    if (orderDetails?.fakeOrder) {
+      setActionError("Cette commande est déjà marquée comme fausse.");
+      return;
+    }
+    const defaultMessage =
+      "Votre commande a été marquée comme fausse. Si ce n’est pas le cas, merci de contacter le service client MonMarché. Si c’était juste pour tester, merci de ne plus recommencer. En cas de récidive, votre compte sera suspendu.";
+    setFakeOrderMessage(orderDetails?.fakeOrderMessage || defaultMessage);
+    setFakeModalError("");
+    setFakeModalOpen(true);
+  };
+
+  const closeFakeOrderModal = () => {
+    if (isProcessing) return;
+    setFakeModalOpen(false);
+    setFakeModalError("");
+  };
+
   const markAsFakeOrder = async () => {
     if (isProcessing) return;
     if (orderDetails?.fakeOrder) {
-      alert("Cette commande est déjà marquée comme fausse.");
+      setActionError("Cette commande est déjà marquée comme fausse.");
+      setFakeModalOpen(false);
       return;
     }
 
-    const defaultMessage =
-      "Votre commande a été marquée comme fausse. Si ce n’est pas le cas, merci de contacter le service client MonMarché. Si c’était juste pour tester, merci de ne plus recommencer. En cas de récidive, votre compte sera suspendu.";
-
-    const userMessage = window.prompt(
-      "Message à envoyer au client (modifiable) :",
-      defaultMessage
-    );
-    if (userMessage === null) return;
-    const finalMessage = userMessage.trim() || defaultMessage;
-
-    const ok = window.confirm(
-      "Confirmer le marquage en fausse commande ?"
-    );
-    if (!ok) return;
+    const finalMessage = fakeOrderMessage.trim();
+    if (!finalMessage) {
+      setFakeModalError("Le message client est obligatoire.");
+      return;
+    }
 
     setIsProcessing(true);
+    setActionError(null);
     try {
       const orderRef = doc(db, "orders", params.id);
       await updateDoc(orderRef, {
         fakeOrder: true,
         fakeOrderMessage: finalMessage,
-        fakeOrderAt: new Date(),
+        fakeOrderAt: serverTimestamp(),
       });
 
       const userId = orderDetails?.userId;
@@ -560,142 +614,134 @@ const DetailsOrder = ({ title, btnValidation }) => {
       }
 
       await notifyFakeOrder(finalMessage);
-      alert("Commande marquée comme fausse.");
+      setActionFeedback("Commande marquée comme fausse.");
+      setFakeModalOpen(false);
     } catch (e) {
       console.error("Erreur fake order:", e);
-      alert("Une erreur est survenue lors du marquage.");
+      setActionError("Une erreur est survenue lors du marquage.");
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const paymentLabel = orderDetails?.payed ? "Payé" : "En attente";
+  const deliveryLabel = orderDetails?.delivered ? "Livré" : "Non livré";
+  const fakeLabel = orderDetails?.fakeOrder ? "Fausse commande" : "Non";
+  const orderDate = resolveOrderDate(orderDetails || {});
+  const orderDateLabel = format(orderDate, "dd/MM/yyyy HH:mm:ss");
+  const cartItems = Array.isArray(orderDetails?.cart) ? orderDetails.cart : [];
+  const cartTotal = cartItems.reduce(
+    (sum, product) => sum + (Number(product?.totalAmount) || 0),
+    0
+  );
+
+  if (loading) {
+    return (
+      <div className="details">
+        <Sidebar />
+        <div className="detailsContainer">
+          <Navbar />
+          <div className="detailsOrderPage__state">Chargement de la commande...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError || !orderDetails) {
+    return (
+      <div className="details">
+        <Sidebar />
+        <div className="detailsContainer">
+          <Navbar />
+          <div className="detailsOrderPage__state detailsOrderPage__state--error">
+            {loadError || "Commande introuvable."}
+          </div>
+          <div className="actionsBar">
+            <button className="btnSecondary" onClick={goBack}>
+              Revenir en arrière
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="details">
+    <div className="details detailsOrderPage">
       <Sidebar />
       <div className="detailsContainer">
         <Navbar />
 
-        <div className="top">
-          <h1>Détails de la Livraison</h1>
-          <Link
-            className={`link ${isProcessing ? "disabled" : ""}`}
-            onClick={validateOrder}
-          >
-            {isProcessing ? "Traitement..." : btnValidation}
-          </Link>
+        <div className="top detailsOrderPage__top">
+          <div>
+            <h1>Détails de la commande</h1>
+            <p className="detailsOrderPage__subtitle">
+              Commande #{orderDetails?.orderId || params.id}
+            </p>
+          </div>
+          <div className="detailsOrderPage__topActions">
+            <button
+              className="btnPrimary"
+              onClick={validateOrder}
+              disabled={isProcessing || orderDetails?.payed}
+            >
+              {orderDetails?.payed
+                ? "Commande déjà validée"
+                : isProcessing
+                ? "Traitement..."
+                : btnValidation}
+            </button>
+          </div>
         </div>
 
-        <div className="formContainer">
-          <div className="formGroup">
-            <label>ID de la commande:</label>
-            <input type="text" value={orderDetails?.orderId || ""} disabled />
+        {(actionFeedback || actionError) && (
+          <div className={`detailsOrderPage__alert ${actionError ? "detailsOrderPage__alert--error" : ""}`}>
+            {actionError || actionFeedback}
+          </div>
+        )}
+
+        <div className="detailsOrderPage__statusRow">
+          <span className={`statusBadge ${orderDetails?.payed ? "statusBadge--success" : "statusBadge--warning"}`}>
+            Paiement: {paymentLabel}
+          </span>
+          <span className={`statusBadge ${orderDetails?.delivered ? "statusBadge--success" : "statusBadge--warning"}`}>
+            Livraison: {deliveryLabel}
+          </span>
+          <span className={`statusBadge ${orderDetails?.fakeOrder ? "statusBadge--danger" : "statusBadge--neutral"}`}>
+            Fausse commande: {fakeLabel}
+          </span>
+        </div>
+
+        <div className="formContainer detailsOrderPage__grid">
+          <div className="detailsOrderPage__card">
+            <h2>Commande</h2>
+            <div className="detailsOrderPage__kv"><span>ID</span><strong>{orderDetails?.orderId || params.id}</strong></div>
+            <div className="detailsOrderPage__kv"><span>Date</span><strong>{orderDateLabel}</strong></div>
+            <div className="detailsOrderPage__kv"><span>Total</span><strong>{formatPrice(orderDetails?.total)}</strong></div>
+            <div className="detailsOrderPage__kv"><span>Mode de paiement</span><strong>{orderDetails?.paymentType || "—"}</strong></div>
           </div>
 
-          <div className="formGroup">
-            <label>Email de facturation: </label>
-            <input
-              type="text"
-              value={orderDetails?.mail_invoice || ""}
-              disabled
-            />
+          <div className="detailsOrderPage__card">
+            <h2>Client & livraison</h2>
+            <div className="detailsOrderPage__kv"><span>Email</span><strong>{orderDetails?.mail_invoice || "—"}</strong></div>
+            <div className="detailsOrderPage__kv"><span>Nom</span><strong>{orderDetails?.deliverInfos?.name || "—"}</strong></div>
+            <div className="detailsOrderPage__kv"><span>Téléphone</span><strong>{orderDetails?.deliverInfos?.phone || "—"}</strong></div>
+            <div className="detailsOrderPage__kv"><span>Adresse</span><strong>{orderDetails?.deliverInfos?.address || "—"}</strong></div>
+            <div className="detailsOrderPage__kv"><span>Description</span><strong>{orderDetails?.deliverInfos?.additionalInfo || "—"}</strong></div>
           </div>
 
-          <div className="formGroup">
-            <label>Nom du récepteur:</label>
-            <input
-              type="text"
-              value={orderDetails?.deliverInfos?.name || ""}
-              disabled
-            />
-          </div>
-
-          <div className="formGroup">
-            <label>Adresse de livraison:</label>
-            <input
-              type="text"
-              value={orderDetails?.deliverInfos?.address || ""}
-              disabled
-            />
-          </div>
-
-          <div className="formGroup">
-            <label>Téléphone du receveur:</label>
-            <input
-              type="text"
-              value={orderDetails?.deliverInfos?.phone || ""}
-              disabled
-            />
-          </div>
-
-          <div className="formGroup">
-            <label>Description de la livraison:</label>
-            <textarea
-              value={orderDetails?.deliverInfos?.additionalInfo || ""}
-              disabled
-            />
-          </div>
-
-          <div className="formGroup">
-            <label>Status du payement:</label>
-            <input
-              type="text"
-              value={orderDetails?.payed ? "Payé" : "En attente de paiement"}
-              className={orderDetails?.payed ? "paid" : "pending"}
-              disabled
-            />
-          </div>
-
-          <div className="formGroup">
-            <label>Status de la livraison:</label>
-            <input
-              type="text"
-              value={orderDetails?.delivered ? "Livré" : "Non livré"}
-              className={orderDetails?.delivered ? "delivered" : "notDelivered"}
-              disabled
-            />
-          </div>
-
-          <div className="formGroup">
-            <label>Statut fausse commande:</label>
-            <input
-              type="text"
-              value={orderDetails?.fakeOrder ? "Fausse commande" : "Non"}
-              className={orderDetails?.fakeOrder ? "pending" : "paid"}
-              disabled
-            />
-          </div>
-
-          <div className="formGroup">
-            <label>Total:</label>
-            <input
-              type="text"
-              value={formatPrice(orderDetails?.total)}
-              disabled
-            />
-          </div>
-
-          <div className="formGroup">
-            <label>Date et heure:</label>
-            <input
-              type="text"
-              value={
-                orderDetails?.timeStamp
-                  ? format(
-                      orderDetails.timeStamp.toDate(),
-                      "dd/MM/yyyy HH:mm:ss"
-                    )
-                  : ""
-              }
-              disabled
-            />
+          <div className="detailsOrderPage__card">
+            <h2>Historique</h2>
+            <div className="detailsOrderPage__kv"><span>Commande créée</span><strong>{formatDateTime(orderDetails?.timeStamp)}</strong></div>
+            <div className="detailsOrderPage__kv"><span>Marquée fausse le</span><strong>{formatDateTime(orderDetails?.fakeOrderAt)}</strong></div>
+            <div className="detailsOrderPage__kv"><span>Message client</span><strong>{orderDetails?.fakeOrderMessage || "—"}</strong></div>
           </div>
 
           {/* === Produits commandés === */}
-          <div className="orderItems">
+          <div className="orderItems detailsOrderPage__products">
             <h2>Produits commandés</h2>
 
-            {Array.isArray(orderDetails?.cart) &&
-            orderDetails.cart.length > 0 ? (
+            {cartItems.length > 0 ? (
               <>
                 {/* Tableau (desktop) */}
                 <div className="orderTableWrap">
@@ -711,7 +757,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
                       </tr>
                     </thead>
                     <tbody>
-                      {orderDetails.cart.map((p, i) => (
+                      {cartItems.map((p, i) => (
                         <tr key={i}>
                           <td className="name">
                             <span className="dot" />
@@ -740,10 +786,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
                         </td>
                         <td className="money tfootTotal">
                           {formatPrice(
-                            (orderDetails.cart || []).reduce(
-                              (sum, p) => sum + (Number(p?.totalAmount) || 0),
-                              0
-                            )
+                            cartTotal
                           )}
                         </td>
                       </tr>
@@ -753,7 +796,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
 
                 {/* Cartes (mobile) */}
                 <div className="orderCards">
-                  {orderDetails.cart.map((p, i) => (
+                  {cartItems.map((p, i) => (
                     <div className="orderCard" key={`card-${i}`}>
                       <div className="row">
                         <span className="label">Produit</span>
@@ -795,10 +838,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
                     <span className="label">Total commande</span>
                     <span className="value">
                       {formatPrice(
-                        (orderDetails.cart || []).reduce(
-                          (sum, p) => sum + (Number(p?.totalAmount) || 0),
-                          0
-                        )
+                        cartTotal
                       )}
                     </span>
                   </div>
@@ -810,16 +850,49 @@ const DetailsOrder = ({ title, btnValidation }) => {
           </div>
         </div>
         <div className="actionsBar">
-          <button className="btnSecondary" onClick={goBack}>
+          <button className="btnSecondary" onClick={goBack} disabled={isProcessing}>
             Revenir en arrière
           </button>
-          <button className="btnPrimary" onClick={printOrder}>
+          <button className="btnPrimary" onClick={printOrder} disabled={isProcessing}>
             Imprimer la commande
           </button>
-          <button className="btnDanger" onClick={markAsFakeOrder}>
+          <button
+            className="btnDanger"
+            onClick={openFakeOrderModal}
+            disabled={isProcessing || orderDetails?.fakeOrder}
+          >
             Fausse commande
           </button>
         </div>
+        <ConfirmModal
+          open={fakeModalOpen}
+          title="Marquer comme fausse commande"
+          onClose={closeFakeOrderModal}
+          onConfirm={markAsFakeOrder}
+          confirmText="Confirmer"
+          cancelText="Annuler"
+          loading={isProcessing}
+        >
+          <p className="workModal__text">
+            Cette action notifiera le client et incrémentera son compteur de fausses commandes.
+          </p>
+          <div className="workModal__field">
+            <label htmlFor="fake-order-message">Message envoyé au client</label>
+            <textarea
+              id="fake-order-message"
+              value={fakeOrderMessage}
+              onChange={(event) => {
+                setFakeOrderMessage(event.target.value);
+                if (fakeModalError) setFakeModalError("");
+              }}
+              rows={5}
+              disabled={isProcessing}
+            />
+          </div>
+          {fakeModalError ? (
+            <p className="workModal__error">{fakeModalError}</p>
+          ) : null}
+        </ConfirmModal>
       </div>
     </div>
   );
