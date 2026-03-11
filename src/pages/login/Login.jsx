@@ -201,6 +201,7 @@ const Login = () => {
             placeholder="Nom d'utilisateur ou email"
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
+            autoComplete="username"
           />
 
           <div className="password-wrapper">
@@ -209,16 +210,20 @@ const Login = () => {
               placeholder="Mot de passe"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
             />
-            <span
+            <button
+              type="button"
               className="password-toggle"
               onClick={togglePasswordVisibility}
+              aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              aria-pressed={showPassword}
             >
               {showPassword ? <FaEyeSlash /> : <FaEye />}
-            </span>
+            </button>
           </div>
 
-          <button type="submit">Login</button>
+          <button type="submit">Se connecter</button>
 
           {error && (
             <span>Impossible de se connecter. Vérifiez vos identifiants.</span>

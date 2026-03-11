@@ -14,7 +14,8 @@
   .listOrder__gridWrapper {
     width: 100%;
     min-width: 0;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: visible;
 
     .datagrid {
       border: none;
@@ -94,6 +95,10 @@
   .listOrder {
     .listOrderTitel {
       font-size: 1.1rem;
+    }
+
+    .listOrder__gridWrapper .datagrid {
+      min-width: 520px;
     }
 
     .listOrder__gridWrapper .datagrid {

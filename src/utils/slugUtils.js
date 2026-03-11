@@ -13,7 +13,7 @@ export const slugify = (text) => {
     .replace(/^-+|-+$/g, "");
 };
 
-export const ensureUniqueSlug = async (title, docId) => {
+const ensureUniqueSlugInCollection = async (collectionName, title, docId) => {
   const base = slugify(title);
   if (!base) return "";
 
@@ -22,7 +22,7 @@ export const ensureUniqueSlug = async (title, docId) => {
 
   while (true) {
     const q = query(
-      collection(db, "products_public"),
+      collection(db, collectionName),
       where("slug", "==", attempt),
       limit(1)
     );
@@ -34,3 +34,9 @@ export const ensureUniqueSlug = async (title, docId) => {
     attempt = `${base}-${suffix}`;
   }
 };
+
+export const ensureUniqueSlug = async (title, docId) =>
+  ensureUniqueSlugInCollection("products_public", title, docId);
+
+export const ensureUniqueVendorSlug = async (title, docId) =>
+  ensureUniqueSlugInCollection("vendors", title, docId);

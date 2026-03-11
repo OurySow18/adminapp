@@ -46,6 +46,8 @@ import SponsorList from "./pages/marketing/SponsorList";
 import SponsorEditor from "./pages/marketing/SponsorEditor";
 import BestsellerList from "./pages/marketing/BestsellerList";
 import BestsellerEditor from "./pages/marketing/BestsellerEditor";
+import MarketingCategories from "./pages/marketing/MarketingCategories";
+import MarketingCategoryCoverEditor from "./pages/marketing/MarketingCategoryCoverEditor";
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -334,6 +336,22 @@ function App() {
               element={
                 <RequireAuth>
                   <SponsorEditor />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/marketing/categories"
+              element={
+                <RequireAuth>
+                  <MarketingCategories />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/marketing/categories/:categoryId"
+              element={
+                <RequireAuth>
+                  <MarketingCategoryCoverEditor />
                 </RequireAuth>
               }
             />

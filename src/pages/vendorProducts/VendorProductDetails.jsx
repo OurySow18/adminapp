@@ -35,6 +35,32 @@ const firstValue = (...values) => {
   return undefined;
 };
 
+const safeDecode = (value, fallback = "") => {
+  try {
+    return decodeURIComponent(value || fallback);
+  } catch (error) {
+    return fallback;
+  }
+};
+
+const safeDocRef = (...segments) => {
+  if (!Array.isArray(segments) || !segments.length) return null;
+  const normalized = [];
+  for (const segment of segments) {
+    if (typeof segment !== "string") return null;
+    const trimmed = segment.trim();
+    if (!trimmed) return null;
+    normalized.push(trimmed);
+  }
+  if (normalized.length % 2 !== 0) return null;
+  try {
+    return doc(db, ...normalized);
+  } catch (error) {
+    console.warn("VendorProductDetails: doc path invalide ignoré.", normalized, error);
+    return null;
+  }
+};
+
 const toBoolean = (value) =>
   value === true ||
   value === "true" ||
@@ -296,8 +322,8 @@ const DiffImagePreview = ({ src, label }) => {
 
 const VendorProductDetails = () => {
   const { vendorId: vendorIdParam, productId: productIdParam } = useParams();
-  const vendorId = decodeURIComponent(vendorIdParam || "_");
-  const productId = decodeURIComponent(productIdParam || "");
+  const vendorId = safeDecode(vendorIdParam, "_");
+  const productId = safeDecode(productIdParam, "");
   const navigate = useNavigate();
   const location = useLocation();
   const docPathFromState =
@@ -513,7 +539,11 @@ const VendorProductDetails = () => {
   }, [product]);
 
   useEffect(() => {
-    if (!productId) return;
+    if (!productId) {
+      setLoading(false);
+      setError("Produit introuvable.");
+      return undefined;
+    }
 
     let unsub = () => {};
     let cancelled = false;
@@ -527,39 +557,68 @@ const VendorProductDetails = () => {
       const candidates = [];
 
       if (isPublicCatalogMode) {
+        const publicRef = safeDocRef("products_public", productId);
+        if (!publicRef) {
+          setError("Référence produit invalide.");
+          setLoading(false);
+          return;
+        }
         candidates.push({
-          ref: doc(db, "products_public", productId),
+          ref: publicRef,
           scope: "public",
         });
       } else {
         if (docPathFromState) {
           const segments = docPathFromState.split("/").filter(Boolean);
           if (segments.length >= 2 && segments.length % 2 === 0) {
+            const stateRef = safeDocRef(...segments);
+            if (stateRef) {
+              candidates.push({
+                ref: stateRef,
+                scope:
+                  stateSource ||
+                  (segments.length === 2 ? "root" : "vendor"),
+              });
+            }
+          }
+        }
+
+        const rootRef = safeDocRef("vendor_products", productId);
+        if (rootRef) {
+          candidates.push({
+            ref: rootRef,
+            scope: "root",
+          });
+        }
+
+        if (vendorId && vendorId !== "_" && vendorId !== "root") {
+          const vendorRef = safeDocRef(
+            "vendor_products",
+            vendorId,
+            "products",
+            productId
+          );
+          if (vendorRef) {
             candidates.push({
-              ref: doc(db, ...segments),
-              scope:
-                stateSource ||
-                (segments.length === 2 ? "root" : "vendor"),
+              ref: vendorRef,
+              scope: "vendor",
             });
           }
         }
 
-        candidates.push({
-          ref: doc(db, "vendor_products", productId),
-          scope: "root",
-        });
-
-        if (vendorId && vendorId !== "_" && vendorId !== "root") {
+        const publicRef = safeDocRef("products_public", productId);
+        if (publicRef) {
           candidates.push({
-            ref: doc(db, "vendor_products", vendorId, "products", productId),
-            scope: "vendor",
+            ref: publicRef,
+            scope: "public",
           });
         }
+      }
 
-        candidates.push({
-          ref: doc(db, "products_public", productId),
-          scope: "public",
-        });
+      if (!candidates.length) {
+        setError("Référence produit invalide.");
+        setLoading(false);
+        return;
       }
 
       for (const candidate of candidates) {

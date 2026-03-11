@@ -23,6 +23,7 @@ import {
   isVendorPaused,
   isVendorPauseRequested,
 } from "../../utils/vendorStatus";
+import { ensureUniqueVendorSlug } from "../../utils/slugUtils";
 import { format } from "date-fns";
 
 
@@ -466,6 +467,10 @@ const VendorDetails = () => {
     vendor?.name ||
     vendor?.companyName ||
     "Vendeur";
+  const vendorSlug =
+    (typeof vendor?.slug === "string" && vendor.slug.trim()) ||
+    (typeof vendor?.profile?.slug === "string" && vendor.profile.slug.trim()) ||
+    "";
 
 
   const vendorIdentifiers = useMemo(() => {
@@ -1446,6 +1451,37 @@ const VendorDetails = () => {
         updates.approvedByUid = auth.currentUser.uid;
       }
 
+      const existingSlugCandidates = [
+        vendor?.slug,
+        vendor?.profile?.slug,
+      ];
+      const existingSlug = existingSlugCandidates.find(
+        (value) => typeof value === "string" && value.trim()
+      );
+
+      if (existingSlug) {
+        if (!vendor?.slug) {
+          updates.slug = existingSlug.trim();
+        }
+        if (!vendor?.profile?.slug) {
+          updates["profile.slug"] = existingSlug.trim();
+        }
+      } else {
+        const slugSource =
+          vendor?.displayName ||
+          company?.name ||
+          vendor?.name ||
+          vendor?.companyName ||
+          vendor?.profile?.company?.name ||
+          vendor?.profile?.name ||
+          vendor?.id;
+        const generatedSlug = await ensureUniqueVendorSlug(slugSource, vendor.id);
+        if (generatedSlug) {
+          updates.slug = generatedSlug;
+          updates["profile.slug"] = generatedSlug;
+        }
+      }
+
       if (approvalLocation) {
         const locationPayload = {
           latitude: approvalLocation.latitude,
@@ -1487,7 +1523,7 @@ const VendorDetails = () => {
     }
 
     return success;
-  }, [vendor, approvalLocation, locationFallback]);
+  }, [vendor, company, approvalLocation, locationFallback]);
 
   const handleBlockVendor = useCallback(
     async (reason) => {
@@ -2693,6 +2729,7 @@ const VendorDetails = () => {
                 <h1>{fallbackDisplayName}</h1>
               </div>
               <p>ID dossier : {vendor.id}</p>
+              <p>Slug : {vendorSlug || "-"}</p>
             </div>
             <div className="vendorDetails__headerRight">
               <span className="vendorDetails__statusLabel">{vendorStatus}</span>

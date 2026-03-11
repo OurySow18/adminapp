@@ -8,7 +8,7 @@ import { format } from "date-fns";
 import { resolveOrderDate } from "../../utils/orderDate";
 import ConfirmModal from "../modal/ConfirmModal";
 
-import { db } from "../../firebase";
+import { auth, db } from "../../firebase";
 import {
   serverTimestamp,
   doc,
@@ -16,6 +16,9 @@ import {
   updateDoc,
   setDoc,
   collection,
+  getDocs,
+  query,
+  where,
   increment,
 } from "firebase/firestore";
 
@@ -29,6 +32,10 @@ const DetailsOrder = ({ title, btnValidation }) => {
   const [fakeModalOpen, setFakeModalOpen] = useState(false);
   const [fakeOrderMessage, setFakeOrderMessage] = useState("");
   const [fakeModalError, setFakeModalError] = useState("");
+  const [driverModalOpen, setDriverModalOpen] = useState(false);
+  const [driverModalError, setDriverModalError] = useState("");
+  const [activeDrivers, setActiveDrivers] = useState([]);
+  const [selectedDriverUid, setSelectedDriverUid] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
@@ -101,22 +108,199 @@ const DetailsOrder = ({ title, btnValidation }) => {
       : format(parsed, "dd/MM/yyyy HH:mm:ss");
   };
 
-  const validateOrder = async () => {
-    if (isProcessing || orderDetails?.payed) return;
+  const normalizeText = (value) =>
+    String(value || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+
+  const resolveDriverUsername = (driverData, fallbackId) => {
+    const candidates = [
+      driverData?.username,
+      driverData?.surname,
+      driverData?.name,
+      driverData?.displayName,
+      driverData?.email,
+      fallbackId,
+    ];
+    const hit = candidates.find(
+      (value) => typeof value === "string" && value.trim()
+    );
+    return hit ? hit.trim() : fallbackId;
+  };
+
+  const collectZoneKeywords = (zoneData) => {
+    if (!zoneData || typeof zoneData !== "object") return [];
+    const values = [];
+    const push = (value) => {
+      if (typeof value === "string" && value.trim()) {
+        values.push(normalizeText(value));
+      }
+    };
+    const pushList = (value) => {
+      if (Array.isArray(value)) {
+        value.forEach((item) => push(item));
+      }
+    };
+
+    push(zoneData.zoneName);
+    push(zoneData.nameZone);
+    push(zoneData.name);
+    push(zoneData.label);
+    push(zoneData.commune);
+    push(zoneData.district);
+    push(zoneData.quarter);
+    push(zoneData.quartier);
+    pushList(zoneData.quarters);
+    pushList(zoneData.quartiers);
+    pushList(zoneData.neighborhoods);
+    pushList(zoneData.neighbourhoods);
+
+    return Array.from(new Set(values)).filter((value) => value.length >= 3);
+  };
+
+  const requiresDriverAssignmentForAddress = async () => {
+    const deliveryAddress = orderDetails?.deliverInfos?.address;
+    if (typeof deliveryAddress !== "string" || !deliveryAddress.trim()) {
+      return false;
+    }
+    const normalizedAddress = normalizeText(deliveryAddress);
+    if (!normalizedAddress) return false;
+
+    const zonesSnapshot = await getDocs(collection(db, "zones"));
+    const conakryZones = [];
+
+    zonesSnapshot.forEach((zoneSnap) => {
+      const data = zoneSnap.data() || {};
+      const city = normalizeText(
+        data.city ??
+          data.City ??
+          data.location?.city ??
+          data.address?.city ??
+          ""
+      );
+      if (city === "conakry") {
+        conakryZones.push(data);
+      }
+    });
+
+    if (!conakryZones.length) return false;
+    if (normalizedAddress.includes("conakry")) return true;
+
+    return conakryZones.some((zoneData) =>
+      collectZoneKeywords(zoneData).some((keyword) =>
+        normalizedAddress.includes(keyword)
+      )
+    );
+  };
+
+  const loadActiveDrivers = async () => {
+    const driversSnapshot = await getDocs(
+      query(collection(db, "drivers"), where("status", "==", true))
+    );
+    const rows = [];
+    driversSnapshot.forEach((driverSnap) => {
+      const data = driverSnap.data() || {};
+      rows.push({
+        uid: driverSnap.id,
+        username: resolveDriverUsername(data, driverSnap.id),
+      });
+    });
+    rows.sort((a, b) => a.username.localeCompare(b.username, "fr", { sensitivity: "base" }));
+    return rows;
+  };
+
+  const finalizeOrderValidation = async (selectedDriver = null) => {
     setIsProcessing(true);
     setActionError(null);
     try {
-      await updateDoc(doc(db, "orders", params.id), {
+      const actorUid = auth.currentUser?.uid || null;
+      const actorLabel = auth.currentUser?.email || actorUid || "admin";
+      const updatePayload = {
         payed: true,
+        lastModifiedBy: actorLabel,
+        lastModifiedByUid: actorUid,
+        lastModifiedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      if (selectedDriver?.uid) {
+        updatePayload.assignedDriverUid = selectedDriver.uid;
+        updatePayload.assignedDriverUsername = selectedDriver.username;
+        updatePayload.driverUid = selectedDriver.uid;
+        updatePayload.driverUsername = selectedDriver.username;
+        updatePayload.assignedDriverAt = serverTimestamp();
+      }
+
+      await updateDoc(doc(db, "orders", params.id), {
+        ...updatePayload,
       });
       await sendPerMail();
-      setActionFeedback("Commande validée et email envoyé.");
+      setActionFeedback(
+        selectedDriver?.uid
+          ? `Commande validée, livreur "${selectedDriver.username}" attribué et email envoyé.`
+          : "Commande validée et email envoyé."
+      );
     } catch (error) {
       console.error("Erreur lors de la validation de la commande :", error);
       setActionError("Impossible de valider la commande.");
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const validateOrder = async () => {
+    if (isProcessing || orderDetails?.payed) return;
+    setActionFeedback(null);
+    setActionError(null);
+    setIsProcessing(true);
+    try {
+      const requiresDriverAssignment = await requiresDriverAssignmentForAddress();
+      if (!requiresDriverAssignment) {
+        setIsProcessing(false);
+        await finalizeOrderValidation(null);
+        return;
+      }
+
+      const drivers = await loadActiveDrivers();
+      if (!drivers.length) {
+        setActionError(
+          "Aucun livreur actif (status=true) disponible pour une livraison à Conakry."
+        );
+        return;
+      }
+
+      setActiveDrivers(drivers);
+      setSelectedDriverUid(drivers[0].uid);
+      setDriverModalError("");
+      setDriverModalOpen(true);
+    } catch (error) {
+      console.error("Erreur vérification attribution livreur:", error);
+      setActionError("Impossible de vérifier l'attribution du livreur.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const closeDriverModal = () => {
+    if (isProcessing) return;
+    setDriverModalOpen(false);
+    setDriverModalError("");
+  };
+
+  const confirmDriverAssignmentAndValidate = async () => {
+    if (isProcessing) return;
+    const selectedDriver = activeDrivers.find(
+      (driver) => driver.uid === selectedDriverUid
+    );
+    if (!selectedDriver) {
+      setDriverModalError("Veuillez choisir un livreur.");
+      return;
+    }
+    setDriverModalOpen(false);
+    setDriverModalError("");
+    await finalizeOrderValidation(selectedDriver);
   };
   const generatePrintContent = () => {
     const details = orderDetails || {};
@@ -733,6 +917,11 @@ const DetailsOrder = ({ title, btnValidation }) => {
           <div className="detailsOrderPage__card">
             <h2>Historique</h2>
             <div className="detailsOrderPage__kv"><span>Commande créée</span><strong>{formatDateTime(orderDetails?.timeStamp)}</strong></div>
+            <div className="detailsOrderPage__kv"><span>Livreur assigné</span><strong>{orderDetails?.assignedDriverUsername || orderDetails?.driverUsername || "—"}</strong></div>
+            <div className="detailsOrderPage__kv"><span>UID livreur</span><strong>{orderDetails?.assignedDriverUid || orderDetails?.driverUid || "—"}</strong></div>
+            <div className="detailsOrderPage__kv"><span>Assigné le</span><strong>{formatDateTime(orderDetails?.assignedDriverAt)}</strong></div>
+            <div className="detailsOrderPage__kv"><span>Dernière modification par</span><strong>{orderDetails?.lastModifiedBy || "—"}</strong></div>
+            <div className="detailsOrderPage__kv"><span>Dernière modification le</span><strong>{formatDateTime(orderDetails?.lastModifiedAt)}</strong></div>
             <div className="detailsOrderPage__kv"><span>Marquée fausse le</span><strong>{formatDateTime(orderDetails?.fakeOrderAt)}</strong></div>
             <div className="detailsOrderPage__kv"><span>Message client</span><strong>{orderDetails?.fakeOrderMessage || "—"}</strong></div>
           </div>
@@ -891,6 +1080,49 @@ const DetailsOrder = ({ title, btnValidation }) => {
           </div>
           {fakeModalError ? (
             <p className="workModal__error">{fakeModalError}</p>
+          ) : null}
+        </ConfirmModal>
+        <ConfirmModal
+          open={driverModalOpen}
+          title="Attribuer un livreur (Conakry)"
+          onClose={closeDriverModal}
+          onConfirm={confirmDriverAssignmentAndValidate}
+          confirmText="Valider la commande"
+          cancelText="Annuler"
+          loading={isProcessing}
+          confirmButtonClassName="confirmModal__button--strongConfirm"
+          cancelButtonClassName="confirmModal__button--strongCancel"
+        >
+          <div className="driverAssignModal">
+            <p className="driverAssignModal__intro">
+              Cette adresse appartient à une zone de Conakry. Veuillez choisir un livreur actif.
+            </p>
+            <div className="driverAssignModal__box">
+              <div className="workModal__field">
+                <label htmlFor="assign-driver-select">Livreur</label>
+                <select
+                  id="assign-driver-select"
+                  value={selectedDriverUid}
+                  onChange={(event) => {
+                    setSelectedDriverUid(event.target.value);
+                    if (driverModalError) setDriverModalError("");
+                  }}
+                  disabled={isProcessing}
+                >
+                  {activeDrivers.map((driver) => (
+                    <option key={driver.uid} value={driver.uid}>
+                      {driver.username}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="driverAssignModal__hint">
+                {activeDrivers.length} livreur(s) actif(s) disponible(s)
+              </p>
+            </div>
+          </div>
+          {driverModalError ? (
+            <p className="workModal__error">{driverModalError}</p>
           ) : null}
         </ConfirmModal>
       </div>

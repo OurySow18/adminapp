@@ -32,6 +32,7 @@ import CampaignIcon from "@mui/icons-material/Campaign";
 import PhotoLibraryIcon from "@mui/icons-material/PhotoLibrary";
 import StarOutlineIcon from "@mui/icons-material/StarOutline";
 import WhatshotIcon from "@mui/icons-material/Whatshot";
+import CategoryOutlinedIcon from "@mui/icons-material/CategoryOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
 import MenuOpenIcon from "@mui/icons-material/MenuOpen";
 import CloseIcon from "@mui/icons-material/Close";
@@ -280,6 +281,7 @@ const Sidbar = () => {
     if (normalizedPath.startsWith("/admin/marketing/bestsellers"))
       return "bestsellers";
     if (normalizedPath.startsWith("/admin/marketing/sponsors")) return "sponsors";
+    if (normalizedPath.startsWith("/admin/marketing/categories")) return "categories";
     return null;
   }, [normalizedPath]);
 
@@ -487,11 +489,11 @@ return (
             style={{ textDecoration: "none" }}
             onClick={handleNavLinkClick}
           >
-            <li className={isAdminsActive ? "active" : ""}>
-              <AdminPanelSettingsIcon className="icon" />
-              <span>Admin</span>
-            </li>
-          </Link>
+                <li className={isAdminsActive ? "active" : ""}>
+                  <AdminPanelSettingsIcon className="icon" />
+                  <span>Administrateurs</span>
+                </li>
+              </Link>
           <Link
             to="/drivers"
             style={{ textDecoration: "none" }}
@@ -519,7 +521,7 @@ return (
           >
             <li className={isPublicCatalogActive ? "active" : ""}>
               <PublicIcon className="icon" />
-              <span>Catalogue publique</span>
+              <span>Catalogue public</span>
             </li>
           </Link>
           <li className={`menu-group ${marketingMenuOpen ? "open" : ""}`}>
@@ -583,7 +585,7 @@ return (
                   >
                     <div className="submenu__linkLabel">
                       <PhotoLibraryIcon className="icon icon--sm" />
-                      <span>Banniere</span>
+                      <span>Bannières</span>
                     </div>
                   </Link>
                 </li>
@@ -618,6 +620,23 @@ return (
                     <div className="submenu__linkLabel">
                       <StarOutlineIcon className="icon icon--sm" />
                       <span>Sponsors</span>
+                    </div>
+                  </Link>
+                </li>
+                <li
+                  className={`submenu__item ${
+                    marketingActiveKey === "categories" ? "active" : ""
+                  }`}
+                >
+                  <Link
+                    to="/admin/marketing/categories"
+                    className="submenu__link"
+                    style={{ textDecoration: "none" }}
+                    onClick={handleNavLinkClick}
+                  >
+                    <div className="submenu__linkLabel">
+                      <CategoryOutlinedIcon className="icon icon--sm" />
+                      <span>Catégories</span>
                     </div>
                   </Link>
                 </li>
@@ -798,7 +817,7 @@ return (
           >
             <li className={isDeliveredOrdersActive ? "active" : ""}>
               <LocalPrintshopSharpIcon className="icon" />
-              <span>Commandes livrees</span>
+              <span>Commandes livrées</span>
             </li>
           </Link>  
           <p className="title">UTILES</p>
@@ -826,7 +845,7 @@ return (
           </li>
           <li onClick={logout}>
             <ExitToAppIcon className="icon" />
-            <span>Deconnexion</span>
+            <span>Déconnexion</span>
           </li>
         </ul>
       </div>

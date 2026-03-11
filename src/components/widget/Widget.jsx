@@ -177,7 +177,7 @@ const Widget = ({ type }) => {
         return {
           title: "UTILISATEURS",
           isMoney: false,
-          link: "See all users",
+          link: "Voir les utilisateurs",
           linkTo: "/users",
           icon: (
             <PersonAddAlt1OutlinedIcon
@@ -193,7 +193,7 @@ const Widget = ({ type }) => {
         return {
           title: "COMMANDES",
           isMoney: false,
-          link: "View all ORDER",
+          link: "Voir les commandes",
           linkTo: "/orders",
           icon: (
             <ShoppingCartOutlinedIcon
@@ -231,8 +231,8 @@ const Widget = ({ type }) => {
             <AccountBalanceWalletOutlinedIcon
               className="icon"
               style={{
-                color: "purple",
-                backgroundColor: "rgba(128, 0, 128, 0.2)",
+                color: "#0369a1",
+                backgroundColor: "rgba(3, 105, 161, 0.18)",
               }}
             />
           ),

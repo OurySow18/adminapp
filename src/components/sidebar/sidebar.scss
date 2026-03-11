@@ -84,7 +84,7 @@
       }
 
       .title {
-        font-size: 9px;
+        font-size: 11px;
         font-weight: bold;
         color: #999;
         margin-top: 10px;
@@ -100,11 +100,11 @@
         transition: background 0.2s ease;
 
         &.active {
-          background-color: #ece8ff;
+          background-color: rgba(255, 111, 0, 0.12);
         }
 
         &:hover {
-          background-color: #ece8ff;
+          background-color: rgba(255, 111, 0, 0.12);
         }
 
         .icon {
@@ -147,11 +147,11 @@
         transition: background 0.2s ease;
 
         &:hover {
-          background-color: #ece8ff;
+          background-color: rgba(255, 111, 0, 0.12);
         }
 
         &.active {
-          background-color: #ece8ff;
+          background-color: rgba(255, 111, 0, 0.12);
         }
       }
 
@@ -189,7 +189,7 @@
 
           &.active,
           &:hover {
-            background-color: #ece8ff;
+            background-color: rgba(255, 111, 0, 0.12);
           }
         }
 
@@ -242,7 +242,7 @@
       width: 20px;
       height: 20px;
       border-radius: 5px;
-      border: 1px solid #7451f8;
+      border: 1px solid #ff6f00;
       cursor: pointer;
 
       &:nth-child(1) {

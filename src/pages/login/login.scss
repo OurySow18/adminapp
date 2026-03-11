@@ -1,26 +1,41 @@
 .login {
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px; // un peu de marge sur petits écrans
+  padding: 24px;
+  background: radial-gradient(circle at top, #fff7ed 0%, #f8fafc 55%, #eef2ff 100%);
 
   form {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
     width: 100%;
-    max-width: 320px; // largeur max pour rester propre
+    max-width: 360px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
+    padding: 22px;
+    gap: 4px;
 
     input {
       width: 100%;
-      height: 40px;
+      height: 44px;
       margin: 10px 0;
       padding: 0 12px;
       box-sizing: border-box;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      font-size: 0.95rem;
+
+      &:focus {
+        outline: none;
+        border-color: #ff6f00;
+        box-shadow: 0 0 0 3px rgba(255, 111, 0, 0.16);
+      }
     }
 
-    // Conteneur du champ mot de passe + icône
     .password-wrapper {
       position: relative;
       width: 100%;
@@ -28,48 +43,68 @@
 
       input {
         width: 100%;
-        height: 40px;
-        padding: 0 40px 0 12px; // espace à droite pour l’icône
+        height: 44px;
+        padding: 0 42px 0 12px;
         box-sizing: border-box;
       }
     }
 
-    // Icône œil
     .password-toggle {
       position: absolute;
-      top: 30%;
+      top: 50%;
       right: 10px;
       transform: translateY(-50%);
       cursor: pointer;
-      color: rgb(216, 28, 28);
+      color: #ef4444;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 18px;
       transition: color 0.3s ease;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      width: 28px;
+      height: 28px;
+
+      &:focus-visible {
+        outline: 2px solid #ff6f00;
+        outline-offset: 2px;
+      }
     }
 
     .password-toggle:hover {
-      color: black;
+      color: #0f172a;
     }
 
-    button {
+    button[type="submit"] {
       width: 100%;
-      max-width: 320px;
-      height: 40px;
+      max-width: 100%;
+      height: 44px;
       margin: 10px 0;
       border: none;
-      background-color: purple;
+      border-radius: 10px;
+      background-color: #ff6f00;
       color: white;
       font-weight: bold;
       cursor: pointer;
+      transition: background-color 0.2s ease, transform 0.1s ease;
+
+      &:hover {
+        background-color: #ea580c;
+      }
+
+      &:active {
+        transform: translateY(1px);
+      }
     }
 
     span {
-      font-size: 14px;
-      color: red;
+      font-size: 0.9rem;
+      color: #b91c1c;
       margin-top: 12px;
       text-align: center;
+      line-height: 1.4;
     }
   }
 }

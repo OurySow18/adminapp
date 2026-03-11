@@ -36,6 +36,12 @@ const MarketingOverview = () => (
               <p>Gérez les sponsors et leurs associations produit/catégorie.</p>
             </div>
           </Link>
+          <Link to="/admin/marketing/categories" className="marketingPage__cardLink">
+            <div className="marketingPage__card">
+              <h2>Catégories</h2>
+              <p>Gérez les images de couverture des catégories pour la Home mobile.</p>
+            </div>
+          </Link>
         </div>
       </div>
     </div>

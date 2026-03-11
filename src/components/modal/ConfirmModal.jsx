@@ -10,6 +10,8 @@ const ConfirmModal = ({
   confirmText = "Confirmer",
   cancelText = "Annuler",
   loading = false,
+  confirmButtonClassName = "",
+  cancelButtonClassName = "",
 }) => {
   if (!open) return null;
 
@@ -31,7 +33,7 @@ const ConfirmModal = ({
         <div className="confirmModal__footer">
           <button
             type="button"
-            className="confirmModal__button confirmModal__button--ghost"
+            className={`confirmModal__button confirmModal__button--ghost ${cancelButtonClassName}`.trim()}
             onClick={onClose}
             disabled={loading}
           >
@@ -39,7 +41,7 @@ const ConfirmModal = ({
           </button>
           <button
             type="button"
-            className="confirmModal__button confirmModal__button--primary"
+            className={`confirmModal__button confirmModal__button--primary ${confirmButtonClassName}`.trim()}
             onClick={onConfirm}
             disabled={loading}
           >

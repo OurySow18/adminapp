@@ -67,7 +67,9 @@ const Navbar = () => {
     : MenuOpenIcon;
 
   const todayDocRef = useMemo(() => {
-    if (!currentUser) return null;
+    if (!currentUser || typeof currentUser.uid !== "string" || !currentUser.uid.trim()) {
+      return null;
+    }
     return doc(db, "admin", currentUser.uid, "workSessions", getTodayId());
   }, [currentUser]);
 
@@ -581,13 +583,18 @@ const Navbar = () => {
 
           <div className="item item--language">
             <LanguageOutlinedIcon />
-            English
+            Français
           </div>
           <div className="item">
-            <DarkModeOutlinedIcon
-              className="icon"
+            <button
+              type="button"
+              className="navbar__iconButton"
               onClick={() => dispatch({ type: "TOGGLE" })}
-            />
+              aria-label="Basculer le thème"
+              title="Basculer le thème"
+            >
+              <DarkModeOutlinedIcon className="icon" />
+            </button>
           </div>
           <div className="item">
             <FullscreenExitOutlinedIcon className="icon" />
@@ -601,7 +608,11 @@ const Navbar = () => {
             <div className="counter">2</div>
           </div>
           <div className="item">
-            <img src={adminAvatar} alt="" className="avatar" />
+            <img
+              src={adminAvatar}
+              alt={`Profil ${userLabel || "administrateur"}`}
+              className="avatar"
+            />
           </div>
         </div>
       </div>

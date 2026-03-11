@@ -13,12 +13,12 @@ import ListDelivered from "../../components/delivery/ListDelivered";
 
 const Delivery = ({typeColumns, title}) => {
   return (
-    <div className="order">
+    <div className="delivery">
       <Sidebar />
-      <div className="orderContainer">
+      <div className="deliveryContainer">
         <Navbar />
         <div className="listContainer">
-          <div className="listTitle">Delivery</div>
+          <div className="listTitle">Livraisons</div>
           <ListDelivered typeColumns={typeColumns} title={title} />
         </div>
       </div>

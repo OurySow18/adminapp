@@ -147,6 +147,7 @@
 
     .home .listContainer,
     .order .listContainer,
+    .delivery .listContainer,
     .vendorProducts__table,
     .vendorDetails__card,
     .vendorDetails__header,
@@ -271,6 +272,7 @@
     .vendorProducts__header h1,
     .vendorProducts__header p,
     .order .listTitle,
+    .delivery .listTitle,
     .listOrderTitel,
     .vendorDetails__actionsMeta,
     .vendorDetails__statLabel,
@@ -279,6 +281,10 @@
     }
 
     .order .listTitle{
+        color: var(--dark-text);
+    }
+
+    .delivery .listTitle{
         color: var(--dark-text);
     }
 

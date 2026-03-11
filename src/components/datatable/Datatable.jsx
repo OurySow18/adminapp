@@ -124,14 +124,24 @@ const Datatable = ({
   };
 
   useEffect(() => {
+    if (typeof title !== "string" || !title.trim()) {
+      console.error("Datatable: collection title invalide.", title);
+      setData([]);
+      setLoading(false);
+      return undefined;
+    }
     const collectionRef = collection(db, title);
     const unsubscribe = onSnapshot(
       collectionRef,
       (snapshot) => {
-        const list = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
+        const list = snapshot.docs.map((docSnap) => {
+          const rowData = docSnap.data() || {};
+          return {
+            ...rowData,
+            id: docSnap.id,
+            __docId: docSnap.id,
+          };
+        });
 
         list.sort((a, b) => getTimeSafe(b.timeStamp) - getTimeSafe(a.timeStamp));
         const filteredList = applyFilter ? applyFilter(list) : list;
@@ -161,8 +171,14 @@ const Datatable = ({
     }
     const unsubscribes = [];
     data.forEach((row) => {
-      if (!row?.id) return;
-      const docRef = doc(db, "admin", row.id, "workSessions", todayId);
+      const rowDocId =
+        typeof row?.__docId === "string" && row.__docId.trim()
+          ? row.__docId
+          : typeof row?.id === "string" && row.id.trim()
+          ? row.id
+          : null;
+      if (!rowDocId) return;
+      const docRef = doc(db, "admin", rowDocId, "workSessions", todayId);
       const unsubscribe = onSnapshot(
         docRef,
         (snapshot) => {
@@ -175,7 +191,7 @@ const Datatable = ({
             lastShift.status !== "finished";
           setOnlineMap((prev) => {
             const nextMap = new Map(prev);
-            nextMap.set(row.id, isOnline);
+            nextMap.set(rowDocId, isOnline);
             return nextMap;
           });
         },
@@ -183,7 +199,7 @@ const Datatable = ({
           console.error("workSessions snapshot error:", error);
           setOnlineMap((prev) => {
             const nextMap = new Map(prev);
-            nextMap.set(row.id, false);
+            nextMap.set(rowDocId, false);
             return nextMap;
           });
         }
@@ -200,9 +216,10 @@ const Datatable = ({
         headername: "Action",
         width: 90,
         renderCell: (params) => {
+          const targetId = params?.row?.__docId || params.id;
           return (
             <div className="cellAction">
-              <Link to={String(params.id)} style={{ textDecoration: "none" }}>
+              <Link to={String(targetId)} style={{ textDecoration: "none" }}>
                 <div className="viewButton">View</div>
               </Link>
             </div>
@@ -225,7 +242,7 @@ const Datatable = ({
     if (title !== "admin") return data;
     return data.map((row) => ({
       ...row,
-      __online: onlineMap.get(row.id) === true,
+      __online: onlineMap.get(row.__docId || row.id) === true,
     }));
   }, [data, onlineMap, title]);
 

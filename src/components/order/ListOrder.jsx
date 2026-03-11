@@ -60,7 +60,11 @@ const ListOrder = ({ typeColumns, showFakeOrders = false }) => {
           // Vue "Commandes" garde le comportement actuel (non payées).
           if (!showFakeOrders && orderData?.payed) return;
 
-          list.push({ id: doc.id, ...orderData });
+          list.push({
+            ...orderData,
+            id: doc.id,
+            __docId: doc.id,
+          });
         });
         list.sort(
           (a, b) => toTimeNumber(b.timeStamp) - toTimeNumber(a.timeStamp)
@@ -102,13 +106,14 @@ const ListOrder = ({ typeColumns, showFakeOrders = false }) => {
   const actionColumn = [
     {
       field: "action",
-      headername: "Action",
+      headerName: "Action",
       width: 200,
       renderCell: (params) => {
+        const targetId = params?.row?.__docId || params.id;
         return (
           <div className="cellAction">
             <Link
-              to={{ pathname: params.id }}
+              to={{ pathname: String(targetId) }}
               style={{ textDecoration: "none" }}
             >
               <div className="viewButton">Details</div>
@@ -132,19 +137,22 @@ const ListOrder = ({ typeColumns, showFakeOrders = false }) => {
             ? `Nombre de fausses commandes: ${filteredRows.length}`
             : `Nombre de Commandes: ${filteredRows.length}`}
         </div>
-        <input
-          type="search"
-          className="listOrder__searchInput"
-          placeholder="Rechercher une commande..."
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-        />
+        <div className="listOrder__headerControls">
+          <input
+            type="search"
+            className="listOrder__searchInput"
+            placeholder="Rechercher une commande..."
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+          />
+        </div>
       </div>
       <div className="listOrder__gridWrapper">
         <DataGrid
           className="datagrid"
           rows={filteredRows}
           columns={columns}
+          pagination
           pageSize={pageSize}
           onPageSizeChange={(size) => setPageSize(size)}
           rowsPerPageOptions={[5, 9, 25]}
