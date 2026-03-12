@@ -69,12 +69,26 @@ export default function DetailsDeliveryOrders({ title, btnValidation }) {
           0
         );
         const unitPrice = qty > 0 ? lineTotal / qty : toNumber(item?.priceDetail ?? item?.priceBulk, 0);
+        const productId =
+          item?.productId || item?.id || item?.product?.id || undefined;
+        const vendorId =
+          item?.vendorId ||
+          item?.vendor?.vendorId ||
+          item?.vendor?.id ||
+          item?.vendor?.uid ||
+          item?.sellerId ||
+          item?.storeId ||
+          undefined;
+        const vendorName =
+          item?.vendorName || item?.vendor?.name || item?.vendor?.vendorName || undefined;
 
         return {
           title,
           qty: qty > 0 ? qty : 1,
           price: Number.isFinite(unitPrice) ? unitPrice : 0,
-          ...(item?.vendorName ? { vendorName: item.vendorName } : {}),
+          ...(productId ? { productId } : {}),
+          ...(vendorId ? { vendorId } : {}),
+          ...(vendorName ? { vendorName } : {}),
         };
       })
       .filter(Boolean);

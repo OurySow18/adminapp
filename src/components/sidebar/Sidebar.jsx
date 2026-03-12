@@ -307,6 +307,7 @@ const Sidbar = () => {
   const isDeliveryActive = normalizedPath.startsWith("/delivery");
   const isDeliveredOrdersActive =
     normalizedPath.startsWith("/delivredOrders");
+  const isVendorPayoutsActive = normalizedPath.startsWith("/vendor-payouts");
   const isMarketingParentActive = marketingActiveKey !== null;
   const isVendorProductsParentActive = vendorProductsActiveKey !== null;
   const isVendorsParentActive = vendorActiveKey !== null;
@@ -819,7 +820,17 @@ return (
               <LocalPrintshopSharpIcon className="icon" />
               <span>Commandes livrées</span>
             </li>
-          </Link>  
+          </Link>
+          <Link
+            to="/vendor-payouts"
+            style={{ textDecoration: "none" }}
+            onClick={handleNavLinkClick}
+          >
+            <li className={isVendorPayoutsActive ? "active" : ""}>
+              <AccountBalanceOutlinedIcon className="icon" />
+              <span>Paiements vendeurs</span>
+            </li>
+          </Link>
           <p className="title">UTILES</p>
           <li>
             <CreditCardIcon className="icon" />

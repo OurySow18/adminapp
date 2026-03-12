@@ -19,11 +19,17 @@ const LINK_TTL_MS = 14 * DAY_MS;
 const MAX_ATTEMPTS = 3;
 
 type ReviewJobStatus = "scheduled" | "sent" | "failed" | "used" | "revoked";
+type VendorLedgerStatus = "pending" | "paid" | "reversed";
+
+const PLATFORM_COMMISSION_RATE = 0.05;
+const VENDOR_LEDGER_VERSION = 1;
 
 interface OrderItemSummary {
   title: string;
   qty: number;
   price: number;
+  productId?: string;
+  vendorId?: string;
   vendorName?: string;
 }
 
@@ -47,6 +53,50 @@ interface ReviewJobDoc {
   sentAt?: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue;
   usedAt?: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue;
   lastError?: string;
+}
+
+interface VendorLedgerEntryDraft {
+  entryId: string;
+  orderId: string;
+  lineIndex: number;
+  productId?: string;
+  title: string;
+  qty: number;
+  unitPrice: number;
+  grossAmount: number;
+  commissionRate: number;
+  commissionAmount: number;
+  netAmount: number;
+  vendorId: string;
+  vendorName?: string;
+  currency: string;
+  deliveredAt: FirebaseFirestore.Timestamp;
+}
+
+interface VendorLedgerComputation {
+  eligible: boolean;
+  reason?: string;
+  entries: VendorLedgerEntryDraft[];
+  missingVendorItems: Array<{
+    lineIndex: number;
+    title: string;
+    productId?: string;
+    vendorName?: string;
+    vendorId?: string;
+  }>;
+  totals: {
+    grossAmount: number;
+    commissionAmount: number;
+    netAmount: number;
+  };
+}
+
+interface VendorLedgerApplyResult {
+  status: "blocked" | "no_items" | "pending" | "pending_with_issues";
+  reason?: string;
+  entriesTotal: number;
+  entriesCreated: number;
+  missingVendorItems: number;
 }
 
 const asDate = (value: unknown): Date | null => {
@@ -88,6 +138,9 @@ const toNumber = (value: unknown, fallback = 0): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const roundMoney = (value: number): number =>
+  Math.round((toNumber(value, 0) + Number.EPSILON) * 100) / 100;
+
 const nonEmptyString = (...values: unknown[]): string | null => {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) {
@@ -95,6 +148,51 @@ const nonEmptyString = (...values: unknown[]): string | null => {
     }
   }
   return null;
+};
+
+const normalizeDocIdPart = (value: unknown, fallback = "unknown"): string => {
+  const source = nonEmptyString(value);
+  if (!source) return fallback;
+  const normalized = source.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return normalized.length ? normalized.slice(0, 80) : fallback;
+};
+
+const isTrue = (value: unknown): boolean => value === true;
+
+const isOrderEligibleForVendorPayout = (order: Record<string, any>): VendorLedgerComputation => {
+  if (!isTrue(order.payed)) {
+    return {
+      eligible: false,
+      reason: "order_not_paid",
+      entries: [],
+      missingVendorItems: [],
+      totals: { grossAmount: 0, commissionAmount: 0, netAmount: 0 },
+    };
+  }
+  if (!isTrue(order.delivered)) {
+    return {
+      eligible: false,
+      reason: "order_not_delivered",
+      entries: [],
+      missingVendorItems: [],
+      totals: { grossAmount: 0, commissionAmount: 0, netAmount: 0 },
+    };
+  }
+  if (isTrue(order.fakeOrder)) {
+    return {
+      eligible: false,
+      reason: "order_marked_fake",
+      entries: [],
+      missingVendorItems: [],
+      totals: { grossAmount: 0, commissionAmount: 0, netAmount: 0 },
+    };
+  }
+  return {
+    eligible: true,
+    entries: [],
+    missingVendorItems: [],
+    totals: { grossAmount: 0, commissionAmount: 0, netAmount: 0 },
+  };
 };
 
 const tsToMillis = (value: unknown): number => {
@@ -127,12 +225,12 @@ const safeEqual = (left: string, right: string): boolean => {
 };
 
 const normalizeOrderItems = (order: Record<string, any>): OrderItemSummary[] => {
-  const source = Array.isArray(order.orderSnapshot?.items)
-    ? order.orderSnapshot.items
-    : Array.isArray(order.cart)
-      ? order.cart
-      : Array.isArray(order.items)
-        ? order.items
+  const source = Array.isArray(order.cart)
+    ? order.cart
+    : Array.isArray(order.items)
+      ? order.items
+      : Array.isArray(order.orderSnapshot?.items)
+        ? order.orderSnapshot.items
         : [];
 
   return source
@@ -152,12 +250,25 @@ const normalizeOrderItems = (order: Record<string, any>): OrderItemSummary[] => 
       const fallbackPrice = toNumber(item.price ?? item.priceDetail ?? item.priceBulk, 0);
       const unitPrice = qty > 0 ? lineTotal / qty : fallbackPrice;
 
+      const productId =
+        nonEmptyString(item.productId, item.product?.id, item.id) ?? undefined;
+      const vendorId =
+        nonEmptyString(
+          item.vendorId,
+          item.vendor?.vendorId,
+          item.vendor?.id,
+          item.vendor?.uid,
+          item.sellerId,
+          item.storeId
+        ) ?? undefined;
       const vendorName = nonEmptyString(item.vendorName, item.vendor?.name) ?? undefined;
 
       return {
         title,
         qty: qty > 0 ? qty : 1,
         price: Number.isFinite(unitPrice) ? unitPrice : 0,
+        ...(productId ? { productId } : {}),
+        ...(vendorId ? { vendorId } : {}),
         ...(vendorName ? { vendorName } : {}),
       };
     })
@@ -186,6 +297,233 @@ const buildOrderSnapshot = (order: Record<string, any>): OrderSnapshotMinimal =>
     total,
     currency,
     deliveredAt,
+  };
+};
+
+const buildLedgerEntryId = (
+  orderId: string,
+  lineIndex: number,
+  vendorId: string,
+  productId?: string
+): string => {
+  const orderPart = normalizeDocIdPart(orderId, "order");
+  const vendorPart = normalizeDocIdPart(vendorId, "vendor");
+  const productPart = normalizeDocIdPart(productId, "item");
+  const hash = crypto
+    .createHash("sha1")
+    .update(`${orderId}|${lineIndex}|${vendorId}|${productId ?? ""}`)
+    .digest("hex")
+    .slice(0, 16);
+  return `vled_${orderPart}_${vendorPart}_${lineIndex}_${productPart}_${hash}`;
+};
+
+const computeVendorLedger = (
+  orderId: string,
+  archivedOrder: Record<string, any>,
+  snapshot: OrderSnapshotMinimal
+): VendorLedgerComputation => {
+  const eligibility = isOrderEligibleForVendorPayout(archivedOrder);
+  if (!eligibility.eligible) {
+    return eligibility;
+  }
+
+  const entries: VendorLedgerEntryDraft[] = [];
+  const missingVendorItems: VendorLedgerComputation["missingVendorItems"] = [];
+  const totals = {
+    grossAmount: 0,
+    commissionAmount: 0,
+    netAmount: 0,
+  };
+
+  snapshot.items.forEach((item, index) => {
+    const qty = Math.max(1, Math.floor(toNumber(item.qty, 1)));
+    const unitPrice = roundMoney(toNumber(item.price, 0));
+    const grossAmount = roundMoney(qty * unitPrice);
+    if (grossAmount <= 0) {
+      return;
+    }
+
+    const commissionAmount = roundMoney(grossAmount * PLATFORM_COMMISSION_RATE);
+    const netAmount = roundMoney(grossAmount - commissionAmount);
+    const vendorId = nonEmptyString(item.vendorId) ?? undefined;
+    const vendorName = nonEmptyString(item.vendorName) ?? undefined;
+    const productId = nonEmptyString(item.productId) ?? undefined;
+
+    totals.grossAmount = roundMoney(totals.grossAmount + grossAmount);
+    totals.commissionAmount = roundMoney(totals.commissionAmount + commissionAmount);
+    totals.netAmount = roundMoney(totals.netAmount + netAmount);
+
+    if (!vendorId) {
+      missingVendorItems.push({
+        lineIndex: index,
+        title: item.title,
+        ...(productId ? { productId } : {}),
+        ...(vendorName ? { vendorName } : {}),
+      });
+      return;
+    }
+
+    entries.push({
+      entryId: buildLedgerEntryId(orderId, index, vendorId, productId),
+      orderId,
+      lineIndex: index,
+      ...(productId ? { productId } : {}),
+      title: item.title,
+      qty,
+      unitPrice,
+      grossAmount,
+      commissionRate: PLATFORM_COMMISSION_RATE,
+      commissionAmount,
+      netAmount,
+      vendorId,
+      ...(vendorName ? { vendorName } : {}),
+      currency: snapshot.currency,
+      deliveredAt: snapshot.deliveredAt,
+    });
+  });
+
+  return {
+    eligible: true,
+    entries,
+    missingVendorItems,
+    totals,
+  };
+};
+
+const applyVendorLedgerForArchivedOrder = async (
+  archivedRef: FirebaseFirestore.DocumentReference,
+  orderId: string,
+  archivedOrder: Record<string, any>,
+  snapshot: OrderSnapshotMinimal
+): Promise<VendorLedgerApplyResult> => {
+  const computed = computeVendorLedger(orderId, archivedOrder, snapshot);
+  const baseStatus: VendorLedgerApplyResult["status"] = !computed.eligible
+    ? "blocked"
+    : computed.entries.length === 0
+      ? "no_items"
+      : computed.missingVendorItems.length > 0
+        ? "pending_with_issues"
+        : "pending";
+
+  if (!computed.eligible) {
+    await archivedRef.set(
+      {
+        vendorPayoutEligible: false,
+        vendorPayoutReason: computed.reason ?? "not_eligible",
+        vendorPayoutStatus: baseStatus,
+        vendorPayoutLedgerVersion: VENDOR_LEDGER_VERSION,
+        vendorPayoutCommissionRate: PLATFORM_COMMISSION_RATE,
+        vendorPayoutEntriesCount: 0,
+        vendorPayoutMissingVendorItemsCount: 0,
+        vendorPayoutTotals: computed.totals,
+        vendorPayoutLedgerUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return {
+      status: baseStatus,
+      reason: computed.reason,
+      entriesTotal: 0,
+      entriesCreated: 0,
+      missingVendorItems: 0,
+    };
+  }
+
+  let createdEntries = 0;
+
+  await db.runTransaction(async (tx) => {
+    let createdEntriesInTx = 0;
+    const ledgerRefs = computed.entries.map((entry) => db.doc(`vendor_ledger/${entry.entryId}`));
+    const existingSnaps = ledgerRefs.length ? await tx.getAll(...ledgerRefs) : [];
+    const deltasByVendor = new Map<
+      string,
+      {
+        grossAmount: number;
+        commissionAmount: number;
+        netAmount: number;
+        entriesCount: number;
+        vendorName?: string;
+      }
+    >();
+
+    computed.entries.forEach((entry, index) => {
+      const existing = existingSnaps[index];
+      if (existing?.exists) {
+        return;
+      }
+      createdEntriesInTx += 1;
+
+      tx.set(ledgerRefs[index], {
+        ...entry,
+        status: "pending" as VendorLedgerStatus,
+        ledgerVersion: VENDOR_LEDGER_VERSION,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      const current = deltasByVendor.get(entry.vendorId) ?? {
+        grossAmount: 0,
+        commissionAmount: 0,
+        netAmount: 0,
+        entriesCount: 0,
+        ...(entry.vendorName ? { vendorName: entry.vendorName } : {}),
+      };
+      current.grossAmount = roundMoney(current.grossAmount + entry.grossAmount);
+      current.commissionAmount = roundMoney(current.commissionAmount + entry.commissionAmount);
+      current.netAmount = roundMoney(current.netAmount + entry.netAmount);
+      current.entriesCount += 1;
+      if (!current.vendorName && entry.vendorName) {
+        current.vendorName = entry.vendorName;
+      }
+      deltasByVendor.set(entry.vendorId, current);
+    });
+
+    deltasByVendor.forEach((delta, vendorId) => {
+      const balanceRef = db.doc(`vendor_balances/${vendorId}`);
+      tx.set(
+        balanceRef,
+        {
+          vendorId,
+          ...(delta.vendorName ? { vendorName: delta.vendorName } : {}),
+          pendingGrossAmount: admin.firestore.FieldValue.increment(delta.grossAmount),
+          pendingCommissionAmount: admin.firestore.FieldValue.increment(delta.commissionAmount),
+          pendingNetAmount: admin.firestore.FieldValue.increment(delta.netAmount),
+          lifetimeGrossAmount: admin.firestore.FieldValue.increment(delta.grossAmount),
+          lifetimeCommissionAmount: admin.firestore.FieldValue.increment(delta.commissionAmount),
+          lifetimeNetAmount: admin.firestore.FieldValue.increment(delta.netAmount),
+          pendingEntriesCount: admin.firestore.FieldValue.increment(delta.entriesCount),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    });
+
+    tx.set(
+      archivedRef,
+      {
+        vendorPayoutEligible: true,
+        vendorPayoutReason: admin.firestore.FieldValue.delete(),
+        vendorPayoutStatus: baseStatus,
+        vendorPayoutLedgerVersion: VENDOR_LEDGER_VERSION,
+        vendorPayoutCommissionRate: PLATFORM_COMMISSION_RATE,
+        vendorPayoutEntriesCount: computed.entries.length,
+        vendorPayoutNewEntriesCount: createdEntriesInTx,
+        vendorPayoutMissingVendorItemsCount: computed.missingVendorItems.length,
+        vendorPayoutMissingVendorItems: computed.missingVendorItems.slice(0, 25),
+        vendorPayoutTotals: computed.totals,
+        vendorPayoutLedgerUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    createdEntries = createdEntriesInTx;
+  });
+
+  return {
+    status: baseStatus,
+    entriesTotal: computed.entries.length,
+    entriesCreated: createdEntries,
+    missingVendorItems: computed.missingVendorItems.length,
   };
 };
 
@@ -254,7 +592,22 @@ export const onArchivedOrderCreated = onDocumentCreated(
       );
     });
 
-    logger.info("review job created", { orderId, jobId });
+    const payoutResult = await applyVendorLedgerForArchivedOrder(
+      snapshot.ref,
+      orderId,
+      archivedOrder,
+      orderSnapshot
+    );
+
+    logger.info("review job + vendor payout ledger processed", {
+      orderId,
+      jobId,
+      payoutStatus: payoutResult.status,
+      payoutEntriesTotal: payoutResult.entriesTotal,
+      payoutEntriesCreated: payoutResult.entriesCreated,
+      payoutMissingVendorItems: payoutResult.missingVendorItems,
+      ...(payoutResult.reason ? { payoutReason: payoutResult.reason } : {}),
+    });
   }
 );
 

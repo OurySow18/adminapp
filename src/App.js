@@ -46,6 +46,8 @@ import BestsellerList from "./pages/marketing/BestsellerList";
 import BestsellerEditor from "./pages/marketing/BestsellerEditor";
 import MarketingCategories from "./pages/marketing/MarketingCategories";
 import MarketingCategoryCoverEditor from "./pages/marketing/MarketingCategoryCoverEditor";
+import VendorPayoutsList from "./pages/vendorPayouts/VendorPayoutsList";
+import VendorPayoutDetails from "./pages/vendorPayouts/VendorPayoutDetails";
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -530,6 +532,26 @@ function App() {
                 }
               />
             </Route> 
+
+            {/*Vendor Payouts*/}
+            <Route path="vendor-payouts">
+              <Route
+                index
+                element={
+                  <RequireAuth>
+                    <VendorPayoutsList />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path=":vendorId"
+                element={
+                  <RequireAuth>
+                    <VendorPayoutDetails />
+                  </RequireAuth>
+                }
+              />
+            </Route>
           </Route>
         </Routes>
       </BrowserRouter>
