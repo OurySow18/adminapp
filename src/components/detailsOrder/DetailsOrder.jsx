@@ -16,13 +16,15 @@ import {
   updateDoc,
   setDoc,
   collection,
+  getDoc,
   getDocs,
   query,
   where,
+  writeBatch,
   increment,
 } from "firebase/firestore";
-
-const DetailsOrder = ({ title, btnValidation }) => {
+	
+const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
   const [orderDetails, setOrderDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -39,7 +41,13 @@ const DetailsOrder = ({ title, btnValidation }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
-  const listRoute = location.pathname.startsWith("/fake-orders")
+  const isArchivedMode = mode === "archived" || location.pathname.startsWith("/delivredOrders");
+  const isDeliveryMode = mode === "delivery" || location.pathname.startsWith("/delivery");
+  const listRoute = isArchivedMode
+    ? "/delivredOrders"
+    : isDeliveryMode
+    ? "/delivery"
+    : location.pathname.startsWith("/fake-orders")
     ? "/fake-orders"
     : "/orders";
 
@@ -92,6 +100,49 @@ const DetailsOrder = ({ title, btnValidation }) => {
       style: "currency",
       currency: "GNF",
     });
+  };
+
+  const toNumber = (value, fallback = 0) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const buildArchivedOrderSnapshot = (orderData, deliveredAtFieldValue) => {
+    const cart = Array.isArray(orderData?.cart) ? orderData.cart : [];
+    const items = cart
+      .map((item) => {
+        const title = item?.name || item?.title || item?.productName;
+        if (!title) return null;
+
+        const qtyBulk = Math.max(0, Math.floor(toNumber(item?.quantityBulk, 0)));
+        const qtyDetail = Math.max(0, Math.floor(toNumber(item?.quantityDetail, 0)));
+        const qty = qtyBulk + qtyDetail;
+        const lineTotal = toNumber(
+          item?.totalAmount ?? item?.amount ?? item?.amountDetail ?? item?.amountBulk,
+          0
+        );
+        const unitPrice =
+          qty > 0 ? lineTotal / qty : toNumber(item?.priceDetail ?? item?.priceBulk, 0);
+
+        return {
+          title,
+          qty: qty > 0 ? qty : 1,
+          price: Number.isFinite(unitPrice) ? unitPrice : 0,
+          ...(item?.vendorName ? { vendorName: item.vendorName } : {}),
+        };
+      })
+      .filter(Boolean);
+
+    const itemsTotal = items.reduce((sum, item) => sum + item.qty * item.price, 0);
+    const total = toNumber(orderData?.total ?? orderData?.totalAmount, itemsTotal);
+    const currency = orderData?.currency || "GNF";
+
+    return {
+      items,
+      total,
+      currency,
+      deliveredAt: deliveredAtFieldValue,
+    };
   };
 
   const formatDateTime = (value) => {
@@ -160,13 +211,40 @@ const DetailsOrder = ({ title, btnValidation }) => {
     return Array.from(new Set(values)).filter((value) => value.length >= 3);
   };
 
+  const resolveDeliveryAddress = () => {
+    const candidates = [
+      orderDetails?.deliverInfos?.address,
+      orderDetails?.deliverInfos?.adresse,
+      orderDetails?.customerAddress,
+      orderDetails?.deliveryAddress,
+      orderDetails?.address,
+    ];
+    const hit = candidates.find(
+      (value) => typeof value === "string" && value.trim()
+    );
+    return hit ? hit.trim() : "";
+  };
+
   const requiresDriverAssignmentForAddress = async () => {
-    const deliveryAddress = orderDetails?.deliverInfos?.address;
+    const deliveryAddress = resolveDeliveryAddress();
     if (typeof deliveryAddress !== "string" || !deliveryAddress.trim()) {
       return false;
     }
     const normalizedAddress = normalizeText(deliveryAddress);
     if (!normalizedAddress) return false;
+
+    // Déclenchement rapide même si les zones sont incomplètes en base.
+    const conakryHints = [
+      "conakry",
+      "kaloum",
+      "dixinn",
+      "matam",
+      "ratoma",
+      "matoto",
+    ];
+    if (conakryHints.some((hint) => normalizedAddress.includes(hint))) {
+      return true;
+    }
 
     const zonesSnapshot = await getDocs(collection(db, "zones"));
     const conakryZones = [];
@@ -180,13 +258,16 @@ const DetailsOrder = ({ title, btnValidation }) => {
           data.address?.city ??
           ""
       );
-      if (city === "conakry") {
+      const zoneKeywords = collectZoneKeywords(data);
+      const hasConakryHint = zoneKeywords.some((keyword) =>
+        conakryHints.some((hint) => keyword.includes(hint))
+      );
+      if (city === "conakry" || hasConakryHint) {
         conakryZones.push(data);
       }
     });
 
     if (!conakryZones.length) return false;
-    if (normalizedAddress.includes("conakry")) return true;
 
     return conakryZones.some((zoneData) =>
       collectZoneKeywords(zoneData).some((keyword) =>
@@ -709,6 +790,99 @@ const DetailsOrder = ({ title, btnValidation }) => {
     }
   };
 
+  const buildDeliveryEmailHtml = (details) => `
+    <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Confirmation de Livraison - MonMarche</title></head>
+    <body style="font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif">
+      <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden">
+        <div style="background:#ff6f00;color:#fff;padding:12px;text-align:center">
+          <h1 style="margin:0;font-size:22px">Commande Livrée avec Succès !</h1>
+        </div>
+        <div style="padding:20px;text-align:center">
+          <p>Votre commande <strong>${details?.orderId ?? ""}</strong> a été livrée.</p>
+          <p>Adresse : <strong>${details?.deliverInfos?.address ?? ""}</strong></p>
+          <p>Merci pour votre achat.</p>
+        </div>
+        <div style="background:#ff6f00;color:#fff;padding:10px;text-align:center;font-size:12px">
+          &copy; ${new Date().getFullYear()} MonMarche
+        </div>
+      </div>
+    </body></html>`;
+
+  const sendDeliveryMail = async () => {
+    try {
+      const userMail = orderDetails?.mail_invoice;
+      if (!userMail) return;
+      const newEmail = doc(collection(db, "mail"));
+      const html = buildDeliveryEmailHtml(orderDetails);
+
+      await setDoc(newEmail, {
+        to: userMail,
+        message: {
+          subject: "Commande livrée",
+          text: "Commande livrée avec succès",
+          html,
+        },
+      });
+    } catch (error) {
+      console.error("Error sending delivery email:", error);
+    }
+  };
+
+  const archiveDeliveryOrder = async () => {
+    if (isProcessing || orderDetails?.archived || orderDetails?.delivered) return;
+
+    const ok = window.confirm(
+      "Confirmer l’archivage de la livraison ?\nLa commande sera déplacée vers les archives."
+    );
+    if (!ok) return;
+
+    setActionFeedback(null);
+    setActionError(null);
+    setIsProcessing(true);
+    try {
+      const archivedRef = doc(db, "archivedOrders", params.id);
+      const alreadyArchived = await getDoc(archivedRef);
+      if (alreadyArchived.exists()) {
+        setActionError("Cette commande est déjà archivée.");
+        return;
+      }
+
+      const orderRef = doc(db, title, params.id);
+      const orderSnap = await getDoc(orderRef);
+      if (!orderSnap.exists()) {
+        setActionError("Commande introuvable.");
+        return;
+      }
+
+      const data = orderSnap.data() || {};
+      const deliveredAtField = serverTimestamp();
+      const archivedSnapshot = buildArchivedOrderSnapshot(data, deliveredAtField);
+
+      const batch = writeBatch(db);
+      batch.set(archivedRef, {
+        ...data,
+        delivered: true,
+        archived: true,
+        deliveredAt: deliveredAtField,
+        orderSnapshot: archivedSnapshot,
+        reviewJobId: `review_${params.id}`,
+        timeStamp: serverTimestamp(),
+      });
+      batch.delete(orderRef);
+      await batch.commit();
+
+      await sendDeliveryMail();
+      setActionFeedback("Commande archivée.");
+      navigate("/delivery");
+    } catch (error) {
+      console.error("Erreur archivage livraison:", error);
+      setActionError("Impossible d'archiver la livraison.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const fakeOrderEmailHtml = (message) => `
     <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Information sur votre commande - MonMarche</title></head>
@@ -818,6 +992,31 @@ const DetailsOrder = ({ title, btnValidation }) => {
     (sum, product) => sum + (Number(product?.totalAmount) || 0),
     0
   );
+  const isPrimaryActionDisabled = isDeliveryMode
+    ? isProcessing || orderDetails?.archived || orderDetails?.delivered
+    : isArchivedMode
+    ? isProcessing
+    : isProcessing || orderDetails?.payed;
+  const primaryActionLabel = isArchivedMode
+    ? isProcessing
+      ? "Traitement..."
+      : btnValidation
+    : isDeliveryMode
+    ? orderDetails?.archived || orderDetails?.delivered
+      ? "Livraison déjà archivée"
+      : isProcessing
+      ? "Traitement..."
+      : btnValidation
+    : orderDetails?.payed
+    ? "Commande déjà validée"
+    : isProcessing
+    ? "Traitement..."
+    : btnValidation;
+  const handlePrimaryAction = isArchivedMode
+    ? printOrder
+    : isDeliveryMode
+    ? archiveDeliveryOrder
+    : validateOrder;
 
   if (loading) {
     return (
@@ -858,7 +1057,7 @@ const DetailsOrder = ({ title, btnValidation }) => {
 
         <div className="top detailsOrderPage__top">
           <div>
-            <h1>Détails de la commande</h1>
+            <h1>{isDeliveryMode ? "Détails de la livraison" : "Détails de la commande"}</h1>
             <p className="detailsOrderPage__subtitle">
               Commande #{orderDetails?.orderId || params.id}
             </p>
@@ -866,14 +1065,10 @@ const DetailsOrder = ({ title, btnValidation }) => {
           <div className="detailsOrderPage__topActions">
             <button
               className="btnPrimary"
-              onClick={validateOrder}
-              disabled={isProcessing || orderDetails?.payed}
+              onClick={handlePrimaryAction}
+              disabled={isPrimaryActionDisabled}
             >
-              {orderDetails?.payed
-                ? "Commande déjà validée"
-                : isProcessing
-                ? "Traitement..."
-                : btnValidation}
+              {primaryActionLabel}
             </button>
           </div>
         </div>
@@ -1042,16 +1237,20 @@ const DetailsOrder = ({ title, btnValidation }) => {
           <button className="btnSecondary" onClick={goBack} disabled={isProcessing}>
             Revenir en arrière
           </button>
-          <button className="btnPrimary" onClick={printOrder} disabled={isProcessing}>
-            Imprimer la commande
-          </button>
-          <button
-            className="btnDanger"
-            onClick={openFakeOrderModal}
-            disabled={isProcessing || orderDetails?.fakeOrder}
-          >
-            Fausse commande
-          </button>
+          {!isArchivedMode ? (
+            <button className="btnPrimary" onClick={printOrder} disabled={isProcessing}>
+              Imprimer la commande
+            </button>
+          ) : null}
+          {!isArchivedMode ? (
+            <button
+              className="btnDanger"
+              onClick={openFakeOrderModal}
+              disabled={isProcessing || orderDetails?.fakeOrder}
+            >
+              Fausse commande
+            </button>
+          ) : null}
         </div>
         <ConfirmModal
           open={fakeModalOpen}

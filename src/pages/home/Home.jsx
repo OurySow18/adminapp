@@ -7,6 +7,7 @@
  * Der ruft alle Widget ab und die Komponenten zu den letzten Bestellungen
  */
 import './home.scss'
+import { useState } from "react";
 import Sidebar from "../../components/sidebar/Sidebar"
 import Navbar from "../../components/navbar/Navbar"
 import Widget from "../../components/widget/Widget"
@@ -16,6 +17,7 @@ import ChartContainer from '../chart/ChartContainer'
 
 
 const Home = () => {
+    const [transactionsCount, setTransactionsCount] = useState(0);
    
     return (
       <div className="home">
@@ -34,8 +36,14 @@ const Home = () => {
               <ChartContainer aspect={2 / 1} title="Six derniers mois (Revenus)" />
             </div>
             <div className="listContainer">
-              <div className="listTitle">Dernières transactions</div>
-              <Table/>
+              <div className="listTitle">
+                Dernières transactions ({transactionsCount})
+              </div>
+              <Table
+                limit={null}
+                showOnlyPendingValid
+                onCountChange={setTransactionsCount}
+              />
             </div>
           </div>
       </div>

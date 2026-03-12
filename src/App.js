@@ -30,8 +30,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { auth } from "./firebase";
 import Details from "./pages/productDetails/Details"; 
 import DeliveredOrders from "./components/deliveredOrders/DeliveredOrdersInfos";
-import DetailsDeliveryOrders from "./components/DetailsDeliveryOrders/DetailsDeliveryOrders";
-import DetailsListDeliveredOrder from "./components/detailsListDeliveredOrder/DetailsListDeliveredOrders";
 import Zone from "./pages/zones/Zone"; 
 import VendorsList from "./pages/vendors/VendorsList";
 import VendorDetails from "./pages/vendors/VendorDetails";
@@ -496,9 +494,10 @@ function App() {
                 path=":id"
                 element={
                   <RequireAuth>
-                    <DetailsDeliveryOrders
+                    <DetailsOrder
                       title="orders"
                       btnValidation="Archiver la Livraison"
+                      mode="delivery"
                     />
                   </RequireAuth>
                 }
@@ -522,9 +521,10 @@ function App() {
                 path=":id"
                 element={
                   <RequireAuth>
-                    <DetailsListDeliveredOrder
+                    <DetailsOrder
                       title="archivedOrders"
                       btnValidation="Imprimer la commande"
+                      mode="archived"
                     />
                   </RequireAuth>
                 }

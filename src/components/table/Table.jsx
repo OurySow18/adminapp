@@ -43,17 +43,22 @@ const formatCurrency = (amount, currency = "GNF") => {
   }).format(numeric);
 };
 
-const ListCommande = ({ limit = 10 }) => {
+const ListCommande = ({
+  limit = 10,
+  userId = null,
+  showOnlyPendingValid = false,
+  onCountChange = null,
+}) => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const ordersQuery = query(
-      collection(db, "orders"),
-      orderBy("timeStamp", "desc"),
-      limitDocs(limit)
-    );
+    const constraints = [orderBy("timeStamp", "desc")];
+    if (Number.isInteger(limit) && limit > 0) {
+      constraints.push(limitDocs(limit));
+    }
+    const ordersQuery = query(collection(db, "orders"), ...constraints);
     const unsubscribe = onSnapshot(
       ordersQuery,
       (snapshot) => {
@@ -61,17 +66,29 @@ const ListCommande = ({ limit = 10 }) => {
           id: docSnap.id,
           ...docSnap.data(),
         }));
-        setOrders(list);
+        const filtered = list.filter((row) => {
+          const matchesUser = userId ? row?.userId === userId : true;
+          if (!matchesUser) return false;
+          if (!showOnlyPendingValid) return true;
+          return row?.payed !== true && row?.fakeOrder !== true;
+        });
+        setOrders(filtered);
+        if (typeof onCountChange === "function") {
+          onCountChange(filtered.length);
+        }
         setLoading(false);
       },
       (error) => {
         console.error("Erreur chargement commandes:", error);
         setOrders([]);
+        if (typeof onCountChange === "function") {
+          onCountChange(0);
+        }
         setLoading(false);
       }
     );
     return () => unsubscribe();
-  }, [limit]);
+  }, [limit, userId, showOnlyPendingValid, onCountChange]);
 
   return (
     <TableContainer component={Paper} className="table">
