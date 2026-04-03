@@ -25,6 +25,7 @@ import AddLocationIcon from "@mui/icons-material/AddLocation";
 import EditNoteIcon from "@mui/icons-material/EditNote";
 import ForwardToInboxIcon from "@mui/icons-material/ForwardToInbox";
 import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
+import LocationCityIcon from "@mui/icons-material/LocationCity";
 import ManageSearchIcon from "@mui/icons-material/ManageSearch";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import BlockIcon from "@mui/icons-material/Block";
@@ -302,6 +303,7 @@ const Sidbar = () => {
   const isUsersActive = normalizedPath.startsWith("/users");
   const isProductsActive = normalizedPath.startsWith("/products");
   const isZonesActive = normalizedPath.startsWith("/zones");
+  const isCitiesActive = normalizedPath.startsWith("/cities");
   const isOrdersActive = normalizedPath.startsWith("/orders");
   const isFakeOrdersActive = normalizedPath.startsWith("/fake-orders");
   const isDeliveryActive = normalizedPath.startsWith("/delivery");
@@ -778,6 +780,16 @@ return (
             <li className={isZonesActive ? "active" : ""}>
               <AddLocationIcon className="icon" />
               <span>Zones</span>
+            </li>
+          </Link>
+          <Link
+            to="/cities"
+            style={{ textDecoration: "none" }}
+            onClick={handleNavLinkClick}
+          >
+            <li className={isCitiesActive ? "active" : ""}>
+              <LocationCityIcon className="icon" />
+              <span>Villes</span>
             </li>
           </Link>
           <Link

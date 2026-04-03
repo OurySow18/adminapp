@@ -312,6 +312,7 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
     try {
       const actorUid = auth.currentUser?.uid || null;
       const actorLabel = auth.currentUser?.email || actorUid || "admin";
+      const isPayedOnline = Boolean(orderDetails?.payedOnline);
       const updatePayload = {
         payed: true,
         lastModifiedBy: actorLabel,
@@ -319,6 +320,10 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
         lastModifiedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
+
+      if (isPayedOnline) {
+        updatePayload.paymentType = "Orange Money en ligne";
+      }
 
       if (selectedDriver?.uid) {
         updatePayload.assignedDriverUid = selectedDriver.uid;
@@ -996,7 +1001,12 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
     }
   };
 
-  const paymentLabel = orderDetails?.payed ? "Payé" : "En attente";
+  const isPayedOnline = Boolean(orderDetails?.payedOnline);
+  const paymentLabel = orderDetails?.payed
+    ? "Payé"
+    : isPayedOnline
+    ? "Payé en ligne"
+    : "En attente";
   const deliveryLabel = orderDetails?.delivered ? "Livré" : "Non livré";
   const fakeLabel = orderDetails?.fakeOrder ? "Fausse commande" : "Non";
   const orderDate = resolveOrderDate(orderDetails || {});
@@ -1094,8 +1104,11 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
         )}
 
         <div className="detailsOrderPage__statusRow">
-          <span className={`statusBadge ${orderDetails?.payed ? "statusBadge--success" : "statusBadge--warning"}`}>
+          <span className={`statusBadge ${orderDetails?.payed || isPayedOnline ? "statusBadge--success" : "statusBadge--warning"}`}>
             Paiement: {paymentLabel}
+          </span>
+          <span className={`statusBadge ${isPayedOnline ? "statusBadge--success" : "statusBadge--neutral"}`}>
+            Paiement en ligne: {isPayedOnline ? "Oui" : "Non"}
           </span>
           <span className={`statusBadge ${orderDetails?.delivered ? "statusBadge--success" : "statusBadge--warning"}`}>
             Livraison: {deliveryLabel}
@@ -1112,6 +1125,7 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
             <div className="detailsOrderPage__kv"><span>Date</span><strong>{orderDateLabel}</strong></div>
             <div className="detailsOrderPage__kv"><span>Total</span><strong>{formatPrice(orderDetails?.total)}</strong></div>
             <div className="detailsOrderPage__kv"><span>Mode de paiement</span><strong>{orderDetails?.paymentType || "—"}</strong></div>
+            <div className="detailsOrderPage__kv"><span>Payé en ligne</span><strong>{isPayedOnline ? "Oui" : "Non"}</strong></div>
           </div>
 
           <div className="detailsOrderPage__card">

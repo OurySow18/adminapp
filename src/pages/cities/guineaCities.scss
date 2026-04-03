@@ -1,0 +1,176 @@
+.guineaCitiesPage {
+  width: 100%;
+  display: flex;
+  min-height: 100vh;
+  background: #f5f6fa;
+}
+
+.guineaCitiesPage__content {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.guineaCitiesPage .listContainer {
+  box-shadow: 2px 4px 12px 1px rgba(15, 23, 42, 0.12);
+  background: #fff;
+  padding: 24px;
+  margin: 24px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.guineaCitiesPage .listTitle {
+  font-weight: 600;
+  color: #4b5563;
+  font-size: 1.5rem;
+}
+
+.guineaCitiesPage__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.guineaCitiesPage__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.guineaCitiesPage__count {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.guineaCitiesPage__toolbar {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.guineaCitiesPage__search {
+  flex: 1 1 260px;
+  width: min(100%, 420px);
+  max-width: 420px;
+  min-width: 0;
+  height: 44px;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  font-size: 0.95rem;
+}
+
+.guineaCitiesPage__search:focus {
+  outline: none;
+  border-color: #ff6f00;
+  box-shadow: 0 0 0 2px rgba(255, 111, 0, 0.2);
+}
+
+.guineaCitiesPage__primaryButton,
+.guineaCitiesPage__secondaryButton,
+.guineaCitiesPage__link {
+  text-decoration: none;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.guineaCitiesPage__primaryButton {
+  border: 1px solid #ff6f00;
+  background: #ff6f00;
+  color: #fff;
+}
+
+.guineaCitiesPage__secondaryButton {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+}
+
+.guineaCitiesPage__secondaryButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.guineaCitiesPage__link {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(29, 78, 216, 0.28);
+  color: #1d4ed8;
+  background: transparent;
+}
+
+.guineaCitiesPage__gridWrapper {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.guineaCitiesPage__datagrid {
+  border: none;
+  background: transparent;
+  font-size: 0.95rem;
+}
+
+.guineaCitiesPage__datagrid .MuiDataGrid-columnHeaders {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.guineaCitiesPage__datagrid .MuiDataGrid-cell {
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .guineaCitiesPage {
+    flex-direction: column;
+  }
+
+  .guineaCitiesPage .listContainer {
+    margin: 16px;
+    padding: 18px;
+  }
+
+  .guineaCitiesPage__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .guineaCitiesPage__actions {
+    width: 100%;
+  }
+
+  .guineaCitiesPage__search {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+@media (max-width: 576px) {
+  .guineaCitiesPage .listContainer {
+    margin: 12px;
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .guineaCitiesPage__count,
+  .guineaCitiesPage .listTitle {
+    font-size: 1.1rem;
+  }
+}

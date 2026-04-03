@@ -48,6 +48,8 @@ import MarketingCategories from "./pages/marketing/MarketingCategories";
 import MarketingCategoryCoverEditor from "./pages/marketing/MarketingCategoryCoverEditor";
 import VendorPayoutsList from "./pages/vendorPayouts/VendorPayoutsList";
 import VendorPayoutDetails from "./pages/vendorPayouts/VendorPayoutDetails";
+import GuineaCitiesList from "./pages/cities/GuineaCitiesList";
+import CityEditor from "./pages/cities/CityEditor";
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -425,6 +427,24 @@ function App() {
                 }
               />
             </Route>
+
+            {/*Cities*/}
+            <Route
+              path="cities"
+              element={
+                <RequireAuth>
+                  <GuineaCitiesList />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="cities/:id"
+              element={
+                <RequireAuth>
+                  <CityEditor />
+                </RequireAuth>
+              }
+            />
 
             {/*Orders*/}
             <Route path="orders">

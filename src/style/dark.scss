@@ -137,6 +137,8 @@
     .vendorProducts,
     .vendorDetails,
     .marketing,
+    .guineaCitiesPage,
+    .cityEditor,
     .list,
     .single,
     .new,
@@ -148,6 +150,7 @@
     .home .listContainer,
     .order .listContainer,
     .delivery .listContainer,
+    .guineaCitiesPage .listContainer,
     .vendorProducts__table,
     .vendorDetails__card,
     .vendorDetails__header,
@@ -165,6 +168,72 @@
 
     .marketingPage__container{
         background: linear-gradient(180deg, #0b1120 0%, #0f172a 100%);
+    }
+
+    .guineaCitiesPage__search{
+        background-color: var(--dark-surface-2);
+        color: var(--dark-text);
+        border-color: var(--dark-border);
+    }
+
+    .guineaCitiesPage__primaryButton{
+        background-color: #ff6f00;
+        color: #fff;
+        border-color: #ff6f00;
+    }
+
+    .guineaCitiesPage__secondaryButton,
+    .guineaCitiesPage__link,
+    .cityEditor__secondaryButton,
+    .cityEditor__backLink{
+        background-color: var(--dark-surface-2);
+        color: var(--dark-text);
+        border-color: var(--dark-border);
+    }
+
+    .cityEditor__dangerButton{
+        background-color: rgba(220, 38, 38, 0.12);
+        color: #fca5a5;
+        border-color: rgba(248, 113, 113, 0.25);
+    }
+
+    .guineaCitiesPage__count,
+    .guineaCitiesPage .listTitle,
+    .guineaCitiesPage__datagrid,
+    .guineaCitiesPage__datagrid .MuiDataGrid-columnHeaderTitle,
+    .guineaCitiesPage__datagrid .MuiDataGrid-cell,
+    .guineaCitiesPage__datagrid .MuiTablePagination-root,
+    .guineaCitiesPage__datagrid .MuiDataGrid-footerContainer{
+        color: var(--dark-text) !important;
+    }
+
+    .guineaCitiesPage__datagrid .MuiDataGrid-columnHeaders{
+        background-color: var(--dark-surface-2);
+        border-bottom: 1px solid var(--dark-border);
+    }
+
+    .guineaCitiesPage__datagrid .MuiDataGrid-row{
+        border-bottom: 1px solid var(--dark-border);
+    }
+
+    .cityEditor__card{
+        background-color: var(--dark-surface);
+        color: var(--dark-text);
+        border-color: var(--dark-border);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .cityEditor__top h1,
+    .cityEditor__top p,
+    .cityEditor__field label,
+    .cityEditor__loading{
+        color: var(--dark-text);
+    }
+
+    .cityEditor__field input{
+        background-color: var(--dark-surface-2);
+        color: var(--dark-text);
+        border-color: var(--dark-border);
     }
 
     .marketingPage__header h1,
