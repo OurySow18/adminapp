@@ -7,11 +7,25 @@
  */
 import "./navbar.scss";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { DarkModeContext } from "../../context/darkModeContext";
 import { useSidebar } from "../../context/sidebarContext";
 import { AuthContext } from "../../context/AuthContext";
-import { db } from "../../firebase";
-import { doc, getDoc, onSnapshot, Timestamp, runTransaction } from "firebase/firestore";
+import { auth, db } from "../../firebase";
+import {
+  collection,
+  doc,
+  getDoc,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  runTransaction,
+  Timestamp,
+  updateDoc,
+  writeBatch,
+} from "firebase/firestore";
+import { sendPasswordResetEmail, signOut } from "firebase/auth";
 import ConfirmModal from "../modal/ConfirmModal";
 
 import Bild from "../../images/Bild_Sow.jpeg";
@@ -24,6 +38,10 @@ import ChatBubbleOutlineOutlinedIcon from "@mui/icons-material/ChatBubbleOutline
 import MenuIcon from "@mui/icons-material/Menu";
 import MenuOpenIcon from "@mui/icons-material/MenuOpen";
 import CloseIcon from "@mui/icons-material/Close";
+import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
+import VpnKeyOutlinedIcon from "@mui/icons-material/VpnKeyOutlined";
+import SupportAgentOutlinedIcon from "@mui/icons-material/SupportAgentOutlined";
+import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 
 const SUPER_ADMIN_UID = "rgFo1YPQNDdJxyfRCiWFXETpJHB2";
 
@@ -39,6 +57,7 @@ const Navbar = () => {
   const { dispatch } = useContext(DarkModeContext);
   const { toggleSidebar, isCollapsed, isMobile, isMobileOpen } = useSidebar();
   const { currentUser } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   const [roleLabel, setRoleLabel] = useState("");
   const [userLabel, setUserLabel] = useState("");
@@ -57,6 +76,12 @@ const Navbar = () => {
   const [endTimeValue, setEndTimeValue] = useState("");
   const [endTimeError, setEndTimeError] = useState("");
   const resumePromptedRef = useRef(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const notificationsRef = useRef(null);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef(null);
 
   const ToggleIcon = isMobile
     ? isMobileOpen
@@ -140,6 +165,18 @@ const Navbar = () => {
       : "";
   };
 
+  const formatNotificationDate = (value) => {
+    const date = toDateValue(value);
+    return date
+      ? date.toLocaleString("fr-FR", {
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "";
+  };
+
   useEffect(() => {
     const fetchRole = async () => {
       if (!currentUser) {
@@ -179,6 +216,128 @@ const Navbar = () => {
 
     fetchRole();
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser?.uid) {
+      setNotifications([]);
+      setUnreadCount(0);
+      return undefined;
+    }
+
+    const inboxRef = collection(db, "admin", currentUser.uid, "notifications");
+    const q = query(inboxRef, orderBy("createdAt", "desc"), limit(20));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const rows = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }));
+      setNotifications(rows);
+      const unread = rows.filter((item) => !item.readAt).length;
+      setUnreadCount(unread);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (!notificationsRef.current) return;
+      if (!notificationsRef.current.contains(event.target)) {
+        setNotificationsOpen(false);
+      }
+    };
+    if (notificationsOpen) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [notificationsOpen]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (!accountMenuRef.current) return;
+      if (!accountMenuRef.current.contains(event.target)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    if (accountMenuOpen) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [accountMenuOpen]);
+
+  const toggleNotifications = () => {
+    setNotificationsOpen((prev) => !prev);
+  };
+
+  const toggleAccountMenu = () => {
+    setAccountMenuOpen((prev) => !prev);
+  };
+
+  const markAllNotificationsRead = async () => {
+    if (!currentUser?.uid) return;
+    const unread = notifications.filter((item) => !item.readAt);
+    if (!unread.length) return;
+    const batch = writeBatch(db);
+    unread.forEach((item) => {
+      const ref = doc(db, "admin", currentUser.uid, "notifications", item.id);
+      batch.update(ref, { readAt: Timestamp.now() });
+    });
+    await batch.commit();
+  };
+
+  const clearAllNotifications = async () => {
+    if (!currentUser?.uid) return;
+    if (!notifications.length) return;
+    const ok = window.confirm(
+      "Supprimer toutes les notifications ? Cette action est irreversible."
+    );
+    if (!ok) return;
+    const batch = writeBatch(db);
+    notifications.forEach((item) => {
+      const ref = doc(db, "admin", currentUser.uid, "notifications", item.id);
+      batch.delete(ref);
+    });
+    await batch.commit();
+  };
+
+  const handleNotificationClick = async (notif) => {
+    if (!currentUser?.uid) return;
+    if (!notif.readAt) {
+      const ref = doc(db, "admin", currentUser.uid, "notifications", notif.id);
+      updateDoc(ref, { readAt: Timestamp.now() }).catch(() => {});
+    }
+    setNotificationsOpen(false);
+    if (typeof notif.link === "string" && notif.link.trim()) {
+      if (notif.link.startsWith("/")) {
+        navigate(notif.link);
+      } else {
+        window.open(notif.link, "_blank", "noopener");
+      }
+    }
+  };
+
+  const handleAccountLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate("/login");
+    } catch (error) {
+      console.error("Erreur deconnexion:", error);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!currentUser?.email) {
+      window.alert("Email introuvable pour ce compte.");
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, currentUser.email);
+      window.alert("Un email de réinitialisation a été envoyé.");
+    } catch (error) {
+      console.error("Erreur reset mot de passe:", error);
+      window.alert("Impossible d'envoyer l'email de réinitialisation.");
+    }
+  };
 
   const adminAvatar = useMemo(() => {
     if (adminProfile?.img) return adminProfile.img;
@@ -567,6 +726,7 @@ const Navbar = () => {
         </div>
         <div className="items">
           <div className="item navbar__workControls">{renderWorkControls()}</div>
+          <div className="navbar__groupDivider" />
           {/* Badge rôle Admin / SuperAdmin */}
           {roleLabel && (
             <div className="item">
@@ -580,6 +740,7 @@ const Navbar = () => {
               <span className="navbar__userLabel">{userLabel}</span>
             </div>
           )}
+          <div className="navbar__groupDivider" />
 
           <div className="item item--language">
             <LanguageOutlinedIcon />
@@ -599,20 +760,147 @@ const Navbar = () => {
           <div className="item">
             <FullscreenExitOutlinedIcon className="icon" />
           </div>
-          <div className="item">
-            <NotificationsNoneOutlinedIcon className="icon" />
-            <div className="counter">1</div>
+          <div className="navbar__groupDivider" />
+          <div className="item navbar__notifications" ref={notificationsRef}>
+            <button
+              type="button"
+              className="navbar__iconButton"
+              onClick={toggleNotifications}
+              aria-label="Notifications"
+            >
+              <NotificationsNoneOutlinedIcon className="icon" />
+              {unreadCount > 0 && (
+                <span className="counter">{unreadCount > 9 ? "9+" : unreadCount}</span>
+              )}
+            </button>
+            {notificationsOpen && (
+              <div className="navbar__notificationsPanel">
+                <div className="navbar__notificationsHeader">
+                  <span>Notifications</span>
+                  <div className="navbar__notificationsActions">
+                    <button
+                      type="button"
+                      className="navbar__notificationsAction"
+                      onClick={markAllNotificationsRead}
+                      disabled={unreadCount === 0}
+                    >
+                      Tout marquer lu
+                    </button>
+                    <button
+                      type="button"
+                      className="navbar__notificationsAction navbar__notificationsAction--danger"
+                      onClick={clearAllNotifications}
+                      disabled={notifications.length === 0}
+                    >
+                      Tout supprimer
+                    </button>
+                  </div>
+                </div>
+                <div className="navbar__notificationsList">
+                  {notifications.length === 0 ? (
+                    <div className="navbar__notificationsEmpty">
+                      Aucune notification récente.
+                    </div>
+                  ) : (
+                    notifications.map((notif) => (
+                      <button
+                        key={notif.id}
+                        type="button"
+                        className={`navbar__notificationItem ${
+                          notif.readAt ? "" : "navbar__notificationItem--unread"
+                        }`}
+                        onClick={() => handleNotificationClick(notif)}
+                      >
+                        <div className="navbar__notificationTitle">
+                          {notif.title || "Notification"}
+                        </div>
+                        {notif.message && (
+                          <div className="navbar__notificationMessage">{notif.message}</div>
+                        )}
+                        <div className="navbar__notificationMeta">
+                          {notif.createdAt ? formatNotificationDate(notif.createdAt) : ""}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <div className="item">
             <ChatBubbleOutlineOutlinedIcon className="icon" />
             <div className="counter">2</div>
           </div>
+          <div className="navbar__groupDivider" />
           <div className="item">
-            <img
-              src={adminAvatar}
-              alt={`Profil ${userLabel || "administrateur"}`}
-              className="avatar"
-            />
+            <div className="navbar__account" ref={accountMenuRef}>
+              <button
+                type="button"
+                className="navbar__accountButton"
+                onClick={toggleAccountMenu}
+                aria-label="Compte"
+              >
+                <img
+                  src={adminAvatar}
+                  alt={`Profil ${userLabel || "administrateur"}`}
+                  className="avatar"
+                />
+              </button>
+              {accountMenuOpen && (
+                <div className="navbar__accountMenu">
+                  <div className="navbar__accountHeader">
+                    <div className="navbar__accountName">
+                      {userLabel || "Administrateur"}
+                    </div>
+                    <div className="navbar__accountSub">Compte admin</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="navbar__accountItem"
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      if (currentUser?.uid) {
+                        navigate(`/admins/${currentUser.uid}`);
+                      }
+                    }}
+                  >
+                    <PersonOutlineOutlinedIcon className="navbar__accountIcon" />
+                    Mes Infos
+                  </button>
+                  <button
+                    type="button"
+                    className="navbar__accountItem"
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      handlePasswordReset();
+                    }}
+                  >
+                    <VpnKeyOutlinedIcon className="navbar__accountIcon" />
+                    Changer mot de passe
+                  </button>
+                  <button
+                    type="button"
+                    className="navbar__accountItem"
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      window.open("mailto:infos@monmarchegn.com", "_blank");
+                    }}
+                  >
+                    <SupportAgentOutlinedIcon className="navbar__accountIcon" />
+                    Support
+                  </button>
+                  <div className="navbar__accountDivider" />
+                  <button
+                    type="button"
+                    className="navbar__accountItem navbar__accountItem--danger"
+                    onClick={handleAccountLogout}
+                  >
+                    <LogoutOutlinedIcon className="navbar__accountIcon" />
+                    Deconnexion
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

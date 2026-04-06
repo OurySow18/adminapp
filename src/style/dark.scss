@@ -39,6 +39,93 @@
         .navbar__userLabel {
             color: var(--dark-muted);
         }
+
+        .navbar__groupDivider {
+            background: var(--dark-border);
+        }
+
+        .navbar__notificationsPanel {
+            background: var(--dark-surface);
+            border-color: var(--dark-border);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+        }
+
+        .navbar__notificationsHeader {
+            background: var(--dark-surface-2);
+            border-bottom-color: var(--dark-border);
+            color: var(--dark-text);
+        }
+
+        .navbar__notificationsAction {
+            color: var(--dark-accent);
+        }
+
+        .navbar__notificationsAction--danger {
+            color: #f87171;
+        }
+
+        .navbar__notificationItem {
+            border-bottom-color: var(--dark-border);
+
+            &:hover {
+                background: rgba(148, 163, 184, 0.08);
+            }
+        }
+
+        .navbar__notificationItem--unread {
+            background: rgba(255, 111, 0, 0.12);
+        }
+
+        .navbar__notificationTitle {
+            color: var(--dark-text);
+        }
+
+        .navbar__notificationMessage {
+            color: var(--dark-muted);
+        }
+
+        .navbar__notificationMeta {
+            color: var(--dark-muted);
+        }
+
+        .navbar__accountMenu {
+            background: var(--dark-surface);
+            border-color: var(--dark-border);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+        }
+
+        .navbar__accountHeader {
+            background: var(--dark-surface-2);
+            border-bottom-color: var(--dark-border);
+        }
+
+        .navbar__accountName {
+            color: var(--dark-text);
+        }
+
+        .navbar__accountSub {
+            color: var(--dark-muted);
+        }
+
+        .navbar__accountItem {
+            color: var(--dark-text);
+
+            &:hover {
+                background: rgba(148, 163, 184, 0.08);
+            }
+        }
+
+        .navbar__accountIcon {
+            color: var(--dark-muted);
+        }
+
+        .navbar__accountItem--danger {
+            color: #f87171;
+        }
+
+        .navbar__accountDivider {
+            background: var(--dark-border);
+        }
     }
 
     .sidebar {

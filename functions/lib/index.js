@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.submitReview = exports.validateReviewLink = exports.processScheduledReviewJobs = exports.onArchivedOrderCreated = void 0;
+exports.onVendorProductCreatedNotifyAdmins = exports.onVendorCreatedNotifyAdmins = exports.onOrderCreatedNotifyAdmins = exports.submitReview = exports.validateReviewLink = exports.processScheduledReviewJobs = exports.onArchivedOrderCreated = void 0;
 const admin = __importStar(require("firebase-admin"));
 const crypto = __importStar(require("crypto"));
 const logger = __importStar(require("firebase-functions/logger"));
@@ -184,6 +184,70 @@ const normalizeOrderItems = (order) => {
     })
         .filter(Boolean);
 };
+const createNotificationAndFanout = async (payload) => {
+    const createdAt = admin.firestore.FieldValue.serverTimestamp();
+    const notificationRef = db.collection("notifications").doc(payload.id);
+    try {
+        await notificationRef.create({
+            type: payload.type,
+            title: payload.title,
+            message: payload.message,
+            link: payload.link ?? null,
+            severity: payload.severity ?? "info",
+            source: payload.source ?? "app",
+            entity: payload.entity ?? null,
+            createdAt,
+        });
+    }
+    catch (err) {
+        if (err?.code === 6 || err?.code === "already-exists") {
+            return;
+        }
+        throw err;
+    }
+    const adminSnapshot = await db.collection("admin").get();
+    if (adminSnapshot.empty)
+        return;
+    const docs = adminSnapshot.docs;
+    const chunkSize = 450;
+    for (let i = 0; i < docs.length; i += chunkSize) {
+        const batch = db.batch();
+        docs.slice(i, i + chunkSize).forEach((adminDoc) => {
+            const inboxRef = db
+                .collection("admin")
+                .doc(adminDoc.id)
+                .collection("notifications")
+                .doc(payload.id);
+            batch.set(inboxRef, {
+                notificationId: payload.id,
+                readAt: null,
+                type: payload.type,
+                title: payload.title,
+                message: payload.message,
+                link: payload.link ?? null,
+                severity: payload.severity ?? "info",
+                source: payload.source ?? "app",
+                entity: payload.entity ?? null,
+                createdAt,
+            });
+        });
+        await batch.commit();
+    }
+};
+const hasDraftPending = (raw) => {
+    const draftStatus = raw?.draft_status ??
+        raw?.draftStatus ??
+        raw?.core?.draft_status ??
+        raw?.core?.draftStatus ??
+        raw?.draft?.core?.draft_status ??
+        raw?.draft?.core?.draftStatus ??
+        false;
+    const draftChanges = raw?.draftChanges ??
+        raw?.core?.draftChanges ??
+        raw?.draft?.core?.draftChanges ??
+        [];
+    return Boolean(draftStatus) && Array.isArray(draftChanges) && draftChanges.length > 0;
+};
 const buildOrderSnapshot = (order) => {
     const deliveredAt = asTimestamp(order.orderSnapshot?.deliveredAt ?? order.deliveredAt ?? order.timeStamp ?? order.createdAt);
     const items = normalizeOrderItems(order);
@@ -323,17 +387,22 @@ const applyVendorLedgerForArchivedOrder = async (archivedRef, orderId, archivedO
                 commissionAmount: 0,
                 netAmount: 0,
                 entriesCount: 0,
+                ...(entry.vendorName ? { vendorName: entry.vendorName } : {}),
             };
             current.grossAmount = roundMoney(current.grossAmount + entry.grossAmount);
             current.commissionAmount = roundMoney(current.commissionAmount + entry.commissionAmount);
             current.netAmount = roundMoney(current.netAmount + entry.netAmount);
             current.entriesCount += 1;
+            if (!current.vendorName && entry.vendorName) {
+                current.vendorName = entry.vendorName;
+            }
             deltasByVendor.set(entry.vendorId, current);
         });
         deltasByVendor.forEach((delta, vendorId) => {
             const balanceRef = db.doc(`vendor_balances/${vendorId}`);
             tx.set(balanceRef, {
                 vendorId,
+                ...(delta.vendorName ? { vendorName: delta.vendorName } : {}),
                 pendingGrossAmount: admin.firestore.FieldValue.increment(delta.grossAmount),
                 pendingCommissionAmount: admin.firestore.FieldValue.increment(delta.commissionAmount),
                 pendingNetAmount: admin.firestore.FieldValue.increment(delta.netAmount),
@@ -637,4 +706,60 @@ exports.submitReview = (0, https_1.onRequest)({
     catch (error) {
         res.status(400).json({ ok: false, error: String(error?.message ?? error) });
     }
+});
+exports.onOrderCreatedNotifyAdmins = (0, firestore_1.onDocumentCreated)({ region: REGION, document: "orders/{orderId}" }, async (event) => {
+    const orderId = event.params.orderId;
+    const data = event.data?.data() || {};
+    const total = toNumber(data.total ?? data.totalAmount, 0);
+    const currency = nonEmptyString(data.currency) ?? "GNF";
+    const orderLabel = nonEmptyString(data.orderId, orderId) ?? orderId;
+    await createNotificationAndFanout({
+        id: `order_created_${normalizeDocIdPart(orderId)}`,
+        type: "order",
+        title: "Nouvelle commande",
+        message: `Commande ${orderLabel} (${total.toLocaleString("fr-FR")} ${currency})`,
+        link: `/orders/${orderId}`,
+        severity: "info",
+        source: "app",
+        entity: { kind: "order", id: orderId },
+    });
+});
+exports.onVendorCreatedNotifyAdmins = (0, firestore_1.onDocumentCreated)({ region: REGION, document: "vendors/{vendorId}" }, async (event) => {
+    const vendorId = event.params.vendorId;
+    const data = event.data?.data() || {};
+    const vendorName = nonEmptyString(data.displayName, data.company?.name, data.name, data.companyName, data.profile?.company?.name, data.profile?.name, vendorId) ?? vendorId;
+    await createNotificationAndFanout({
+        id: `vendor_created_${normalizeDocIdPart(vendorId)}`,
+        type: "vendor",
+        title: "Nouvelle boutique vendeur",
+        message: vendorName,
+        link: `/vendors/${vendorId}`,
+        severity: "info",
+        source: "vendor",
+        entity: { kind: "vendor", id: vendorId },
+    });
+});
+exports.onVendorProductCreatedNotifyAdmins = (0, firestore_1.onDocumentCreated)({ region: REGION, document: "vendor_products/{productId}" }, async (event) => {
+    const productId = event.params.productId;
+    const data = event.data?.data() || {};
+    const mmStatus = data?.mm_status ??
+        data?.mmStatus ??
+        data?.core?.mm_status ??
+        data?.draft?.core?.mm_status ??
+        undefined;
+    const pending = hasDraftPending(data) || mmStatus === false || mmStatus === undefined;
+    if (!pending)
+        return;
+    const productTitle = nonEmptyString(data.title, data.name, data.core?.title, data.core?.name, data.draft?.core?.title, data.draft?.core?.name, productId) ?? productId;
+    const vendorName = nonEmptyString(data.vendorName, data.vendor?.name, data.vendor?.displayName, data.core?.vendorName, data.core?.vendor?.name, data.core?.vendor?.displayName, data.draft?.core?.vendorName, data.draft?.core?.vendor?.name, data.draft?.core?.vendor?.displayName) ?? "Vendeur";
+    await createNotificationAndFanout({
+        id: `product_pending_${normalizeDocIdPart(productId)}`,
+        type: "product",
+        title: "Nouveau produit à valider",
+        message: `${productTitle} - ${vendorName}`,
+        link: `/vendor-products/${productId}`,
+        severity: "warning",
+        source: "vendor",
+        entity: { kind: "product", id: productId },
+    });
 });

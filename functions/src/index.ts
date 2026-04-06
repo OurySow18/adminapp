@@ -275,6 +275,93 @@ const normalizeOrderItems = (order: Record<string, any>): OrderItemSummary[] => 
     .filter(Boolean) as OrderItemSummary[];
 };
 
+type NotificationSeverity = "info" | "warning" | "danger";
+type NotificationType = "order" | "vendor" | "product" | "system";
+type NotificationSource = "app" | "vendor" | "delivery" | "admin";
+
+interface NotificationPayload {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  link?: string;
+  severity?: NotificationSeverity;
+  source?: NotificationSource;
+  entity?: {
+    kind: "order" | "vendor" | "user" | "product";
+    id: string;
+  };
+}
+
+const createNotificationAndFanout = async (payload: NotificationPayload) => {
+  const createdAt = admin.firestore.FieldValue.serverTimestamp();
+  const notificationRef = db.collection("notifications").doc(payload.id);
+
+  try {
+    await notificationRef.create({
+      type: payload.type,
+      title: payload.title,
+      message: payload.message,
+      link: payload.link ?? null,
+      severity: payload.severity ?? "info",
+      source: payload.source ?? "app",
+      entity: payload.entity ?? null,
+      createdAt,
+    });
+  } catch (err: any) {
+    if (err?.code === 6 || err?.code === "already-exists") {
+      return;
+    }
+    throw err;
+  }
+
+  const adminSnapshot = await db.collection("admin").get();
+  if (adminSnapshot.empty) return;
+
+  const docs = adminSnapshot.docs;
+  const chunkSize = 450;
+  for (let i = 0; i < docs.length; i += chunkSize) {
+    const batch = db.batch();
+    docs.slice(i, i + chunkSize).forEach((adminDoc) => {
+      const inboxRef = db
+        .collection("admin")
+        .doc(adminDoc.id)
+        .collection("notifications")
+        .doc(payload.id);
+      batch.set(inboxRef, {
+        notificationId: payload.id,
+        readAt: null,
+        type: payload.type,
+        title: payload.title,
+        message: payload.message,
+        link: payload.link ?? null,
+        severity: payload.severity ?? "info",
+        source: payload.source ?? "app",
+        entity: payload.entity ?? null,
+        createdAt,
+      });
+    });
+    await batch.commit();
+  }
+};
+
+const hasDraftPending = (raw: Record<string, any>): boolean => {
+  const draftStatus =
+    raw?.draft_status ??
+    raw?.draftStatus ??
+    raw?.core?.draft_status ??
+    raw?.core?.draftStatus ??
+    raw?.draft?.core?.draft_status ??
+    raw?.draft?.core?.draftStatus ??
+    false;
+  const draftChanges =
+    raw?.draftChanges ??
+    raw?.core?.draftChanges ??
+    raw?.draft?.core?.draftChanges ??
+    [];
+  return Boolean(draftStatus) && Array.isArray(draftChanges) && draftChanges.length > 0;
+};
+
 const buildOrderSnapshot = (order: Record<string, any>): OrderSnapshotMinimal => {
   const deliveredAt = asTimestamp(
     order.orderSnapshot?.deliveredAt ?? order.deliveredAt ?? order.timeStamp ?? order.createdAt
@@ -865,5 +952,107 @@ export const submitReview = onRequest(
     } catch (error: any) {
       res.status(400).json({ ok: false, error: String(error?.message ?? error) });
     }
+  }
+);
+
+export const onOrderCreatedNotifyAdmins = onDocumentCreated(
+  { region: REGION, document: "orders/{orderId}" },
+  async (event) => {
+    const orderId = event.params.orderId as string;
+    const data = event.data?.data() || {};
+    const total = toNumber(data.total ?? data.totalAmount, 0);
+    const currency = nonEmptyString(data.currency) ?? "GNF";
+    const orderLabel = nonEmptyString(data.orderId, orderId) ?? orderId;
+
+    await createNotificationAndFanout({
+      id: `order_created_${normalizeDocIdPart(orderId)}`,
+      type: "order",
+      title: "Nouvelle commande",
+      message: `Commande ${orderLabel} (${total.toLocaleString("fr-FR")} ${currency})`,
+      link: `/orders/${orderId}`,
+      severity: "info",
+      source: "app",
+      entity: { kind: "order", id: orderId },
+    });
+  }
+);
+
+export const onVendorCreatedNotifyAdmins = onDocumentCreated(
+  { region: REGION, document: "vendors/{vendorId}" },
+  async (event) => {
+    const vendorId = event.params.vendorId as string;
+    const data = event.data?.data() || {};
+    const vendorName =
+      nonEmptyString(
+        data.displayName,
+        data.company?.name,
+        data.name,
+        data.companyName,
+        data.profile?.company?.name,
+        data.profile?.name,
+        vendorId
+      ) ?? vendorId;
+
+    await createNotificationAndFanout({
+      id: `vendor_created_${normalizeDocIdPart(vendorId)}`,
+      type: "vendor",
+      title: "Nouvelle boutique vendeur",
+      message: vendorName,
+      link: `/vendors/${vendorId}`,
+      severity: "info",
+      source: "vendor",
+      entity: { kind: "vendor", id: vendorId },
+    });
+  }
+);
+
+export const onVendorProductCreatedNotifyAdmins = onDocumentCreated(
+  { region: REGION, document: "vendor_products/{productId}" },
+  async (event) => {
+    const productId = event.params.productId as string;
+    const data = event.data?.data() || {};
+    const mmStatus =
+      data?.mm_status ??
+      data?.mmStatus ??
+      data?.core?.mm_status ??
+      data?.draft?.core?.mm_status ??
+      undefined;
+    const pending =
+      hasDraftPending(data) || mmStatus === false || mmStatus === undefined;
+    if (!pending) return;
+
+    const productTitle =
+      nonEmptyString(
+        data.title,
+        data.name,
+        data.core?.title,
+        data.core?.name,
+        data.draft?.core?.title,
+        data.draft?.core?.name,
+        productId
+      ) ?? productId;
+    const vendorName =
+      nonEmptyString(
+        data.vendorName,
+        data.vendor?.name,
+        data.vendor?.displayName,
+        data.core?.vendorName,
+        data.core?.vendor?.name,
+        data.core?.vendor?.displayName,
+        data.draft?.core?.vendorName,
+        data.draft?.core?.vendor?.name,
+        data.draft?.core?.vendor?.displayName
+      ) ?? "Vendeur";
+
+    await createNotificationAndFanout({
+      id: `product_pending_${normalizeDocIdPart(productId)}`,
+      type: "product",
+      title: "Nouveau produit à valider",
+      message: `${productTitle} - ${vendorName}`,
+      link: `/vendor-products/${productId}`,
+      severity: "warning",
+      source: "vendor",
+      entity: { kind: "product", id: productId },
+    });
   }
 );

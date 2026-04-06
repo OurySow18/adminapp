@@ -1,6 +1,6 @@
 import "./sidebar.scss";
 import { Link, useLocation } from "react-router-dom";
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { DarkModeContext } from "../../context/darkModeContext";
 import { auth } from "../../firebase";
 import { signOut } from "firebase/auth";
@@ -94,6 +94,7 @@ const Sidbar = () => {
     error: false,
   });
   const [marketingMenuOpen, setMarketingMenuOpen] = useState(false);
+  const centerRef = useRef(null);
   const normalizedPath = useMemo(
     () => location.pathname.replace(/\/+$/, "") || "/",
     [location.pathname]
@@ -268,10 +269,19 @@ const Sidbar = () => {
     () => location.pathname.startsWith("/monmarche-products"),
     [location.pathname]
   );
+  const myAdminPath = useMemo(
+    () => (auth.currentUser?.uid ? `/admins/${auth.currentUser.uid}` : null),
+    [auth.currentUser?.uid]
+  );
+  const isMyAdminActive = useMemo(
+    () => Boolean(myAdminPath && normalizedPath === myAdminPath),
+    [myAdminPath, normalizedPath]
+  );
   const isAdminsActive = useMemo(
     () => location.pathname.startsWith("/admins"),
     [location.pathname]
   );
+  const isAdminsListActive = isAdminsActive && !isMyAdminActive;
   const isDriversActive = useMemo(
     () => location.pathname.startsWith("/drivers"),
     [location.pathname]
@@ -319,6 +329,25 @@ const Sidbar = () => {
       setVendorProductsMenuOpen(true);
     }
   }, [vendorProductsActiveKey, vendorProductsMenuOpen]);
+
+  useEffect(() => {
+    if (!centerRef.current) return;
+    const run = () => {
+      const activeItem = centerRef.current.querySelector("li.active");
+      if (activeItem && typeof activeItem.scrollIntoView === "function") {
+        activeItem.scrollIntoView({ block: "nearest" });
+      }
+    };
+    const raf = window.requestAnimationFrame(run);
+    return () => window.cancelAnimationFrame(raf);
+  }, [
+    normalizedPath,
+    vendorMenuOpen,
+    vendorProductsMenuOpen,
+    marketingMenuOpen,
+    isMobileOpen,
+    isCollapsed,
+  ]);
 
   useEffect(() => {
     if (vendorActiveKey && !vendorMenuOpen) {
@@ -463,7 +492,7 @@ return (
         </Link>
       </div>
       <hr />
-      <div className="center">
+      <div className="center" ref={centerRef}>
         <ul>
           <p className="title">MAIN</p>
           <Link
@@ -492,7 +521,7 @@ return (
             style={{ textDecoration: "none" }}
             onClick={handleNavLinkClick}
           >
-                <li className={isAdminsActive ? "active" : ""}>
+                <li className={isAdminsListActive ? "active" : ""}>
                   <AdminPanelSettingsIcon className="icon" />
                   <span>Administrateurs</span>
                 </li>
@@ -862,10 +891,16 @@ return (
             <span>Configurations</span>
           </li>
           <p className="title">Compte</p>
-          <li>
-            <AccountBalanceOutlinedIcon className="icon" />
-            <span>Profile</span>
-          </li>
+          <Link
+            to={auth.currentUser?.uid ? `/admins/${auth.currentUser.uid}` : "/admins"}
+            style={{ textDecoration: "none" }}
+            onClick={handleNavLinkClick}
+          >
+            <li className={isMyAdminActive ? "active" : ""}>
+              <PersonOutlineOutlinedIcon className="icon" />
+              <span>Mes Infos</span>
+            </li>
+          </Link>
           <li onClick={logout}>
             <ExitToAppIcon className="icon" />
             <span>Déconnexion</span>

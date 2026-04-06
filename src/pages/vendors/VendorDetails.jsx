@@ -6,6 +6,7 @@ import Navbar from "../../components/navbar/Navbar";
 import ConfirmModal from "../../components/modal/ConfirmModal";
 import {
   collection,
+  addDoc,
   deleteField,
   doc,
   getDocs,
@@ -288,6 +289,7 @@ const getSection = (vendor, key) => {
 };
 
 const PROTECTED_VENDOR_EMAIL = "monmarchegn@gmail.com";
+const BLOCKED_VENDOR_NOTIFY_EMAIL = "infos@monmarchegn.com";
 
 const sanitizeForFirestore = (value) => {
   if (value === undefined) return undefined;
@@ -407,6 +409,20 @@ const VendorDetails = () => {
     liability: "Assurance responsabilité civile",
     foodRegistration: "Enregistrement établissement alimentaire",
   };
+  const CONSENT_LABELS = {
+    acceptPrivacy: "Politique de confidentialité",
+    contactConsent: "Consentement de contact",
+    attestTrue: "Déclaration sur l'honneur",
+    acceptTos: "Conditions d'utilisation",
+  };
+  const formatConsentLabel = (key) =>
+    CONSENT_LABELS[key] ||
+    String(key || "")
+      .replace(/[_-]+/g, " ")
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/\s+/g, " ")
+      .trim() ||
+    "-";
 
   const normalizedStatus = useMemo(
     () => (vendor ? resolveVendorStatus(vendor, "draft") : "draft"),
@@ -1544,6 +1560,14 @@ const VendorDetails = () => {
         const adminEmail = auth.currentUser?.email ?? null;
         const adminUid = auth.currentUser?.uid ?? null;
         const normalizedReason = reason?.trim();
+        const vendorEmail =
+          company?.email ||
+          vendor?.email ||
+          vendor?.contactEmail ||
+          vendor?.profile?.email ||
+          vendor?.profile?.company?.email ||
+          vendor?.company?.email ||
+          null;
         const preBlockSnapshot = {
           status: vendor?.status ?? vendor?.vendorStatus ?? null,
           vendorStatus: vendor?.vendorStatus ?? vendor?.status ?? null,
@@ -1626,6 +1650,87 @@ const VendorDetails = () => {
         }
 
         await refreshProducts();
+
+        // Notifications email (vendeur + infos@)
+        const mailCollection = collection(db, "mail");
+        const blockedAtText = new Date().toLocaleString("fr-FR");
+        const vendorName =
+          vendor?.displayName ||
+          company?.name ||
+          vendor?.name ||
+          vendor?.companyName ||
+          vendor?.profile?.company?.name ||
+          vendor?.profile?.name ||
+          vendor?.id ||
+          "Boutique";
+        const reasonText = normalizedReason || "Aucun motif renseigné";
+
+        const vendorHtml = `
+          <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>Boutique bloquée - Monmarché</title></head>
+          <body style="font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif">
+            <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #eee">
+              <div style="background:#ff6f00;color:#fff;padding:12px;text-align:center">
+                <h1 style="margin:0;font-size:20px">Votre boutique a été bloquée</h1>
+              </div>
+              <div style="padding:20px">
+                <p>Bonjour,</p>
+                <p>Votre boutique <strong>${vendorName}</strong> a été bloquée le ${blockedAtText}.</p>
+                <p><strong>Motif :</strong> ${reasonText}</p>
+                <p>Si vous pensez qu'il s'agit d'une erreur, contactez le support Monmarché.</p>
+                <p>Merci,</p>
+                <p>Service Client Monmarché</p>
+              </div>
+              <div style="background:#ff6f00;color:#fff;padding:10px;text-align:center;font-size:12px">
+                &copy; ${new Date().getFullYear()} Monmarché
+              </div>
+            </div>
+          </body></html>`;
+
+        const adminHtml = `
+          <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>Boutique bloquée - Monmarché</title></head>
+          <body style="font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif">
+            <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #eee">
+              <div style="background:#111827;color:#fff;padding:12px;text-align:center">
+                <h1 style="margin:0;font-size:18px">Boutique bloquée (admin)</h1>
+              </div>
+              <div style="padding:20px">
+                <p><strong>Boutique :</strong> ${vendorName}</p>
+                <p><strong>Vendor ID :</strong> ${vendor?.id ?? "-"}</p>
+                <p><strong>Email :</strong> ${vendorEmail || "-"}</p>
+                <p><strong>Bloquée le :</strong> ${blockedAtText}</p>
+                <p><strong>Motif :</strong> ${reasonText}</p>
+                <p><strong>Admin :</strong> ${adminEmail || "admin"} (${adminUid || "-"})</p>
+              </div>
+            </div>
+          </body></html>`;
+
+        const mailWrites = [];
+        if (vendorEmail) {
+          mailWrites.push(
+            addDoc(mailCollection, {
+              to: vendorEmail,
+              message: {
+                subject: "Votre boutique a été bloquée",
+                text: `Votre boutique "${vendorName}" a été bloquée. Motif: ${reasonText}`,
+                html: vendorHtml,
+              },
+            })
+          );
+        }
+        mailWrites.push(
+          addDoc(mailCollection, {
+            to: BLOCKED_VENDOR_NOTIFY_EMAIL,
+            message: {
+              subject: "Boutique bloquée (admin)",
+              text: `Boutique "${vendorName}" bloquée. Motif: ${reasonText}`,
+              html: adminHtml,
+            },
+          })
+        );
+        await Promise.all(mailWrites);
+
         success = true;
       } catch (err) {
         console.error("Erreur blocage vendeur:", err);
@@ -1658,6 +1763,16 @@ const VendorDetails = () => {
     try {
       const timestamp = serverTimestamp();
       const vendorRef = doc(db, "vendors", vendor.id);
+      const adminEmail = auth.currentUser?.email ?? null;
+      const adminUid = auth.currentUser?.uid ?? null;
+      const vendorEmail =
+        company?.email ||
+        vendor?.email ||
+        vendor?.contactEmail ||
+        vendor?.profile?.email ||
+        vendor?.profile?.company?.email ||
+        vendor?.company?.email ||
+        null;
       const preBlock = vendor?.preBlockSnapshot || vendor?.profile?.preBlockSnapshot || {};
       const restoreValue = (value, fallback) =>
         value === undefined || value === null ? fallback : value;
@@ -1689,6 +1804,83 @@ const VendorDetails = () => {
         "profile.blockedByUid": deleteField(),
         preBlockSnapshot: deleteField(),
       });
+
+      // Notifications email (vendeur + infos@)
+      const mailCollection = collection(db, "mail");
+      const unblockedAtText = new Date().toLocaleString("fr-FR");
+      const vendorName =
+        vendor?.displayName ||
+        company?.name ||
+        vendor?.name ||
+        vendor?.companyName ||
+        vendor?.profile?.company?.name ||
+        vendor?.profile?.name ||
+        vendor?.id ||
+        "Boutique";
+
+      const vendorHtml = `
+        <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Boutique débloquée - Monmarché</title></head>
+        <body style="font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif">
+          <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #eee">
+            <div style="background:#16a34a;color:#fff;padding:12px;text-align:center">
+              <h1 style="margin:0;font-size:20px">Votre boutique a été débloquée</h1>
+            </div>
+            <div style="padding:20px">
+              <p>Bonjour,</p>
+              <p>Votre boutique <strong>${vendorName}</strong> a été débloquée le ${unblockedAtText}.</p>
+              <p>Vous pouvez reprendre votre activité sur Monmarché.</p>
+              <p>Merci,</p>
+              <p>Service Client Monmarché</p>
+            </div>
+            <div style="background:#16a34a;color:#fff;padding:10px;text-align:center;font-size:12px">
+              &copy; ${new Date().getFullYear()} Monmarché
+            </div>
+          </div>
+        </body></html>`;
+
+      const adminHtml = `
+        <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Boutique débloquée - Monmarché</title></head>
+        <body style="font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif">
+          <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #eee">
+            <div style="background:#111827;color:#fff;padding:12px;text-align:center">
+              <h1 style="margin:0;font-size:18px">Boutique débloquée (admin)</h1>
+            </div>
+            <div style="padding:20px">
+              <p><strong>Boutique :</strong> ${vendorName}</p>
+              <p><strong>Vendor ID :</strong> ${vendor?.id ?? "-"}</p>
+              <p><strong>Email :</strong> ${vendorEmail || "-"}</p>
+              <p><strong>Débloquée le :</strong> ${unblockedAtText}</p>
+              <p><strong>Admin :</strong> ${adminEmail || "admin"} (${adminUid || "-"})</p>
+            </div>
+          </div>
+        </body></html>`;
+
+      const mailWrites = [];
+      if (vendorEmail) {
+        mailWrites.push(
+          addDoc(mailCollection, {
+            to: vendorEmail,
+            message: {
+              subject: "Votre boutique a été débloquée",
+              text: `Votre boutique "${vendorName}" a été débloquée.`,
+              html: vendorHtml,
+            },
+          })
+        );
+      }
+      mailWrites.push(
+        addDoc(mailCollection, {
+          to: BLOCKED_VENDOR_NOTIFY_EMAIL,
+          message: {
+            subject: "Boutique débloquée (admin)",
+            text: `Boutique "${vendorName}" débloquée.`,
+            html: adminHtml,
+          },
+        })
+      );
+      await Promise.all(mailWrites);
 
       setActionMessage(
         "Le vendeur a ete debloque. Les valeurs precedentes ont ete restaurees."
@@ -1744,6 +1936,14 @@ const VendorDetails = () => {
         const adminEmail = auth.currentUser?.email ?? null;
         const adminUid = auth.currentUser?.uid ?? null;
         const normalizedReason = reason?.trim();
+        const vendorEmail =
+          company?.email ||
+          vendor?.email ||
+          vendor?.contactEmail ||
+          vendor?.profile?.email ||
+          vendor?.profile?.company?.email ||
+          vendor?.company?.email ||
+          null;
         const requestedDaysRaw =
           vendor?.pause?.requestedDays ??
           vendor?.profile?.pause?.requestedDays ??
@@ -1844,6 +2044,94 @@ const VendorDetails = () => {
         }
 
         await refreshProducts();
+
+        // Notifications email (vendeur + infos@) - non bloquant
+        try {
+          const mailCollection = collection(db, "mail");
+          const pausedAtText = new Date().toLocaleString("fr-FR");
+          const vendorName =
+            vendor?.displayName ||
+            company?.name ||
+            vendor?.name ||
+            vendor?.companyName ||
+            vendor?.profile?.company?.name ||
+            vendor?.profile?.name ||
+            vendor?.id ||
+            "Boutique";
+          const reasonText = normalizedReason || "Aucun motif renseigné";
+          const titleText = isValidationFlow
+            ? "Votre pause a été validée"
+            : "Votre boutique est en pause";
+
+          const vendorHtml = `
+            <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>${titleText} - Monmarché</title></head>
+            <body style="font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif">
+              <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #eee">
+                <div style="background:#f97316;color:#fff;padding:12px;text-align:center">
+                  <h1 style="margin:0;font-size:20px">${titleText}</h1>
+                </div>
+                <div style="padding:20px">
+                  <p>Bonjour,</p>
+                  <p>Votre boutique <strong>${vendorName}</strong> est en pause depuis le ${pausedAtText}.</p>
+                  <p><strong>Motif :</strong> ${reasonText}</p>
+                  <p>Si vous pensez qu'il s'agit d'une erreur, contactez le support Monmarché.</p>
+                  <p>Merci,</p>
+                  <p>Service Client Monmarché</p>
+                </div>
+                <div style="background:#f97316;color:#fff;padding:10px;text-align:center;font-size:12px">
+                  &copy; ${new Date().getFullYear()} Monmarché
+                </div>
+              </div>
+            </body></html>`;
+
+          const adminHtml = `
+            <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>Boutique en pause - Monmarché</title></head>
+            <body style="font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif">
+              <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #eee">
+                <div style="background:#111827;color:#fff;padding:12px;text-align:center">
+                  <h1 style="margin:0;font-size:18px">Boutique en pause (admin)</h1>
+                </div>
+                <div style="padding:20px">
+                  <p><strong>Boutique :</strong> ${vendorName}</p>
+                  <p><strong>Vendor ID :</strong> ${vendor?.id ?? "-"}</p>
+                  <p><strong>Email :</strong> ${vendorEmail || "-"}</p>
+                  <p><strong>Pause le :</strong> ${pausedAtText}</p>
+                  <p><strong>Motif :</strong> ${reasonText}</p>
+                  <p><strong>Admin :</strong> ${adminEmail || "admin"} (${adminUid || "-"})</p>
+                </div>
+              </div>
+            </body></html>`;
+
+          const mailWrites = [];
+          if (vendorEmail) {
+            mailWrites.push(
+              addDoc(mailCollection, {
+                to: vendorEmail,
+                message: {
+                  subject: titleText,
+                  text: `Votre boutique "${vendorName}" est en pause. Motif: ${reasonText}`,
+                  html: vendorHtml,
+                },
+              })
+            );
+          }
+          mailWrites.push(
+            addDoc(mailCollection, {
+              to: BLOCKED_VENDOR_NOTIFY_EMAIL,
+              message: {
+                subject: "Boutique en pause (admin)",
+                text: `Boutique "${vendorName}" en pause. Motif: ${reasonText}`,
+                html: adminHtml,
+              },
+            })
+          );
+          await Promise.all(mailWrites);
+        } catch (mailError) {
+          console.warn("Email pause vendeur non envoyé (non bloquant):", mailError);
+        }
+
         success = true;
       } catch (err) {
         console.error("Erreur mise en pause vendeur:", err);
@@ -1984,6 +2272,14 @@ const VendorDetails = () => {
         const actorEmail = auth.currentUser?.email ?? null;
         const actorUid = auth.currentUser?.uid ?? null;
         const actor = actorEmail || actorUid || "admin";
+        const vendorEmail =
+          company?.email ||
+          vendor?.email ||
+          vendor?.contactEmail ||
+          vendor?.profile?.email ||
+          vendor?.profile?.company?.email ||
+          vendor?.company?.email ||
+          null;
         const deletedVendorRef = doc(db, "deletedVendors", vendor.id);
 
         const vendorProductSnapshots =
@@ -2079,6 +2375,90 @@ const VendorDetails = () => {
           const batch = writeBatch(db);
           chunk.forEach((ref) => batch.delete(ref));
           await batch.commit();
+        }
+
+        // Notifications email (vendeur + infos@) - non bloquant
+        try {
+          const mailCollection = collection(db, "mail");
+          const deletedAtText = new Date().toLocaleString("fr-FR");
+          const vendorName =
+            vendor?.displayName ||
+            company?.name ||
+            vendor?.name ||
+            vendor?.companyName ||
+            vendor?.profile?.company?.name ||
+            vendor?.profile?.name ||
+            vendor?.id ||
+            "Boutique";
+          const reasonText = normalizedReason || "Aucun motif renseigné";
+
+          const vendorHtml = `
+            <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>Boutique supprimée - Monmarché</title></head>
+            <body style="font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif">
+              <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #eee">
+                <div style="background:#dc2626;color:#fff;padding:12px;text-align:center">
+                  <h1 style="margin:0;font-size:20px">Votre boutique a été supprimée</h1>
+                </div>
+                <div style="padding:20px">
+                  <p>Bonjour,</p>
+                  <p>Votre boutique <strong>${vendorName}</strong> a été supprimée le ${deletedAtText}.</p>
+                  <p><strong>Motif :</strong> ${reasonText}</p>
+                  <p>Si vous pensez qu'il s'agit d'une erreur, contactez le support Monmarché.</p>
+                  <p>Merci,</p>
+                  <p>Service Client Monmarché</p>
+                </div>
+                <div style="background:#dc2626;color:#fff;padding:10px;text-align:center;font-size:12px">
+                  &copy; ${new Date().getFullYear()} Monmarché
+                </div>
+              </div>
+            </body></html>`;
+
+          const adminHtml = `
+            <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>Boutique supprimée - Monmarché</title></head>
+            <body style="font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif">
+              <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #eee">
+                <div style="background:#111827;color:#fff;padding:12px;text-align:center">
+                  <h1 style="margin:0;font-size:18px">Boutique supprimée (admin)</h1>
+                </div>
+                <div style="padding:20px">
+                  <p><strong>Boutique :</strong> ${vendorName}</p>
+                  <p><strong>Vendor ID :</strong> ${vendor?.id ?? "-"}</p>
+                  <p><strong>Email :</strong> ${vendorEmail || "-"}</p>
+                  <p><strong>Supprimée le :</strong> ${deletedAtText}</p>
+                  <p><strong>Motif :</strong> ${reasonText}</p>
+                  <p><strong>Admin :</strong> ${actorEmail || actor} (${actorUid || "-"})</p>
+                </div>
+              </div>
+            </body></html>`;
+
+          const mailWrites = [];
+          if (vendorEmail) {
+            mailWrites.push(
+              addDoc(mailCollection, {
+                to: vendorEmail,
+                message: {
+                  subject: "Votre boutique a été supprimée",
+                  text: `Votre boutique "${vendorName}" a été supprimée. Motif: ${reasonText}`,
+                  html: vendorHtml,
+                },
+              })
+            );
+          }
+          mailWrites.push(
+            addDoc(mailCollection, {
+              to: BLOCKED_VENDOR_NOTIFY_EMAIL,
+              message: {
+                subject: "Boutique supprimée (admin)",
+                text: `Boutique "${vendorName}" supprimée. Motif: ${reasonText}`,
+                html: adminHtml,
+              },
+            })
+          );
+          await Promise.all(mailWrites);
+        } catch (mailError) {
+          console.warn("Email suppression vendeur non envoyé (non bloquant):", mailError);
         }
 
         success = true;
@@ -3245,14 +3625,14 @@ const VendorDetails = () => {
                 <h3>Immatriculation</h3>
                 <ul>
                   <li>
-                    <strong>Steuernummer :</strong>{" "}
+                    <strong>Numéro fiscal :</strong>{" "}
                     {legal?.steuernummer ?? vendor?.steuernummer ?? "-"}
                   </li>
                   <li>
-                    <strong>USt-IdNr :</strong> {legal?.ustIdNr ?? "-"}
+                    <strong>Numéro TVA :</strong> {legal?.ustIdNr ?? "-"}
                   </li>
                   <li>
-                    <strong>Kleinunternehmer :</strong>{" "}
+                    <strong>Micro-entreprise :</strong>{" "}
                     {legal?.kleinunternehmer ? "Oui" : "Non"}
                   </li>
                 </ul>
@@ -3261,7 +3641,7 @@ const VendorDetails = () => {
                 <h3>Documents légaux</h3>
                 <ul>
                   <li>
-                    <strong>Impressum :</strong>{" "}
+                    <strong>Mentions légales :</strong>{" "}
                     {legal?.impressumUrl ? (
                       <a
                         href={legal.impressumUrl}
@@ -3364,7 +3744,8 @@ const VendorDetails = () => {
                 <ul>
                   {Object.entries(consent).map(([key, value]) => (
                     <li key={key}>
-                      <strong>{key} :</strong> {value ? "Accepté" : "Refusé"}
+                      <strong>{formatConsentLabel(key)} :</strong>{" "}
+                      {value ? "Oui" : "Non"}
                     </li>
                   ))}
                 </ul>

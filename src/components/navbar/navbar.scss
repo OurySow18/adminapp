@@ -1,5 +1,5 @@
 ﻿.navbar{     
-    height: 50px;
+    height: 56px;
     border-bottom: 0.5px solid rgb(231, 228, 228);
     display: flex;
     align-items: center;
@@ -41,17 +41,22 @@
         .items{
             display: flex;
             align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
+            gap: 14px;
+            flex-wrap: nowrap;
 
             .item{
                 display: flex;
                 align-items: center;
                 gap: 6px;
                 position: relative;
+                height: 36px;
+                padding: 0 2px;
+                line-height: 1;
 
                 .icon{
                     font-size : 20px;
+                    display: block;
+                    line-height: 1;
                 }
 
                 .navbar__iconButton {
@@ -86,6 +91,98 @@
                     box-shadow: 0 0 0 2px rgba(255, 111, 0, 0.6);
                 }
 
+                .navbar__accountButton {
+                    border: none;
+                    background: transparent;
+                    padding: 0;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                }
+
+                .navbar__accountMenu {
+                    position: absolute;
+                    top: 40px;
+                    right: 0;
+                    min-width: 180px;
+                    background: #fff;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 12px;
+                    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                    z-index: 20;
+                    transform-origin: top right;
+                    animation: navbarAccountMenuIn 140ms ease-out;
+                }
+
+                .navbar__accountHeader {
+                    padding: 12px 14px;
+                    background: #f8fafc;
+                    border-bottom: 1px solid #eef2f7;
+                }
+
+                .navbar__accountName {
+                    font-size: 13px;
+                    font-weight: 700;
+                    color: #0f172a;
+                }
+
+                .navbar__accountSub {
+                    font-size: 11px;
+                    color: #64748b;
+                }
+
+                .navbar__accountItem {
+                    border: none;
+                    background: transparent;
+                    text-align: left;
+                    padding: 8px 12px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: #111827;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+
+                    &:hover {
+                        background: #f8fafc;
+                    }
+                }
+
+                .navbar__accountItem--danger {
+                    color: #dc2626;
+                }
+
+                .navbar__accountIcon {
+                    font-size: 18px;
+                    color: #64748b;
+                }
+
+                .navbar__accountItem--danger .navbar__accountIcon {
+                    color: #dc2626;
+                }
+
+                .navbar__accountDivider {
+                    height: 1px;
+                    background: #eef2f7;
+                    margin: 4px 0;
+                }
+
+                @keyframes navbarAccountMenuIn {
+                    from {
+                        opacity: 0;
+                        transform: scale(0.98) translateY(-6px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: scale(1) translateY(0);
+                    }
+                }
+
                 .counter{
                     width: 15px;
                     height: 15px;
@@ -100,6 +197,105 @@
                     position: absolute;
                     top: -5px;
                     right: -5px;
+                }
+
+                .navbar__notificationsPanel {
+                    position: absolute;
+                    top: 40px;
+                    right: 0;
+                    width: 320px;
+                    max-height: 420px;
+                    background: #fff;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 12px;
+                    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                    z-index: 20;
+                }
+
+                .navbar__notificationsHeader {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 12px 14px;
+                    font-weight: 700;
+                    border-bottom: 1px solid #eef2f7;
+                    background: #f8fafc;
+                }
+
+                .navbar__notificationsActions {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+
+                .navbar__notificationsAction {
+                    border: none;
+                    background: transparent;
+                    color: #ff6f00;
+                    font-size: 12px;
+                    font-weight: 600;
+                    cursor: pointer;
+
+                    &:disabled {
+                        opacity: 0.5;
+                        cursor: not-allowed;
+                    }
+                }
+
+                .navbar__notificationsAction--danger {
+                    color: #dc2626;
+                }
+
+                .navbar__notificationsList {
+                    display: flex;
+                    flex-direction: column;
+                    overflow-y: auto;
+                    max-height: 360px;
+                }
+
+                .navbar__notificationsEmpty {
+                    padding: 16px;
+                    color: #6b7280;
+                    font-size: 12px;
+                }
+
+                .navbar__notificationItem {
+                    border: none;
+                    background: transparent;
+                    text-align: left;
+                    padding: 12px 14px;
+                    border-bottom: 1px solid #f1f5f9;
+                    cursor: pointer;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+
+                    &:hover {
+                        background: #f8fafc;
+                    }
+                }
+
+                .navbar__notificationItem--unread {
+                    background: #fff7ed;
+                }
+
+                .navbar__notificationTitle {
+                    font-size: 13px;
+                    font-weight: 700;
+                    color: #111827;
+                }
+
+                .navbar__notificationMessage {
+                    font-size: 12px;
+                    color: #475569;
+                }
+
+                .navbar__notificationMeta {
+                    font-size: 11px;
+                    color: #94a3b8;
                 }
 
                 /* 🔹 Badge rôle (Admin / SuperAdmin) */
@@ -117,15 +313,22 @@
                 .navbar__userLabel {
                     font-size: 12px;
                     color: #64748b;
-                    max-width: 180px;
+                    max-width: 200px;
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
                 }
             }
 
+            .navbar__groupDivider {
+                width: 1px;
+                height: 22px;
+                background: #e5e7eb;
+                margin: 0 2px;
+            }
+
             .navbar__workControls {
-                gap: 8px;
+                gap: 10px;
             }
 
             .navbar__workButton {
