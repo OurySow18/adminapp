@@ -12,6 +12,7 @@ import {
   doc,
 } from "firebase/firestore";
 import { db } from "../../firebase";
+import { getTopCategoryLabel } from "../../utils/catalogLabels";
 
 const renderBannerTarget = (banner) => {
   switch (banner.targetType) {
@@ -22,7 +23,7 @@ const renderBannerTarget = (banner) => {
         ? `Vendeur: ${banner.targetLabel}`
         : `Vendeur: ${banner.targetId || "-"}`;
     case "category":
-      return `Catégorie: ${banner.targetId || "-"}`;
+      return `Catégorie: ${getTopCategoryLabel(banner.targetId)}`;
     case "search":
       return `Recherche: ${banner.query || "-"}`;
     case "url":

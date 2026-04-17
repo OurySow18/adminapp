@@ -168,6 +168,7 @@ const MarketingCategories = () => {
 
       for (const group of groups) {
         const batch = writeBatch(db);
+        let groupUpdatedCount = 0;
         group.forEach((cat) => {
           const imageURL = normalizeString(cat.imageURL);
           if (!imageURL) return;
@@ -179,9 +180,10 @@ const MarketingCategories = () => {
             },
             { merge: true }
           );
-          updatedCount += 1;
+          groupUpdatedCount += 1;
         });
         await batch.commit();
+        updatedCount += groupUpdatedCount;
       }
 
       setFeedback({

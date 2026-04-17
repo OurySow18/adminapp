@@ -4,12 +4,16 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import { addDoc, collection, doc, getDoc, onSnapshot } from "firebase/firestore";
-import { db } from "../../firebase";
+import { auth, db } from "../../firebase";
 import { format } from "date-fns";
 import {
   applyVendorProductDraftChanges,
   updateVendorProductAdminStatus,
 } from "../../utils/vendorProductsRepository";
+import {
+  getCategoryLabel,
+  getTopCategoryLabel,
+} from "../../utils/catalogLabels";
 
 const formatDateTime = (value) => {
   if (!value) return "-";
@@ -166,9 +170,9 @@ const FIELD_LABELS = {
   stock: "Stock",
   "inventory.stock": "Stock",
   brand: "Marque",
-  category: "Categorie",
-  categoryId: "Categorie",
-  topCategory: "Top categorie",
+  category: "Catégorie",
+  categoryId: "Catégorie",
+  topCategory: "Catégorie principale",
   media: "Medias",
   "media.cover": "Medias > couverture",
   "media.gallery": "Medias > galerie",
@@ -950,6 +954,26 @@ const VendorProductDetails = () => {
   const pendingDraftChanges =
     !isPublicCatalogMode && draftStatus && draftChanges.length > 0;
 
+  const productApprovedAt = useMemo(
+    () =>
+      firstValue(
+        product?.approvedAt,
+        publicProduct?.approvedAt
+      ) || null,
+    [product, publicProduct]
+  );
+
+  const productApprovedBy = useMemo(
+    () =>
+      firstValue(
+        product?.approvedBy,
+        publicProduct?.approvedBy,
+        product?.approvedByUid,
+        publicProduct?.approvedByUid
+      ) || "-",
+    [product, publicProduct]
+  );
+
   const hasDraftChange = useCallback(
     (...paths) => {
       if (!pendingDraftChanges) return false;
@@ -1105,6 +1129,11 @@ const VendorProductDetails = () => {
     [product]
   );
 
+  const categoryDisplayValue = useMemo(
+    () => getCategoryLabel(categoryValue),
+    [categoryValue]
+  );
+
   const topCategoryValue = useMemo(
     () =>
       firstValue(
@@ -1114,6 +1143,11 @@ const VendorProductDetails = () => {
         "-"
       ),
     [product]
+  );
+
+  const topCategoryDisplayValue = useMemo(
+    () => getTopCategoryLabel(topCategoryValue),
+    [topCategoryValue]
   );
 
   const brandValue = useMemo(
@@ -1404,12 +1438,16 @@ const VendorProductDetails = () => {
     if (!product) return;
     setStatusUpdateState({ loading: true, error: null, success: null });
     try {
+      const approvedBy = auth.currentUser?.email ?? "admin";
+      const approvedByUid = auth.currentUser?.uid ?? null;
       await updateVendorProductAdminStatus({
         productId,
         vendorId: resolvedVendorId,
         enabled,
         primaryDocPath: product.__docPath || docPathFromState,
         productData: product,
+        approvedBy: enabled ? approvedBy : undefined,
+        approvedByUid: enabled ? approvedByUid : undefined,
       });
       setStatusUpdateState({
         loading: false,
@@ -1438,11 +1476,15 @@ const VendorProductDetails = () => {
     }
     setStatusUpdateState({ loading: true, error: null, success: null });
     try {
+      const approvedBy = auth.currentUser?.email ?? "admin";
+      const approvedByUid = auth.currentUser?.uid ?? null;
       await applyVendorProductDraftChanges({
         productId,
         vendorId: resolvedVendorId,
         primaryDocPath: product.__docPath || docPathFromState,
         productData: product,
+        approvedBy,
+        approvedByUid,
       });
       if (vendorContactEmail) {
         const subject = "Vos modifications ont été validées";
@@ -2017,7 +2059,7 @@ const VendorProductDetails = () => {
                     <span className="vendorProductDetails__infoValue">{productId}</span>
                   </div>
                   <div className="vendorProductDetails__infoItem">
-                    <span className="vendorProductDetails__infoLabel">Categorie</span>
+                    <span className="vendorProductDetails__infoLabel">Catégorie</span>
                     <span
                       className={`vendorProductDetails__infoValue ${getFieldClass(
                         "categoryId",
@@ -2026,11 +2068,11 @@ const VendorProductDetails = () => {
                         "draft.core.categoryId"
                       )}`}
                     >
-                      {categoryValue}
+                      {categoryDisplayValue}
                     </span>
                   </div>
                   <div className="vendorProductDetails__infoItem">
-                    <span className="vendorProductDetails__infoLabel">Top categorie</span>
+                    <span className="vendorProductDetails__infoLabel">Catégorie principale</span>
                     <span
                       className={`vendorProductDetails__infoValue ${getFieldClass(
                         "topCategory",
@@ -2038,7 +2080,7 @@ const VendorProductDetails = () => {
                         "draft.core.topCategory"
                       )}`}
                     >
-                      {topCategoryValue}
+                      {topCategoryDisplayValue}
                     </span>
                   </div>
                   <div className="vendorProductDetails__infoItem">
@@ -2121,6 +2163,14 @@ const VendorProductDetails = () => {
                       >
                         {blockedReason}
                       </span>
+                    </li>
+                    <li>
+                      <span>Validé le</span>
+                      <span>{formatDateTime(productApprovedAt)}</span>
+                    </li>
+                    <li>
+                      <span>Validé par</span>
+                      <span>{productApprovedBy}</span>
                     </li>
                   </ul>
                 </div>

@@ -125,10 +125,12 @@ const BannerEditor = () => {
     if (targetType === "product" && (!vendorId || !productId)) return false;
     return true;
   }, [
+    badge,
     heroImageFile,
     heroImageUrl,
     loadingBanner,
     productId,
+    subtitle,
     submitting,
     targetType,
     title,

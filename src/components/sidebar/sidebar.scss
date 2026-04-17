@@ -16,11 +16,12 @@
   z-index: 1001;
 
   .top {
-    height: 52px;
+    height: 56px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 14px;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 0 16px;
 
     .sidebar__toggle {
       border: none;
@@ -48,12 +49,16 @@
       display: inline-flex;
       align-items: center;
       color: inherit;
+      min-width: 0;
+      text-decoration: none;
     }
 
     .logo {
       font-size: 20px;
       font-weight: bold;
       color: #ff6f00;
+      line-height: 1;
+      white-space: nowrap;
     }
   }
 

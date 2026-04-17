@@ -132,6 +132,7 @@ const SponsorEditor = () => {
     if (!discount.trim()) return false;
     return true;
   }, [
+    badge,
     heroImageFile,
     heroImageUrl,
     loadingSponsor,

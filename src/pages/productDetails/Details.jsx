@@ -63,8 +63,6 @@ const Details = ({ title }) => {
   const [isChecked, setIsChecked] = useState(false);
   const [isActiv, setIsActiv] = useState(false);
   const [perc, setPerc] = useState(null);   
-  const [imageObjects, setImageObjects] = useState([]); // État pour stocker les objets d'image avec URL et référence
-  const [mainImageIndex, setMainImageIndex] = useState(0); // État pour définir l'index de l'image principale
 
   const navigate = useNavigate();
   const params = useParams();
@@ -78,7 +76,6 @@ const Details = ({ title }) => {
           setData({});
           setIsChecked(false);
           setIsActiv(false);
-          setImageObjects([]);
           return;
         }
 
@@ -135,12 +132,6 @@ const Details = ({ title }) => {
         });
         setIsChecked(Boolean(resolvedStatus));
         setIsActiv(Boolean(resolvedHome));
-        const mappedImages = Array.isArray(resolvedImages)
-          ? resolvedImages.map((url) =>
-              typeof url === "string" ? { url, ref: null } : url
-            )
-          : [];
-        setImageObjects(mappedImages);
       },
       (error) => {
         console.log(error);
@@ -203,31 +194,6 @@ const Details = ({ title }) => {
   const checkActivHandler = () => {
     setIsActiv(!isActiv);
     setData({ ...data, homePage: !isActiv });
-  };
-
-  const handleImageDelete = async (index) => {
-    // Fonction de suppression d'une image du produit
-    try {
-      const target = imageObjects[index];
-      if (target?.ref) {
-        const imageRef = ref(storage, target.ref);
-        //await deleteObject(imageRef);
-      }
-      const updatedImages = [...imageObjects];
-      updatedImages.splice(index, 1);
-      setImageObjects(updatedImages);
-      setData((prev) => ({
-        ...prev,
-        images: updatedImages,
-      }));
-    } catch (error) {
-      console.error("Error deleting image: ", error);
-    }
-  };
-
-  const setMainImage = (index) => {
-    // Fonction pour définir l'image principale
-    setMainImageIndex(index);
   };
 
   // Update product details in Firestore

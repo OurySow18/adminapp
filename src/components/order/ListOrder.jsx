@@ -103,26 +103,29 @@ const ListOrder = ({ typeColumns, showFakeOrders = false }) => {
     });
   }, [data, normalizedSearch]);
 
-  const actionColumn = [
-    {
-      field: "action",
-      headerName: "Action",
-      width: 200,
-      renderCell: (params) => {
-        const targetId = params?.row?.__docId || params.id;
-        return (
-          <div className="cellAction">
-            <Link
-              to={{ pathname: String(targetId) }}
-              style={{ textDecoration: "none" }}
-            >
-              <div className="viewButton">Details</div>
-            </Link>
-          </div>
-        );
+  const actionColumn = useMemo(
+    () => [
+      {
+        field: "action",
+        headerName: "Action",
+        width: 200,
+        renderCell: (params) => {
+          const targetId = params?.row?.__docId || params.id;
+          return (
+            <div className="cellAction">
+              <Link
+                to={{ pathname: String(targetId) }}
+                style={{ textDecoration: "none" }}
+              >
+                <div className="viewButton">Details</div>
+              </Link>
+            </div>
+          );
+        },
       },
-    },
-  ];
+    ],
+    []
+  );
 
   const columns = useMemo(
     () => typeColumns.concat(actionColumn),

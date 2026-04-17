@@ -1745,6 +1745,7 @@ const VendorDetails = () => {
     },
     [
       vendor,
+      company,
       isProtectedVendor,
       products,
       fetchProductsForVendor,
@@ -1897,7 +1898,7 @@ const VendorDetails = () => {
     }
 
     return success;
-  }, [vendor, updatePublicProductsForVendor]);
+  }, [vendor, company, updatePublicProductsForVendor]);
 
   const handlePauseVendor = useCallback(
     async (reason) => {
@@ -2146,6 +2147,7 @@ const VendorDetails = () => {
     },
     [
       vendor,
+      company,
       isProtectedVendor,
       isBlocked,
       isApproved,
@@ -2479,6 +2481,7 @@ const VendorDetails = () => {
     },
     [
       vendor,
+      company,
       isBlocked,
       isProtectedVendor,
       vendorIdentifiers,
@@ -2980,6 +2983,14 @@ const VendorDetails = () => {
       {
         label: "Approuvé le",
         value: formatDateTime(profile?.approvedAt ?? vendor?.approvedAt),
+      },
+      {
+        label: "Approuvé par",
+        value:
+          profile?.approvedBy ??
+          vendor?.approvedBy ??
+          vendor?.approvedByUid ??
+          "-",
       },
       {
         label: "Dernière connexion",

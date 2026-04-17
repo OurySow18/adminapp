@@ -3,21 +3,29 @@
     border-bottom: 0.5px solid rgb(231, 228, 228);
     display: flex;
     align-items: center;
+    position: relative;
+    z-index: 1100;
+    width: 100%;
+    max-width: 100%;
+    overflow: visible;
     font-size : 14px;
     color: #555;
 
     .wrapper {
         width: 100%;
         padding: 0 20px;
+        box-sizing: border-box;
         display: flex;
         align-items: center;
-        justify-content: space-between;
         gap: 16px;
+        min-height: 56px;
+        overflow: visible;
 
         .left {
             display: flex;
             align-items: center;
             gap: 12px;
+            flex: 0 0 auto;
         }
 
         .search{
@@ -43,6 +51,9 @@
             align-items: center;
             gap: 14px;
             flex-wrap: nowrap;
+            margin-left: auto;
+            min-width: 0;
+            overflow: visible;
 
             .item{
                 display: flex;
@@ -50,8 +61,10 @@
                 gap: 6px;
                 position: relative;
                 height: 36px;
+                min-width: 0;
                 padding: 0 2px;
                 line-height: 1;
+                overflow: visible;
 
                 .icon{
                     font-size : 20px;
@@ -101,6 +114,11 @@
                     cursor: pointer;
                 }
 
+                .navbar__account {
+                    position: relative;
+                    z-index: 1200;
+                }
+
                 .navbar__accountMenu {
                     position: absolute;
                     top: 40px;
@@ -113,7 +131,7 @@
                     display: flex;
                     flex-direction: column;
                     overflow: hidden;
-                    z-index: 20;
+                    z-index: 1300;
                     transform-origin: top right;
                     animation: navbarAccountMenuIn 140ms ease-out;
                 }
@@ -212,7 +230,7 @@
                     display: flex;
                     flex-direction: column;
                     overflow: hidden;
-                    z-index: 20;
+                    z-index: 1300;
                 }
 
                 .navbar__notificationsHeader {
@@ -328,7 +346,11 @@
             }
 
             .navbar__workControls {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
                 gap: 10px;
+                min-width: 0;
             }
 
             .navbar__workButton {
@@ -381,10 +403,10 @@
         }
     }
 
-    .navbar__menuButton {
-        border: none;
-        background: transparent;
-        display: inline-flex;
+	    .navbar__menuButton {
+	        border: none;
+	        background: transparent;
+	        display: inline-flex;
         align-items: center;
         justify-content: center;
         width: 36px;
@@ -401,7 +423,41 @@
         .navbar__menuIcon {
             font-size: 24px;
         }
+	    }
+}
+
+@media (max-width: 1200px) {
+  .navbar {
+    .wrapper {
+      padding: 0 14px;
+      gap: 12px;
+
+      .items {
+        gap: 10px;
+      }
     }
+
+    .navbar__userLabel {
+      max-width: 120px;
+    }
+
+    .item.item--fullscreen {
+      display: none;
+    }
+  }
+}
+
+@media (max-width: 1100px) {
+  .navbar {
+    .item.item--user,
+    .navbar__groupDivider:first-of-type {
+      display: none;
+    }
+
+    .wrapper .items {
+      gap: 8px;
+    }
+  }
 }
 
 @media (max-width: 992px) {
@@ -449,40 +505,46 @@
 
     .left {
       width: 100%;
-      justify-content: space-between;
+      justify-content: center;
     }
 
-        .items {
-          width: 100%;
-          justify-content: flex-start;
-          gap: 6px;
-          flex-wrap: wrap;
+    .items {
+      width: 100%;
+      max-width: 100%;
+      justify-content: center;
+      gap: 8px;
+      row-gap: 8px;
+      flex-wrap: wrap;
 
       .item {
         gap: 4px;
       }
 
-          .item.item--language {
-            display: none;
-          }
+      .item.item--language,
+      .item.item--fullscreen,
+      .item.item--chat,
+      .item.item--role,
+      .navbar__groupDivider {
+        display: none;
+      }
 
-          .navbar__iconButton {
-            width: 30px;
-            height: 30px;
-          }
+      .navbar__iconButton {
+        width: 30px;
+        height: 30px;
+      }
 
       .navbar__workControls {
         order: -1;
         width: 100%;
-        justify-content: flex-start;
+        justify-content: center;
         gap: 6px;
       }
 
       .navbar__workButton {
         padding: 8px 10px;
         font-size: 12px;
-        flex: 1 1 45%;
-        min-width: 120px;
+        flex: 1 1 100%;
+        min-width: 0;
         text-align: center;
       }
     }

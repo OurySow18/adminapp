@@ -12,6 +12,14 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db, auth } from "../../firebase";
+import { getTopCategoryLabel } from "../../utils/catalogLabels";
+
+const getBannerTargetLabel = (banner) => {
+  if (banner.targetType === "category") {
+    return getTopCategoryLabel(banner.targetId);
+  }
+  return banner.targetLabel || banner.targetId || "-";
+};
 
 const BannerList = () => {
   const [banners, setBanners] = useState([]);
@@ -45,11 +53,12 @@ const BannerList = () => {
     const q = search.trim().toLowerCase();
     if (!q) return banners;
     return banners.filter((banner) => {
+      const targetLabel = getBannerTargetLabel(banner);
       const haystack = [
         banner.title,
         banner.subtitle,
         banner.badge,
-        banner.targetLabel,
+        targetLabel,
         banner.targetId,
         banner.status,
         banner.id,
@@ -133,7 +142,7 @@ const BannerList = () => {
                       <span className="bannerTable__meta">ID: {banner.id}</span>
                     </span>
                     <span className="bannerTable__cell">
-                      {banner.targetLabel || banner.targetId || "-"}
+                      {getBannerTargetLabel(banner)}
                     </span>
                     <span className="bannerTable__cell">
                       {banner.badge || "-"}

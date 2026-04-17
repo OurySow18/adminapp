@@ -16,20 +16,10 @@ import {
 } from "firebase/firestore";
 import { db, storage } from "../../firebase";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-
-const CATEGORY_OPTIONS = [
-  "grocery",
-  "fashion",
-  "electronics",
-  "home",
-  "beauty",
-  "sports",
-  "media",
-  "auto",
-  "diy",
-  "pet",
-  "services",
-];
+import {
+  getTopCategoryLabel,
+  TOP_CATEGORY_OPTIONS,
+} from "../../utils/catalogLabels";
 
 const SEGMENT_OPTIONS = ["all", "new_user", "returning", "high_value"];
 const TARGET_TYPES = ["product", "vendor", "category", "search", "url"];
@@ -100,7 +90,7 @@ const MarketingEditor = () => {
   const [targetType, setTargetType] = useState("product");
   const [productId, setProductId] = useState("");
   const [vendorId, setVendorId] = useState("");
-  const [categoryId, setCategoryId] = useState(CATEGORY_OPTIONS[0]);
+  const [categoryId, setCategoryId] = useState(TOP_CATEGORY_OPTIONS[0]);
   const [searchQuery, setSearchQuery] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
   const [imageFile, setImageFile] = useState(null);
@@ -229,7 +219,9 @@ const MarketingEditor = () => {
           setProductId(banner.targetType === "product" ? banner.targetId || "" : "");
           setVendorId(banner.targetType === "vendor" ? banner.targetId || "" : "");
           setCategoryId(
-            banner.targetType === "category" ? banner.targetId || CATEGORY_OPTIONS[0] : CATEGORY_OPTIONS[0]
+            banner.targetType === "category"
+              ? banner.targetId || TOP_CATEGORY_OPTIONS[0]
+              : TOP_CATEGORY_OPTIONS[0]
           );
           setSearchQuery(banner.targetType === "search" ? banner.query || "" : "");
           setTargetUrl(banner.targetType === "url" ? banner.url || "" : "");
@@ -444,9 +436,9 @@ const MarketingEditor = () => {
           <div className="formRow">
             <label>Catégorie</label>
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              {CATEGORY_OPTIONS.map((cat) => (
+              {TOP_CATEGORY_OPTIONS.map((cat) => (
                 <option key={cat} value={cat}>
-                  {cat}
+                  {getTopCategoryLabel(cat)}
                 </option>
               ))}
             </select>

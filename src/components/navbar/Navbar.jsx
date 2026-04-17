@@ -729,14 +729,14 @@ const Navbar = () => {
           <div className="navbar__groupDivider" />
           {/* Badge rôle Admin / SuperAdmin */}
           {roleLabel && (
-            <div className="item">
+            <div className="item item--role">
               <span className="navbar__roleBadge">{roleLabel}</span>
             </div>
           )}
 
           {/* Email (facultatif, tu peux enlever si tu veux) */}
           {userLabel && (
-            <div className="item">
+            <div className="item item--user">
               <span className="navbar__userLabel">{userLabel}</span>
             </div>
           )}
@@ -757,7 +757,7 @@ const Navbar = () => {
               <DarkModeOutlinedIcon className="icon" />
             </button>
           </div>
-          <div className="item">
+          <div className="item item--fullscreen">
             <FullscreenExitOutlinedIcon className="icon" />
           </div>
           <div className="navbar__groupDivider" />
@@ -827,7 +827,7 @@ const Navbar = () => {
               </div>
             )}
           </div>
-          <div className="item">
+          <div className="item item--chat">
             <ChatBubbleOutlineOutlinedIcon className="icon" />
             <div className="counter">2</div>
           </div>

@@ -54,20 +54,11 @@ const resolveVendorId = (data = {}) =>
   data.vendor?.uid ||
   "";
 
-const resolveVendorName = (data = {}) =>
-  data.vendorName ||
-  data.vendor?.name ||
-  data.vendor?.storeName ||
-  data.storeName ||
-  data.vendorLabel ||
-  "";
-
 const BestsellerEditor = () => {
   const { bestsellerId } = useParams();
   const isEdit = Boolean(bestsellerId);
 
   const [vendorId, setVendorId] = useState("");
-  const [vendorName, setVendorName] = useState("");
   const [productId, setProductId] = useState("");
   const [status, setStatus] = useState("active");
   const [recommendedRank, setRecommendedRank] = useState("");
@@ -98,7 +89,6 @@ const BestsellerEditor = () => {
           const data = snap.data() || {};
           const resolvedVendorId = resolveVendorId(data);
           setVendorId(resolvedVendorId);
-          setVendorName(resolveVendorName(data));
           setProductId(snap.id);
           setOriginalProductId(snap.id);
           setStatus(data.recommended ? "active" : "inactive");
@@ -207,7 +197,6 @@ const BestsellerEditor = () => {
     if (!vendorId) return;
     const selectedVendor = vendors.find((vendor) => vendor.id === vendorId);
     if (selectedVendor) {
-      setVendorName(selectedVendor.label);
     }
   }, [vendorId, vendors]);
 
@@ -357,7 +346,6 @@ const BestsellerEditor = () => {
         });
         setFormSuccess("Produit recommandé créé.");
         setVendorId("");
-        setVendorName("");
         setProductId("");
         setStatus("active");
         setRecommendedRank("");

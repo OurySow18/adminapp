@@ -86,7 +86,7 @@ const ListDelivered = ({ typeColumns }) => {
 
   const columns = useMemo(
     () => typeColumns.concat(actionColumn),
-    [typeColumns]
+    [typeColumns, actionColumn]
   );
   
   return ( 

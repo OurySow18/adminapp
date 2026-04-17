@@ -269,10 +269,9 @@ const Sidbar = () => {
     () => location.pathname.startsWith("/monmarche-products"),
     [location.pathname]
   );
-  const myAdminPath = useMemo(
-    () => (auth.currentUser?.uid ? `/admins/${auth.currentUser.uid}` : null),
-    [auth.currentUser?.uid]
-  );
+  const myAdminPath = auth.currentUser?.uid
+    ? `/admins/${auth.currentUser.uid}`
+    : null;
   const isMyAdminActive = useMemo(
     () => Boolean(myAdminPath && normalizedPath === myAdminPath),
     [myAdminPath, normalizedPath]

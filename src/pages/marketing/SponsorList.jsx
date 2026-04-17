@@ -12,6 +12,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db, auth } from "../../firebase";
+import { getCatalogLabel } from "../../utils/catalogLabels";
 
 const SponsorList = () => {
   const [sponsors, setSponsors] = useState([]);
@@ -45,6 +46,7 @@ const SponsorList = () => {
     const q = search.trim().toLowerCase();
     if (!q) return sponsors;
     return sponsors.filter((sponsor) => {
+      const categoryLabel = getCatalogLabel(sponsor.categoryId);
       const haystack = [
         sponsor.title,
         sponsor.subtitle,
@@ -53,6 +55,7 @@ const SponsorList = () => {
         sponsor.targetId,
         sponsor.productId,
         sponsor.categoryId,
+        categoryLabel,
         sponsor.status,
         sponsor.id,
       ]
@@ -141,7 +144,7 @@ const SponsorList = () => {
                       {sponsor.productId || "-"}
                     </span>
                     <span className="bannerTable__cell">
-                      {sponsor.categoryId || "-"}
+                      {getCatalogLabel(sponsor.categoryId)}
                     </span>
                     <span className="bannerTable__cell">
                       <span

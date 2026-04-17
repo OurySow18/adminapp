@@ -5,6 +5,7 @@ import Navbar from "../../components/navbar/Navbar";
 import { DataGrid } from "@mui/x-data-grid";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { vendorProductColumns } from "../../datatablesource";
+import { getCategoryLabel } from "../../utils/catalogLabels";
 import {
   doesProductMatchFilter,
   getVendorProductFilterLabel,
@@ -173,6 +174,7 @@ const VendorProductsList = ({ scope = "vendors" }) => {
         row.vendorDisplayId,
         row.vendorId,
         categoryId,
+        getCategoryLabel(categoryId),
         row.statusLabel,
         createdAt,
       ];

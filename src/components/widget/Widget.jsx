@@ -6,7 +6,7 @@
  * Die Widget werden hier erstellt
  */
 import "./widget.scss";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   collection,
@@ -80,29 +80,38 @@ const Widget = ({ type }) => {
 
   const MONMARCHE_VENDOR_ID = "89xYCymLLyTSGeAw1oZvNcHLIFO2";
 
-  const normalizeLabel = (value) =>
-    String(value || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim();
+  const normalizeLabel = useCallback(
+    (value) =>
+      String(value || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim(),
+    []
+  );
 
-  const isMonmarcheRow = (row) => {
-    if (!row) return false;
-    const vendorId = row.vendorId || row.vendorDisplayId;
-    if (vendorId === MONMARCHE_VENDOR_ID) return true;
-    if (typeof row.docPath === "string" && row.docPath.includes(MONMARCHE_VENDOR_ID)) {
-      return true;
-    }
-    const vendorName = normalizeLabel(
-      row.vendorName ||
-        row.raw?.vendorName ||
-        row.raw?.core?.vendorName ||
-        row.raw?.company?.name ||
-        row.raw?.storeName
-    );
-    return vendorName.includes("monmarche");
-  };
+  const isMonmarcheRow = useCallback(
+    (row) => {
+      if (!row) return false;
+      const vendorId = row.vendorId || row.vendorDisplayId;
+      if (vendorId === MONMARCHE_VENDOR_ID) return true;
+      if (
+        typeof row.docPath === "string" &&
+        row.docPath.includes(MONMARCHE_VENDOR_ID)
+      ) {
+        return true;
+      }
+      const vendorName = normalizeLabel(
+        row.vendorName ||
+          row.raw?.vendorName ||
+          row.raw?.core?.vendorName ||
+          row.raw?.company?.name ||
+          row.raw?.storeName
+      );
+      return vendorName.includes("monmarche");
+    },
+    [MONMARCHE_VENDOR_ID, normalizeLabel]
+  );
 
   const getUsersNumber = async () => {
     try {
@@ -138,19 +147,7 @@ const Widget = ({ type }) => {
     setDiff(50);
   };
 
-  const getVendorProductsNumber = async () => {
-    try {
-      const snapshot = await getCountFromServer(collection(db, "vendor_products"));
-      setAmount(snapshot.data().count);
-    } catch (error) {
-      console.warn("Vendor products count aggregation failed, fallback to getDocs.", error);
-      const productsDataItem = await getDocs(collection(db, "vendor_products"));
-      setAmount(productsDataItem.docs.length);
-    }
-    setDiff(50);
-  };
-
-  const getVendorProductsBreakdown = async () => {
+  const getVendorProductsBreakdown = useCallback(async () => {
     try {
       const rows = await loadVendorProductRows();
       const total = rows.length;
@@ -169,7 +166,7 @@ const Widget = ({ type }) => {
       ]);
     }
     setDiff(50);
-  };
+  }, [isMonmarcheRow]);
 
   const data = (() => {
     switch (type) {
@@ -259,7 +256,7 @@ const Widget = ({ type }) => {
     if (type === "balance") {
       getVendorProductsBreakdown();
     }
-  }, [type]);
+  }, [type, getVendorProductsBreakdown]);
 
   return (
     <WidgetDisplay

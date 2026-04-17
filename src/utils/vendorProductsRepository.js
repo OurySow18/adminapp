@@ -727,6 +727,8 @@ export const updateVendorProductAdminStatus = async ({
   enabled,
   primaryDocPath,
   productData,
+  approvedBy,
+  approvedByUid,
 }) => {
   if (typeof enabled !== "boolean") {
     throw new Error("Valeur de mm_status invalide.");
@@ -752,7 +754,16 @@ export const updateVendorProductAdminStatus = async ({
   });
 
   const timestamp = serverTimestamp();
+  const approvalPayload =
+    enabled
+      ? {
+          approvedAt: timestamp,
+          ...(approvedBy ? { approvedBy } : {}),
+          ...(approvedByUid ? { approvedByUid } : {}),
+        }
+      : {};
   const sharedPayload = {
+    ...approvalPayload,
     mm_status: enabled,
     "core.mm_status": enabled,
     "draft.core.mm_status": enabled,
@@ -774,7 +785,7 @@ export const updateVendorProductAdminStatus = async ({
     );
   }
   if (shouldHydrate || publicSnap.exists()) {
-    const basePayload = { mm_status: enabled };
+    const basePayload = { mm_status: enabled, ...approvalPayload };
     if (vendorName) {
       basePayload.vendorName = vendorName;
     }
@@ -811,6 +822,8 @@ export const applyVendorProductDraftChanges = async ({
   vendorId,
   primaryDocPath,
   productData,
+  approvedBy,
+  approvedByUid,
 }) => {
   if (!productData || typeof productData !== "object") {
     throw new Error("Donn�es produit indisponibles pour la validation.");
@@ -864,7 +877,13 @@ export const applyVendorProductDraftChanges = async ({
     primaryDocPath,
   });
   const timestamp = serverTimestamp();
+  const approvalPayload = {
+    approvedAt: timestamp,
+    ...(approvedBy ? { approvedBy } : {}),
+    ...(approvedByUid ? { approvedByUid } : {}),
+  };
   const cleanupPayload = {
+    ...approvalPayload,
     draft_status: false,
     draftStatus: false,
     draftChanges: deleteField(),
@@ -880,7 +899,11 @@ export const applyVendorProductDraftChanges = async ({
   };
 
   const batch = writeBatch(db);
-  batch.set(publicRef, { ...valuesPayload, ...slugPayload }, { merge: true });
+  batch.set(
+    publicRef,
+    { ...valuesPayload, ...slugPayload, ...approvalPayload },
+    { merge: true }
+  );
   refsToWrite.forEach((ref) => {
     batch.set(ref, cleanupPayload, { merge: true });
   });

@@ -5,6 +5,7 @@ import Navbar from "../../components/navbar/Navbar";
 import { DataGrid } from "@mui/x-data-grid";
 import { Link } from "react-router-dom";
 import { vendorProductColumns } from "../../datatablesource";
+import { getCategoryLabel } from "../../utils/catalogLabels";
 import { loadPublicCatalogRows } from "../../utils/vendorProductsRepository";
 
 const firstValue = (...values) => {
@@ -100,6 +101,7 @@ const PublicCatalogList = () => {
         row.vendorDisplayId,
         row.vendorId,
         categoryId,
+        getCategoryLabel(categoryId),
         createdAt,
       ];
       return candidates
