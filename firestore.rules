@@ -17,6 +17,12 @@ service cloud.firestore {
       );
     }
 
+    function isProtectedPayoutCollection(collectionId) {
+      return collectionId == "vendor_ledger" ||
+        collectionId == "vendor_balances" ||
+        collectionId == "vendor_payout_batches";
+    }
+
     // Gestion du profil admin
     match /admin/{userId} {
       allow read: if isAdmin();
@@ -27,13 +33,36 @@ service cloud.firestore {
       }
     }
 
+    // Collections de paiement vendeur: lecture admin uniquement.
+    // Les écritures passent par Cloud Functions/Admin SDK, qui bypass les règles Firestore.
+    match /vendor_ledger/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /vendor_balances/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /vendor_payout_batches/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // Toutes les collections metier (hors /admin) accessibles aux admins connectes.
     match /{collectionId}/{docId} {
-      allow read, write: if isAdmin() && collectionId != "admin";
+      allow read: if isAdmin() && collectionId != "admin";
+      allow write: if isAdmin() &&
+        collectionId != "admin" &&
+        !isProtectedPayoutCollection(collectionId);
     }
 
     match /{collectionId}/{docId}/{document=**} {
-      allow read, write: if isAdmin() && collectionId != "admin";
+      allow read: if isAdmin() && collectionId != "admin";
+      allow write: if isAdmin() &&
+        collectionId != "admin" &&
+        !isProtectedPayoutCollection(collectionId);
     }
   }
 }

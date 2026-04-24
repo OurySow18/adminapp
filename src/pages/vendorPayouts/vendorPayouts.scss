@@ -66,7 +66,7 @@
 
   .vendorPayouts__summary {
     display: grid;
-    grid-template-columns: repeat(4, minmax(170px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     gap: 10px;
   }
 
@@ -127,6 +127,27 @@
     min-width: 180px;
   }
 
+  .vendorPayouts__toggle {
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    background: #fff;
+    color: var(--mm-text);
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+
+    input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--mm-orange);
+    }
+  }
+
   .vendorPayouts__gridWrapper {
     width: 100%;
     min-width: 0;
@@ -168,6 +189,91 @@
   .vendorPayouts__meta {
     font-size: 0.86rem;
     color: #6b7280;
+  }
+
+  .vendorPayouts__reviewBanner {
+    border: 1px solid #fed7aa;
+    background: #fff7ed;
+    color: #9a3412;
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    align-items: center;
+    font-size: 0.9rem;
+
+    strong {
+      color: #7c2d12;
+    }
+  }
+
+  .vendorPayouts__history {
+    border: 1px solid var(--mm-border);
+    border-radius: 14px;
+    padding: 14px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .vendorPayouts__historyHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+
+    h2 {
+      margin: 0;
+      font-size: 1.05rem;
+      color: var(--mm-text-strong);
+    }
+
+    span {
+      color: #64748b;
+      font-size: 0.86rem;
+      font-weight: 700;
+    }
+  }
+
+  .vendorPayouts__historyList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .vendorPayouts__historyItem {
+    display: grid;
+    grid-template-columns: minmax(180px, 0.9fr) minmax(280px, 1.4fr);
+    gap: 12px;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--mm-surface-muted);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+
+    > div {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    strong {
+      color: var(--mm-text-strong);
+    }
+
+    span {
+      color: #64748b;
+      font-size: 0.86rem;
+    }
+  }
+
+  .vendorPayouts__emptyText {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.9rem;
   }
 
   .vendorPayouts__logoCell {
@@ -324,6 +430,129 @@
     cursor: pointer;
   }
 
+  .vendorPayouts__confirmOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.62);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1190;
+    padding: 18px;
+  }
+
+  .vendorPayouts__confirmModal {
+    position: relative;
+    width: min(92vw, 720px);
+    background: #fff;
+    border-radius: 16px;
+    padding: 22px;
+    box-shadow: 0 24px 52px rgba(15, 23, 42, 0.34);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .vendorPayouts__confirmHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+
+    h2 {
+      margin: 0 0 4px;
+      color: var(--mm-text-strong);
+      font-size: 1.25rem;
+    }
+
+    p {
+      margin: 0;
+      color: #64748b;
+    }
+  }
+
+  .vendorPayouts__confirmGrid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(120px, 1fr));
+    gap: 10px;
+  }
+
+  .vendorPayouts__confirmItem {
+    border: 1px solid var(--mm-border);
+    border-radius: 12px;
+    padding: 12px;
+    background: var(--mm-surface-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    span {
+      font-size: 0.76rem;
+      color: #64748b;
+      text-transform: uppercase;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+
+    strong {
+      color: var(--mm-text-strong);
+      font-size: 1.05rem;
+    }
+  }
+
+  .vendorPayouts__confirmItem--net {
+    background: var(--mm-surface-soft);
+    border-color: rgba(217, 95, 0, 0.28);
+
+    strong {
+      color: var(--mm-orange-dark);
+    }
+  }
+
+  .vendorPayouts__confirmActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .vendorPayouts__sensitiveConfirm {
+    border: 1px solid #fed7aa;
+    border-radius: 12px;
+    background: #fff7ed;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    strong {
+      color: #7c2d12;
+    }
+
+    p {
+      margin: 4px 0 0;
+      color: #9a3412;
+      font-size: 0.88rem;
+    }
+  }
+
+  .vendorPayouts__reasonInput {
+    min-height: 76px;
+    resize: vertical;
+    border: 1px solid #fdba74;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font: inherit;
+    color: var(--mm-text);
+    background: #fff;
+
+    &:focus {
+      outline: none;
+      border-color: var(--mm-orange);
+      box-shadow: 0 0 0 2px var(--mm-orange-soft);
+    }
+  }
+
   .vendorPayouts__alert {
     border-radius: 10px;
     padding: 10px 12px;
@@ -409,6 +638,52 @@
     background: #fef2f2;
     color: #991b1b;
   }
+
+  .statusChip--payable {
+    background: var(--mm-surface-soft);
+    color: #9a3412;
+  }
+
+  .statusChip--settled,
+  .statusChip--completed {
+    background: #ecfdf5;
+    color: #166534;
+  }
+
+  .statusChip--error,
+  .statusChip--failed {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+
+  .statusChip--processing {
+    background: #eff6ff;
+    color: #1d4ed8;
+  }
+
+  .statusChip--active,
+  .statusChip--approved {
+    background: #ecfdf5;
+    color: #166534;
+  }
+
+  .statusChip--blocked,
+  .statusChip--deleted,
+  .statusChip--missing,
+  .statusChip--review,
+  .statusChip--rejected {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+
+  .statusChip--paused,
+  .statusChip--submitted,
+  .statusChip--needs_docs,
+  .statusChip--under_review,
+  .statusChip--draft {
+    background: #fff7ed;
+    color: #9a3412;
+  }
 }
 
 @media (max-width: 1100px) {
@@ -446,6 +721,19 @@
     .vendorPayouts__select {
       width: 100%;
       max-width: none;
+    }
+
+    .vendorPayouts__toggle {
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .vendorPayouts__confirmGrid {
+      grid-template-columns: 1fr;
+    }
+
+    .vendorPayouts__historyItem {
+      grid-template-columns: 1fr;
     }
   }
 }

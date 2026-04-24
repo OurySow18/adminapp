@@ -6,6 +6,7 @@ import { collection, onSnapshot } from "firebase/firestore";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import { db } from "../../firebase";
+import { resolveVendorAccountState } from "../../utils/vendorStatus";
 
 const dataGridFrLocaleText = {
   noRowsLabel: "Aucune ligne",
@@ -78,6 +79,17 @@ const pickVendorLogo = (data) => {
   return hit ? hit.trim() : "";
 };
 
+const getVendorIds = (docId, data) =>
+  [
+    docId,
+    data?.vendorId,
+    data?.uid,
+    data?.userId,
+    data?.ownerId,
+    data?.profile?.uid,
+    data?.profile?.vendorId,
+  ].filter((value) => typeof value === "string" && value.trim());
+
 const getInitials = (name = "") => {
   const clean = String(name || "").trim();
   if (!clean) return "V";
@@ -86,14 +98,33 @@ const getInitials = (name = "") => {
   return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
 };
 
+const getBalanceStatus = (row) => {
+  if (
+    row.pendingNetAmount < 0 ||
+    row.pendingEntriesCount < 0 ||
+    (row.pendingNetAmount > 0 && row.pendingEntriesCount <= 0) ||
+    (row.pendingEntriesCount > 0 && row.pendingNetAmount <= 0)
+  ) {
+    return { key: "error", label: "Erreur solde" };
+  }
+  if (row.pendingNetAmount > 0) {
+    return { key: "payable", label: "À payer" };
+  }
+  return { key: "settled", label: "Soldé" };
+};
+
 const VendorPayoutsList = () => {
   const navigate = useNavigate();
   const [balanceRows, setBalanceRows] = useState([]);
   const [vendorNamesById, setVendorNamesById] = useState({});
   const [vendorLogosById, setVendorLogosById] = useState({});
+  const [vendorAccountsById, setVendorAccountsById] = useState({});
+  const [deletedVendorsById, setDeletedVendorsById] = useState({});
   const [loading, setLoading] = useState(true);
   const [pageSize, setPageSize] = useState(9);
   const [searchQuery, setSearchQuery] = useState("");
+  const [payableOnly, setPayableOnly] = useState(true);
+  const [reviewOnly, setReviewOnly] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
@@ -136,17 +167,16 @@ const VendorPayoutsList = () => {
       (snapshot) => {
         const map = {};
         const logosMap = {};
+        const accountsMap = {};
         snapshot.forEach((docSnap) => {
           const data = docSnap.data() || {};
           const name = pickVendorName(data);
           const logoUrl = pickVendorLogo(data);
-          const ids = [
-            docSnap.id,
-            data?.vendorId,
-            data?.profile?.vendorId,
-          ].filter((value) => typeof value === "string" && value.trim());
+          const account = resolveVendorAccountState(data, null);
+          const ids = getVendorIds(docSnap.id, data);
           ids.forEach((id) => {
             map[id] = name;
+            accountsMap[id] = account;
             if (logoUrl) {
               logosMap[id] = logoUrl;
             }
@@ -154,11 +184,39 @@ const VendorPayoutsList = () => {
         });
         setVendorNamesById(map);
         setVendorLogosById(logosMap);
+        setVendorAccountsById(accountsMap);
       },
       (error) => {
         console.error("Erreur chargement noms vendeurs:", error);
         setVendorNamesById({});
         setVendorLogosById({});
+        setVendorAccountsById({});
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "deletedVendors"),
+      (snapshot) => {
+        const map = {};
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() || {};
+          const meta = {
+            name: pickVendorName(data),
+            logo: pickVendorLogo(data),
+            account: resolveVendorAccountState(null, data),
+          };
+          getVendorIds(docSnap.id, data).forEach((id) => {
+            map[id] = meta;
+          });
+        });
+        setDeletedVendorsById(map);
+      },
+      (error) => {
+        console.error("Erreur chargement vendeurs supprimés:", error);
+        setDeletedVendorsById({});
       }
     );
     return () => unsubscribe();
@@ -168,30 +226,43 @@ const VendorPayoutsList = () => {
     () =>
       balanceRows.map((row) => ({
         ...row,
+        payoutStatus: getBalanceStatus(row),
+        vendorAccount:
+          vendorAccountsById[row.vendorId] ||
+          vendorAccountsById[row.id] ||
+          deletedVendorsById[row.vendorId]?.account ||
+          deletedVendorsById[row.id]?.account ||
+          resolveVendorAccountState(null, null),
         vendorName:
           row.vendorName ||
           vendorNamesById[row.vendorId] ||
           vendorNamesById[row.id] ||
+          deletedVendorsById[row.vendorId]?.name ||
+          deletedVendorsById[row.id]?.name ||
           "—",
         vendorLogo:
           vendorLogosById[row.vendorId] ||
           vendorLogosById[row.id] ||
+          deletedVendorsById[row.vendorId]?.logo ||
+          deletedVendorsById[row.id]?.logo ||
           "",
       })),
-    [balanceRows, vendorNamesById, vendorLogosById]
+    [balanceRows, vendorNamesById, vendorLogosById, vendorAccountsById, deletedVendorsById]
   );
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
   const filteredRows = useMemo(() => {
-    if (!normalizedSearch) return rows;
     return rows.filter((row) => {
-      const candidates = [row.vendorId, row.vendorName];
+      if (payableOnly && row.pendingNetAmount <= 0) return false;
+      if (reviewOnly && !row.vendorAccount?.requiresPayoutReview) return false;
+      if (!normalizedSearch) return true;
+      const candidates = [row.vendorId, row.vendorName, row.vendorAccount?.label];
       return candidates
         .filter((value) => typeof value === "string" && value.trim())
         .some((value) => value.toLowerCase().includes(normalizedSearch));
     });
-  }, [rows, normalizedSearch]);
+  }, [rows, normalizedSearch, payableOnly, reviewOnly]);
 
   const totals = useMemo(
     () =>
@@ -201,6 +272,7 @@ const VendorPayoutsList = () => {
           acc.pendingCommissionAmount += row.pendingCommissionAmount;
           acc.pendingEntriesCount += row.pendingEntriesCount;
           acc.paidNetAmount += row.paidNetAmount;
+          if (row.vendorAccount?.requiresPayoutReview) acc.reviewCount += 1;
           return acc;
         },
         {
@@ -208,6 +280,7 @@ const VendorPayoutsList = () => {
           pendingCommissionAmount: 0,
           pendingEntriesCount: 0,
           paidNetAmount: 0,
+          reviewCount: 0,
         }
       ),
     [filteredRows]
@@ -248,6 +321,32 @@ const VendorPayoutsList = () => {
                 {getInitials(vendorName)}
               </span>
             </div>
+          );
+        },
+      },
+      {
+        field: "payoutStatus",
+        headerName: "Statut",
+        width: 140,
+        renderCell: (params) => {
+          const status = params.row.payoutStatus || getBalanceStatus(params.row);
+          return (
+            <span className={`statusChip statusChip--${status.key}`}>
+              {status.label}
+            </span>
+          );
+        },
+      },
+      {
+        field: "vendorAccount",
+        headerName: "Compte vendeur",
+        width: 160,
+        renderCell: (params) => {
+          const account = params.row.vendorAccount || resolveVendorAccountState(null, null);
+          return (
+            <span className={`statusChip statusChip--${account.key}`}>
+              {account.label}
+            </span>
           );
         },
       },
@@ -329,9 +428,29 @@ const VendorPayoutsList = () => {
               <span className="label">Lignes en attente</span>
               <strong>{totals.pendingEntriesCount}</strong>
             </div>
+            <div className="vendorPayouts__card">
+              <span className="label">À vérifier</span>
+              <strong>{totals.reviewCount}</strong>
+            </div>
           </div>
 
           <div className="vendorPayouts__toolbar">
+            <label className="vendorPayouts__toggle">
+              <input
+                type="checkbox"
+                checked={payableOnly}
+                onChange={(event) => setPayableOnly(event.target.checked)}
+              />
+              <span>À payer uniquement</span>
+            </label>
+            <label className="vendorPayouts__toggle">
+              <input
+                type="checkbox"
+                checked={reviewOnly}
+                onChange={(event) => setReviewOnly(event.target.checked)}
+              />
+              <span>À vérifier</span>
+            </label>
             <input
               type="search"
               className="vendorPayouts__searchInput"

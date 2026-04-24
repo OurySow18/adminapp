@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onVendorProductCreatedNotifyAdmins = exports.onVendorCreatedNotifyAdmins = exports.onOrderCreatedNotifyAdmins = exports.submitReview = exports.validateReviewLink = exports.processScheduledReviewJobs = exports.onArchivedOrderCreated = void 0;
+exports.onVendorProductCreatedNotifyAdmins = exports.onVendorCreatedNotifyAdmins = exports.onOrderCreatedNotifyAdmins = exports.settleVendorPayout = exports.createStaffAccount = exports.submitReview = exports.validateReviewLink = exports.processScheduledReviewJobs = exports.onArchivedOrderCreated = void 0;
 const admin = __importStar(require("firebase-admin"));
 const crypto = __importStar(require("crypto"));
 const logger = __importStar(require("firebase-functions/logger"));
@@ -101,6 +101,114 @@ const normalizeDocIdPart = (value, fallback = "unknown") => {
     return normalized.length ? normalized.slice(0, 80) : fallback;
 };
 const isTrue = (value) => value === true;
+const normalizeStatusText = (value) => {
+    const raw = nonEmptyString(value);
+    if (!raw)
+        return null;
+    return raw.replace(/\s+/g, "_").toLowerCase();
+};
+const isBlockedStatus = (value) => {
+    const normalized = normalizeStatusText(value);
+    return Boolean(normalized &&
+        ["blocked", "disabled", "inactive", "suspended", "bloque", "bloqué"].includes(normalized));
+};
+const resolveVendorPayoutAccountState = (vendorSnap, deletedVendorSnap) => {
+    if (deletedVendorSnap.exists) {
+        const data = deletedVendorSnap.data() || {};
+        return {
+            key: "deleted",
+            label: "Supprimé",
+            requiresReview: true,
+            reason: nonEmptyString(data.deleteReason, data.deletedReason, data.reason),
+        };
+    }
+    if (!vendorSnap.exists) {
+        return {
+            key: "missing",
+            label: "Introuvable",
+            requiresReview: true,
+            reason: null,
+        };
+    }
+    const data = vendorSnap.data() || {};
+    const explicitBlocked = data.blocked === true ||
+        data.profile?.blocked === true ||
+        data.company?.blocked === true ||
+        data.vendor?.blocked === true;
+    const blocked = explicitBlocked ||
+        isBlockedStatus(data.status) ||
+        isBlockedStatus(data.vendorStatus) ||
+        isBlockedStatus(data.profile?.status) ||
+        isBlockedStatus(data.company?.status) ||
+        isBlockedStatus(data.vendor?.status);
+    if (blocked) {
+        return {
+            key: "blocked",
+            label: "Bloqué",
+            requiresReview: true,
+            reason: nonEmptyString(data.blockedReason, data.profile?.blockedReason, data.company?.blockedReason, data.vendor?.blockedReason),
+        };
+    }
+    const explicitActive = data.active ??
+        data.isActive ??
+        data.profile?.active ??
+        data.profile?.isActive ??
+        data.company?.active ??
+        data.vendor?.active;
+    if (explicitActive === false) {
+        return {
+            key: "review",
+            label: "Inactif",
+            requiresReview: true,
+            reason: null,
+        };
+    }
+    const status = normalizeStatusText(data.status) ||
+        normalizeStatusText(data.vendorStatus) ||
+        normalizeStatusText(data.profile?.status);
+    if (status && !["approved", "active", "validated"].includes(status)) {
+        return {
+            key: "review",
+            label: status,
+            requiresReview: true,
+            reason: null,
+        };
+    }
+    return {
+        key: "active",
+        label: "Actif",
+        requiresReview: false,
+        reason: null,
+    };
+};
+const SUPER_ADMIN_UID = "rgFo1YPQNDdJxyfRCiWFXETpJHB2";
+const STAFF_ROLE_COLLECTION = {
+    ADMIN: "admin",
+    DRIVER: "drivers",
+};
+const isSuperAdminUid = (uid) => Boolean(uid && uid === SUPER_ADMIN_UID);
+const isAdminUid = async (uid) => {
+    if (!uid)
+        return false;
+    if (isSuperAdminUid(uid))
+        return true;
+    const snap = await db.doc(`admin/${uid}`).get();
+    return snap.exists;
+};
+const ensureNonEmptyString = (value, field) => {
+    const normalized = nonEmptyString(value);
+    if (!normalized) {
+        throw new https_1.HttpsError("invalid-argument", `${field}_required`);
+    }
+    return normalized;
+};
+const parseStaffRole = (value) => {
+    const normalized = nonEmptyString(value)?.toUpperCase();
+    if (normalized === "ADMIN" || normalized === "DRIVER") {
+        return normalized;
+    }
+    throw new https_1.HttpsError("invalid-argument", "invalid_role");
+};
 const isOrderEligibleForVendorPayout = (order) => {
     if (!isTrue(order.payed)) {
         return {
@@ -705,6 +813,293 @@ exports.submitReview = (0, https_1.onRequest)({
     }
     catch (error) {
         res.status(400).json({ ok: false, error: String(error?.message ?? error) });
+    }
+});
+exports.createStaffAccount = (0, https_1.onCall)({
+    region: REGION,
+}, async (request) => {
+    const callerUid = request.auth?.uid ?? null;
+    if (!callerUid) {
+        throw new https_1.HttpsError("unauthenticated", "auth_required");
+    }
+    const payload = (request.data ?? {});
+    const email = ensureNonEmptyString(payload.email, "email").toLowerCase();
+    const password = ensureNonEmptyString(payload.password, "password");
+    const role = parseStaffRole(payload.role);
+    const profile = payload.profile && typeof payload.profile === "object" && !Array.isArray(payload.profile)
+        ? { ...payload.profile }
+        : {};
+    const callerIsAdmin = await isAdminUid(callerUid);
+    if (!callerIsAdmin) {
+        throw new https_1.HttpsError("permission-denied", "admin_required");
+    }
+    if (role === "ADMIN" && !isSuperAdminUid(callerUid)) {
+        throw new https_1.HttpsError("permission-denied", "super_admin_required");
+    }
+    const targetCollection = STAFF_ROLE_COLLECTION[role];
+    const username = role === "ADMIN" ? ensureNonEmptyString(profile.username, "username") : null;
+    if (username) {
+        const usernameSnap = await db
+            .collection("admin")
+            .where("username", "==", username)
+            .limit(1)
+            .get();
+        if (!usernameSnap.empty) {
+            throw new https_1.HttpsError("already-exists", "username_already_exists");
+        }
+    }
+    let authUser;
+    let authUserCreated = false;
+    try {
+        authUser = await admin.auth().getUserByEmail(email);
+    }
+    catch (error) {
+        if (error?.code !== "auth/user-not-found") {
+            logger.error("Failed to load auth user before staff creation", error);
+            throw new https_1.HttpsError("internal", "failed_to_load_auth_user");
+        }
+        try {
+            authUser = await admin.auth().createUser({
+                email,
+                password,
+                displayName: nonEmptyString(profile.username, profile.firstName, profile.lastName, profile.name) ??
+                    undefined,
+            });
+            authUserCreated = true;
+        }
+        catch (createError) {
+            logger.error("Failed to create auth user for staff account", createError);
+            const code = String(createError?.code ?? "");
+            if (code === "auth/email-already-exists") {
+                throw new https_1.HttpsError("already-exists", "email_already_exists");
+            }
+            if (code === "auth/invalid-password") {
+                throw new https_1.HttpsError("invalid-argument", "invalid_password");
+            }
+            throw new https_1.HttpsError("internal", "failed_to_create_auth_user");
+        }
+    }
+    const roleDocRef = db.doc(`${targetCollection}/${authUser.uid}`);
+    const roleDocSnap = await roleDocRef.get();
+    if (roleDocSnap.exists) {
+        throw new https_1.HttpsError("already-exists", `${targetCollection}_already_exists`);
+    }
+    await roleDocRef.set({
+        ...profile,
+        email,
+        role,
+        status: true,
+        timeStamp: admin.firestore.FieldValue.serverTimestamp(),
+        createdByUid: callerUid,
+        updatedByUid: callerUid,
+    });
+    return {
+        ok: true,
+        uid: authUser.uid,
+        role,
+        collection: targetCollection,
+        authUserCreated,
+        linkedExistingAuthUser: !authUserCreated,
+    };
+});
+exports.settleVendorPayout = (0, https_1.onCall)({
+    region: REGION,
+}, async (request) => {
+    const callerUid = request.auth?.uid ?? null;
+    if (!callerUid) {
+        throw new https_1.HttpsError("unauthenticated", "auth_required");
+    }
+    if (!(await isAdminUid(callerUid))) {
+        throw new https_1.HttpsError("permission-denied", "admin_required");
+    }
+    const payload = (request.data ?? {});
+    const vendorId = ensureNonEmptyString(payload.vendorId, "vendorId");
+    const rawEntryIds = Array.isArray(payload.entryIds) ? payload.entryIds : [];
+    const entryIds = Array.from(new Set(rawEntryIds
+        .map((value) => nonEmptyString(value))
+        .filter((value) => Boolean(value))));
+    if (!entryIds.length) {
+        throw new https_1.HttpsError("invalid-argument", "entryIds_required");
+    }
+    if (entryIds.length > 1000) {
+        throw new https_1.HttpsError("invalid-argument", "too_many_entries");
+    }
+    const [vendorSnap, deletedVendorSnap] = await Promise.all([
+        db.doc(`vendors/${vendorId}`).get(),
+        db.doc(`deletedVendors/${vendorId}`).get(),
+    ]);
+    const vendorAccountState = resolveVendorPayoutAccountState(vendorSnap, deletedVendorSnap);
+    const forceSensitiveVendor = payload.forceSensitiveVendor === true;
+    const forceReason = nonEmptyString(payload.forceReason);
+    if (vendorAccountState.requiresReview && (!forceSensitiveVendor || !forceReason)) {
+        throw new https_1.HttpsError("failed-precondition", `vendor_${vendorAccountState.key}_requires_manual_confirmation`);
+    }
+    const actorRecord = await admin.auth().getUser(callerUid).catch(() => null);
+    const actorEmail = actorRecord?.email ?? request.auth?.token?.email ?? null;
+    const actorLabel = actorEmail ?? callerUid;
+    const batchId = `manual_${Date.now()}_${normalizeDocIdPart(callerUid, "admin")}`;
+    const batchRef = db.doc(`vendor_payout_batches/${batchId}`);
+    const balanceRef = db.doc(`vendor_balances/${vendorId}`);
+    const chunkSize = 400;
+    const paidEntryIds = [];
+    const totals = {
+        grossAmount: 0,
+        commissionAmount: 0,
+        netAmount: 0,
+        entriesCount: 0,
+    };
+    let currency = "GNF";
+    await batchRef.create({
+        batchId,
+        vendorId,
+        status: "processing",
+        requestedEntryIds: entryIds,
+        requestedEntriesCount: entryIds.length,
+        paidEntryIds: [],
+        paidEntriesCount: 0,
+        grossAmount: 0,
+        commissionAmount: 0,
+        netAmount: 0,
+        currency,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdByUid: callerUid,
+        createdByEmail: actorEmail,
+        createdByLabel: actorLabel,
+        vendorAccountStatus: vendorAccountState.key,
+        vendorAccountLabel: vendorAccountState.label,
+        vendorAccountReason: vendorAccountState.reason ?? null,
+        sensitiveVendorOverride: vendorAccountState.requiresReview,
+        sensitiveVendorOverrideReason: forceReason,
+    });
+    try {
+        for (let start = 0; start < entryIds.length; start += chunkSize) {
+            const chunkIds = entryIds.slice(start, start + chunkSize);
+            const chunkResult = await db.runTransaction(async (tx) => {
+                const refs = chunkIds.map((entryId) => db.doc(`vendor_ledger/${entryId}`));
+                const snaps = await tx.getAll(...refs);
+                const freshEntries = snaps.map((snap, index) => {
+                    const entryId = chunkIds[index];
+                    if (!snap.exists) {
+                        throw new https_1.HttpsError("failed-precondition", `entry_missing:${entryId}`);
+                    }
+                    const data = snap.data() || {};
+                    const currentVendorId = nonEmptyString(data.vendorId);
+                    const currentStatus = nonEmptyString(data.status) ?? "pending";
+                    if (currentVendorId !== vendorId) {
+                        throw new https_1.HttpsError("failed-precondition", `entry_vendor_mismatch:${entryId}`);
+                    }
+                    if (currentStatus !== "pending") {
+                        throw new https_1.HttpsError("failed-precondition", `entry_not_pending:${entryId}`);
+                    }
+                    return {
+                        ref: refs[index],
+                        id: entryId,
+                        grossAmount: roundMoney(toNumber(data.grossAmount, 0)),
+                        commissionAmount: roundMoney(toNumber(data.commissionAmount, 0)),
+                        netAmount: roundMoney(toNumber(data.netAmount, 0)),
+                        currency: nonEmptyString(data.currency) ?? "GNF",
+                        orderId: nonEmptyString(data.orderId),
+                        productId: nonEmptyString(data.productId),
+                        title: nonEmptyString(data.title),
+                    };
+                });
+                const chunkTotals = freshEntries.reduce((acc, entry) => {
+                    acc.grossAmount = roundMoney(acc.grossAmount + entry.grossAmount);
+                    acc.commissionAmount = roundMoney(acc.commissionAmount + entry.commissionAmount);
+                    acc.netAmount = roundMoney(acc.netAmount + entry.netAmount);
+                    acc.entriesCount += 1;
+                    return acc;
+                }, { grossAmount: 0, commissionAmount: 0, netAmount: 0, entriesCount: 0 });
+                const chunkCurrency = freshEntries[0]?.currency ?? "GNF";
+                freshEntries.forEach((entry) => {
+                    tx.update(entry.ref, {
+                        status: "paid",
+                        paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                        paidBatchId: batchId,
+                        paidByUid: callerUid,
+                        paidByEmail: actorEmail,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    });
+                });
+                tx.set(balanceRef, {
+                    vendorId,
+                    pendingGrossAmount: admin.firestore.FieldValue.increment(-chunkTotals.grossAmount),
+                    pendingCommissionAmount: admin.firestore.FieldValue.increment(-chunkTotals.commissionAmount),
+                    pendingNetAmount: admin.firestore.FieldValue.increment(-chunkTotals.netAmount),
+                    pendingEntriesCount: admin.firestore.FieldValue.increment(-chunkTotals.entriesCount),
+                    paidGrossAmount: admin.firestore.FieldValue.increment(chunkTotals.grossAmount),
+                    paidCommissionAmount: admin.firestore.FieldValue.increment(chunkTotals.commissionAmount),
+                    paidNetAmount: admin.firestore.FieldValue.increment(chunkTotals.netAmount),
+                    paidEntriesCount: admin.firestore.FieldValue.increment(chunkTotals.entriesCount),
+                    lastPaidBatchId: batchId,
+                    lastPaidAt: admin.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                }, { merge: true });
+                tx.set(batchRef, {
+                    paidEntryIds: admin.firestore.FieldValue.arrayUnion(...freshEntries.map((e) => e.id)),
+                    paidEntriesCount: admin.firestore.FieldValue.increment(chunkTotals.entriesCount),
+                    grossAmount: admin.firestore.FieldValue.increment(chunkTotals.grossAmount),
+                    commissionAmount: admin.firestore.FieldValue.increment(chunkTotals.commissionAmount),
+                    netAmount: admin.firestore.FieldValue.increment(chunkTotals.netAmount),
+                    currency: chunkCurrency,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                }, { merge: true });
+                return {
+                    ...chunkTotals,
+                    currency: chunkCurrency,
+                    entryIds: freshEntries.map((entry) => entry.id),
+                };
+            });
+            totals.grossAmount = roundMoney(totals.grossAmount + chunkResult.grossAmount);
+            totals.commissionAmount = roundMoney(totals.commissionAmount + chunkResult.commissionAmount);
+            totals.netAmount = roundMoney(totals.netAmount + chunkResult.netAmount);
+            totals.entriesCount += chunkResult.entriesCount;
+            currency = chunkResult.currency;
+            paidEntryIds.push(...chunkResult.entryIds);
+        }
+        await batchRef.set({
+            status: "completed",
+            completedAt: admin.firestore.FieldValue.serverTimestamp(),
+            paidEntryIds,
+            paidEntriesCount: totals.entriesCount,
+            grossAmount: totals.grossAmount,
+            commissionAmount: totals.commissionAmount,
+            netAmount: totals.netAmount,
+            currency,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        logger.info("vendor payout settled", {
+            batchId,
+            vendorId,
+            entriesCount: totals.entriesCount,
+            netAmount: totals.netAmount,
+            actorUid: callerUid,
+            vendorAccountStatus: vendorAccountState.key,
+        });
+        return {
+            ok: true,
+            batchId,
+            vendorId,
+            entriesCount: totals.entriesCount,
+            grossAmount: totals.grossAmount,
+            commissionAmount: totals.commissionAmount,
+            netAmount: totals.netAmount,
+            currency,
+            vendorAccountStatus: vendorAccountState.key,
+        };
+    }
+    catch (error) {
+        await batchRef.set({
+            status: "failed",
+            failureReason: error instanceof https_1.HttpsError
+                ? error.message
+                : error instanceof Error
+                    ? error.message
+                    : "unknown_error",
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        throw error;
     }
 });
 exports.onOrderCreatedNotifyAdmins = (0, firestore_1.onDocumentCreated)({ region: REGION, document: "orders/{orderId}" }, async (event) => {

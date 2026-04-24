@@ -6,20 +6,17 @@ import {
   collection,
   doc,
   getDoc,
-  increment,
   onSnapshot,
   query,
-  runTransaction,
-  serverTimestamp,
-  Timestamp,
   where,
-  writeBatch,
 } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
-import { auth, db } from "../../firebase";
+import { db, functions } from "../../firebase";
+import { resolveVendorAccountState } from "../../utils/vendorStatus";
 
-const PAYOUT_LOCK_TTL_MS = 10 * 60 * 1000;
+const settleVendorPayoutCallable = httpsCallable(functions, "settleVendorPayout");
 
 const dataGridFrLocaleText = {
   noRowsLabel: "Aucune ligne",
@@ -49,6 +46,21 @@ const pickVendorLogo = (data) => {
     data?.companyLogo,
     data?.image,
     Array.isArray(data?.images) ? data.images[0] : null,
+  ];
+  const hit = candidates.find(
+    (value) => typeof value === "string" && value.trim()
+  );
+  return hit ? hit.trim() : "";
+};
+
+const pickVendorName = (data) => {
+  const candidates = [
+    data?.vendorName,
+    data?.displayName,
+    data?.profile?.displayName,
+    data?.profile?.company?.name,
+    data?.company?.name,
+    data?.companyName,
   ];
   const hit = candidates.find(
     (value) => typeof value === "string" && value.trim()
@@ -110,17 +122,35 @@ const formatCurrency = (value, currency = "GNF") => {
   }).format(amount);
 };
 
-const createPayoutLockToken = () =>
-  `payout_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+const csvEscape = (value) => {
+  const raw = value === undefined || value === null ? "" : String(value);
+  return `"${raw.replace(/"/g, '""')}"`;
+};
+
+const downloadCsv = (filename, rows) => {
+  const csv = rows.map((row) => row.map(csvEscape).join(";")).join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
 
 const VendorPayoutDetails = () => {
   const navigate = useNavigate();
   const { vendorId } = useParams();
 
   const [balance, setBalance] = useState(null);
+  const [vendorData, setVendorData] = useState(null);
+  const [deletedVendorData, setDeletedVendorData] = useState(null);
   const [vendorLabel, setVendorLabel] = useState("");
   const [vendorLogo, setVendorLogo] = useState("");
   const [entries, setEntries] = useState([]);
+  const [payoutBatches, setPayoutBatches] = useState([]);
   const [productImagesById, setProductImagesById] = useState({});
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -129,6 +159,9 @@ const VendorPayoutDetails = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionError, setActionError] = useState("");
   const [actionFeedback, setActionFeedback] = useState("");
+  const [pendingPayoutEntries, setPendingPayoutEntries] = useState([]);
+  const [forceSensitivePayout, setForceSensitivePayout] = useState(false);
+  const [sensitivePayoutReason, setSensitivePayoutReason] = useState("");
   const [imagePreview, setImagePreview] = useState({
     url: "",
     alt: "",
@@ -184,24 +217,36 @@ const VendorPayoutDetails = () => {
       vendorRef,
       (snap) => {
         if (!snap.exists()) {
+          setVendorData(null);
           setVendorLabel("");
           setVendorLogo("");
           return;
         }
         const data = snap.data() || {};
+        setVendorData(data);
         setVendorLogo(pickVendorLogo(data));
-        const name =
-          data.vendorName ||
-          data.displayName ||
-          data.profile?.displayName ||
-          data.profile?.company?.name ||
-          data.company?.name ||
-          "";
-        setVendorLabel(typeof name === "string" ? name : "");
+        setVendorLabel(pickVendorName(data));
       },
       () => {
+        setVendorData(null);
         setVendorLabel("");
         setVendorLogo("");
+      }
+    );
+    return () => unsub();
+  }, [vendorId]);
+
+  useEffect(() => {
+    if (!vendorId) return undefined;
+    const deletedVendorRef = doc(db, "deletedVendors", vendorId);
+    const unsub = onSnapshot(
+      deletedVendorRef,
+      (snap) => {
+        setDeletedVendorData(snap.exists() ? { id: snap.id, ...(snap.data() || {}) } : null);
+      },
+      (error) => {
+        console.error("Erreur lecture deletedVendors:", error);
+        setDeletedVendorData(null);
       }
     );
     return () => unsub();
@@ -253,6 +298,50 @@ const VendorPayoutDetails = () => {
       }
     );
 
+    return () => unsub();
+  }, [vendorId]);
+
+  useEffect(() => {
+    if (!vendorId) return undefined;
+    const batchesQuery = query(
+      collection(db, "vendor_payout_batches"),
+      where("vendorId", "==", vendorId)
+    );
+    const unsub = onSnapshot(
+      batchesQuery,
+      (snapshot) => {
+        const list = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data() || {};
+          return {
+            id: docSnap.id,
+            batchId: data.batchId || docSnap.id,
+            status: data.status || "completed",
+            grossAmount: toNumber(data.grossAmount),
+            commissionAmount: toNumber(data.commissionAmount),
+            netAmount: toNumber(data.netAmount),
+            paidEntriesCount: toNumber(data.paidEntriesCount),
+            currency: data.currency || "GNF",
+            createdAt: data.createdAt || null,
+            completedAt: data.completedAt || null,
+            createdByLabel:
+              data.createdByLabel ||
+              data.createdByEmail ||
+              data.createdByUid ||
+              "admin",
+          };
+        });
+        list.sort(
+          (a, b) =>
+            toMillis(b.completedAt || b.createdAt) -
+            toMillis(a.completedAt || a.createdAt)
+        );
+        setPayoutBatches(list);
+      },
+      (error) => {
+        console.error("Erreur lecture vendor_payout_batches:", error);
+        setPayoutBatches([]);
+      }
+    );
     return () => unsub();
   }, [vendorId]);
 
@@ -355,211 +444,86 @@ const VendorPayoutDetails = () => {
     [filteredRows]
   );
 
-  const acquirePayoutLock = useCallback(async () => {
-    if (!vendorId) {
-      throw new Error("Vendeur introuvable.");
-    }
-
-    const lockRef = doc(db, "vendor_payout_locks", vendorId);
-    const lockToken = createPayoutLockToken();
-    const actorUid = auth.currentUser?.uid || null;
-    const actorLabel = auth.currentUser?.email || actorUid || "admin";
-    const nowMs = Date.now();
-    const expiresAt = Timestamp.fromMillis(nowMs + PAYOUT_LOCK_TTL_MS);
-
-    await runTransaction(db, async (transaction) => {
-      const lockSnap = await transaction.get(lockRef);
-      if (lockSnap.exists()) {
-        const lockData = lockSnap.data() || {};
-        const expiresAtMs = toMillis(lockData.expiresAt);
-        const activeToken =
-          typeof lockData.lockToken === "string" ? lockData.lockToken : "";
-        if (activeToken && expiresAtMs > nowMs) {
-          const activeActor =
-            typeof lockData.actorLabel === "string" && lockData.actorLabel.trim()
-              ? lockData.actorLabel.trim()
-              : "un autre admin";
-          const until = formatDateTime(lockData.expiresAt);
-          throw new Error(
-            `Un paiement est deja en cours pour ce vendeur par ${activeActor} jusqu'au ${until}.`
-          );
-        }
-      }
-
-      transaction.set(lockRef, {
-        vendorId,
-        lockToken,
-        actorUid,
-        actorLabel,
-        createdAt: Timestamp.fromMillis(nowMs),
-        expiresAt,
-        updatedAt: Timestamp.fromMillis(nowMs),
-      });
-    });
-
-    return { ref: lockRef, token: lockToken };
-  }, [vendorId]);
-
-  const releasePayoutLock = useCallback(async (lock) => {
-    if (!lock?.ref || !lock?.token) return;
-
-    try {
-      await runTransaction(db, async (transaction) => {
-        const lockSnap = await transaction.get(lock.ref);
-        if (!lockSnap.exists()) return;
-
-        const lockData = lockSnap.data() || {};
-        if (lockData.lockToken !== lock.token) return;
-
-        transaction.delete(lock.ref);
-      });
-    } catch (error) {
-      console.error("Erreur liberation verrou paiement vendeur:", error);
-    }
-  }, []);
-
-  const reloadPendingEntries = useCallback(
-    async (entriesToReload) => {
-      const snapshots = await Promise.all(
-        entriesToReload.map((entry) => getDoc(doc(db, "vendor_ledger", entry.id)))
-      );
-
-      const nextEntries = [];
-      const conflicts = [];
-
-      snapshots.forEach((snap, index) => {
-        const fallbackEntry = entriesToReload[index];
-        if (!snap.exists()) {
-          conflicts.push(fallbackEntry.orderId || fallbackEntry.id);
-          return;
-        }
-
-        const data = snap.data() || {};
-        const currentVendorId = data.vendorId || vendorId || "";
-        const currentStatus = data.status || "pending";
-
-        if (currentVendorId !== vendorId || currentStatus !== "pending") {
-          conflicts.push(data.orderId || fallbackEntry.orderId || snap.id);
-          return;
-        }
-
-        nextEntries.push({
-          id: snap.id,
-          vendorId: currentVendorId,
-          orderId: data.orderId || fallbackEntry.orderId || "—",
-          title: data.title || fallbackEntry.title || "—",
-          productId: data.productId || fallbackEntry.productId || "—",
-          vendorName: data.vendorName || fallbackEntry.vendorName || "",
-          qty: toNumber(data.qty),
-          unitPrice: toNumber(data.unitPrice),
-          grossAmount: toNumber(data.grossAmount),
-          commissionAmount: toNumber(data.commissionAmount),
-          netAmount: toNumber(data.netAmount),
-          currency: data.currency || fallbackEntry.currency || "GNF",
-          status: currentStatus,
-          deliveredAt: data.deliveredAt || fallbackEntry.deliveredAt || null,
-          createdAt: data.createdAt || fallbackEntry.createdAt || null,
-          paidAt: data.paidAt || fallbackEntry.paidAt || null,
-        });
-      });
-
-      if (conflicts.length) {
-        const preview = conflicts.slice(0, 3).join(", ");
-        const suffix =
-          conflicts.length > 3 ? `, +${conflicts.length - 3} autres` : "";
-        throw new Error(
-          `Certaines lignes ne sont plus en attente. Recharge la page puis reessaie. Commandes: ${preview}${suffix}.`
-        );
-      }
-
-      return nextEntries;
-    },
-    [vendorId]
+  const payoutConfirmationSummary = useMemo(
+    () =>
+      pendingPayoutEntries.reduce(
+        (acc, row) => {
+          acc.gross += row.grossAmount;
+          acc.commission += row.commissionAmount;
+          acc.net += row.netAmount;
+          acc.count += 1;
+          if (!acc.currency && row.currency) acc.currency = row.currency;
+          return acc;
+        },
+        { gross: 0, commission: 0, net: 0, count: 0, currency: "GNF" }
+      ),
+    [pendingPayoutEntries]
   );
 
-  const settleEntries = async (entriesToSettle) => {
-    if (!vendorId || !entriesToSettle.length || isProcessing) return;
+  const vendorAccount = useMemo(
+    () => resolveVendorAccountState(vendorData, deletedVendorData),
+    [vendorData, deletedVendorData]
+  );
 
-    const payoutTotal = entriesToSettle.reduce((sum, entry) => sum + entry.netAmount, 0);
-    const ok = window.confirm(
-      `Confirmer le paiement de ${entriesToSettle.length} ligne(s) pour un total de ${formatCurrency(
-        payoutTotal
-      )} ?`
-    );
-    if (!ok) return;
+  const payoutRequiresReview = Boolean(vendorAccount?.requiresPayoutReview);
+
+  const requestSettleEntries = (entriesToSettle) => {
+    if (!vendorId || !entriesToSettle.length || isProcessing) return;
+    setActionError("");
+    setActionFeedback("");
+    setForceSensitivePayout(false);
+    setSensitivePayoutReason("");
+    setPendingPayoutEntries(entriesToSettle);
+  };
+
+  const closePayoutConfirmation = () => {
+    if (isProcessing) return;
+    setPendingPayoutEntries([]);
+    setForceSensitivePayout(false);
+    setSensitivePayoutReason("");
+  };
+
+  const confirmSettleEntries = async () => {
+    if (!vendorId || !pendingPayoutEntries.length || isProcessing) return;
 
     setActionError("");
     setActionFeedback("");
-    setIsProcessing(true);
-    let payoutLock = null;
-    try {
-      payoutLock = await acquirePayoutLock();
-      const freshEntries = await reloadPendingEntries(entriesToSettle);
-      const grossDelta = freshEntries.reduce((sum, entry) => sum + entry.grossAmount, 0);
-      const commissionDelta = freshEntries.reduce(
-        (sum, entry) => sum + entry.commissionAmount,
-        0
+
+    const forceReason = sensitivePayoutReason.trim();
+    if (payoutRequiresReview && (!forceSensitivePayout || !forceReason)) {
+      setActionError(
+        "Ce vendeur nécessite un contrôle. Coche la validation exceptionnelle et indique un motif avant de payer."
       );
-      const netDelta = freshEntries.reduce((sum, entry) => sum + entry.netAmount, 0);
-      const entriesDelta = freshEntries.length;
-      const payoutBatchId = `manual_${Date.now()}`;
-      const balanceRef = doc(db, "vendor_balances", vendorId);
+      return;
+    }
 
-      const chunkSize = 400;
-      for (let start = 0; start < freshEntries.length; start += chunkSize) {
-        const chunk = freshEntries.slice(start, start + chunkSize);
-        const isLastChunk = start + chunkSize >= freshEntries.length;
-        const batch = writeBatch(db);
-
-        chunk.forEach((entry) => {
-          const ledgerRef = doc(db, "vendor_ledger", entry.id);
-          batch.update(ledgerRef, {
-            status: "paid",
-            paidAt: serverTimestamp(),
-            paidBatchId: payoutBatchId,
-            updatedAt: serverTimestamp(),
-          });
-        });
-
-        if (isLastChunk) {
-          batch.set(
-            balanceRef,
-            {
-              vendorId,
-              pendingGrossAmount: increment(-grossDelta),
-              pendingCommissionAmount: increment(-commissionDelta),
-              pendingNetAmount: increment(-netDelta),
-              pendingEntriesCount: increment(-entriesDelta),
-              paidGrossAmount: increment(grossDelta),
-              paidCommissionAmount: increment(commissionDelta),
-              paidNetAmount: increment(netDelta),
-              paidEntriesCount: increment(entriesDelta),
-              lastPaidBatchId: payoutBatchId,
-              lastPaidAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true }
-          );
-        }
-
-        await batch.commit();
-      }
+    setIsProcessing(true);
+    try {
+      const result = await settleVendorPayoutCallable({
+        vendorId,
+        entryIds: pendingPayoutEntries.map((entry) => entry.id),
+        forceSensitiveVendor: payoutRequiresReview ? true : false,
+        forceReason: payoutRequiresReview ? forceReason : "",
+      });
+      const data = result.data || {};
+      const paidCount = toNumber(data.entriesCount);
+      const netAmount = toNumber(data.netAmount);
 
       setSelectionModel([]);
+      setPendingPayoutEntries([]);
+      setForceSensitivePayout(false);
+      setSensitivePayoutReason("");
       setActionFeedback(
-        `${freshEntries.length} ligne(s) marquée(s) comme payée(s), total ${formatCurrency(
-          netDelta
-        )}.`
+        `${paidCount} ligne(s) marquée(s) comme payée(s), total ${formatCurrency(netAmount)}.`
       );
     } catch (error) {
       console.error("Erreur paiement vendeur:", error);
       const message =
         typeof error?.message === "string" && error.message.trim()
           ? error.message.trim()
-          : "Impossible de marquer ces lignes comme payees.";
+          : "Impossible de marquer ces lignes comme payées.";
       setActionError(message);
     } finally {
-      await releasePayoutLock(payoutLock);
       setIsProcessing(false);
     }
   };
@@ -569,7 +533,7 @@ const VendorPayoutDetails = () => {
       setActionError("Sélectionne au moins une ligne en attente.");
       return;
     }
-    await settleEntries(selectedPendingEntries);
+    requestSettleEntries(selectedPendingEntries);
   };
 
   const handleSettleAllFilteredPending = async () => {
@@ -578,7 +542,46 @@ const VendorPayoutDetails = () => {
       setActionError("Aucune ligne en attente dans le filtre actuel.");
       return;
     }
-    await settleEntries(pendingEntries);
+    requestSettleEntries(pendingEntries);
+  };
+
+  const handleExportFilteredCsv = () => {
+    if (!filteredRows.length) {
+      setActionError("Aucune ligne à exporter dans le filtre actuel.");
+      return;
+    }
+    const rows = [
+      [
+        "Commande",
+        "Produit",
+        "Produit ID",
+        "Quantité",
+        "Brut",
+        "Commission",
+        "Net vendeur",
+        "Devise",
+        "Statut",
+        "Livré le",
+        "Payé le",
+      ],
+      ...filteredRows.map((row) => [
+        row.orderId,
+        row.title,
+        row.productId,
+        row.qty,
+        row.grossAmount,
+        row.commissionAmount,
+        row.netAmount,
+        row.currency,
+        row.status,
+        formatDateTime(row.deliveredAt),
+        formatDateTime(row.paidAt),
+      ]),
+    ];
+    const vendorPart = String(vendorId || "vendeur").replace(/[^a-zA-Z0-9_-]/g, "_");
+    downloadCsv(`paiements_${vendorPart}_${Date.now()}.csv`, rows);
+    setActionError("");
+    setActionFeedback(`${filteredRows.length} ligne(s) exportée(s) en CSV.`);
   };
 
   const handleCopyOrderId = useCallback(async (orderId) => {
@@ -730,7 +733,17 @@ const VendorPayoutDetails = () => {
   );
 
   const displayVendorName =
-    vendorLabel || balance?.vendorName || entries.find((entry) => entry.vendorName)?.vendorName || "";
+    vendorLabel ||
+    pickVendorName(deletedVendorData) ||
+    balance?.vendorName ||
+    entries.find((entry) => entry.vendorName)?.vendorName ||
+    "";
+
+  const displayVendorLogo = vendorLogo || pickVendorLogo(deletedVendorData);
+  const canConfirmPayout =
+    !isProcessing &&
+    (!payoutRequiresReview ||
+      (forceSensitivePayout && sensitivePayoutReason.trim().length > 0));
 
   return (
     <div className="vendorPayouts">
@@ -743,20 +756,20 @@ const VendorPayoutDetails = () => {
           <div className="vendorPayouts__heading">
             <div>
               <div className="vendorPayouts__vendorHeader">
-                {vendorLogo ? (
+                {displayVendorLogo ? (
                   <button
                     type="button"
                     className="vendorPayouts__logoButton"
                     onClick={() =>
                       openImagePreview(
-                        vendorLogo,
+                        displayVendorLogo,
                         `Logo ${displayVendorName || vendorId}`
                       )
                     }
                     title="Voir le logo en grand"
                   >
                     <img
-                      src={vendorLogo}
+                      src={displayVendorLogo}
                       alt={`Logo ${displayVendorName || vendorId}`}
                       className="vendorPayouts__vendorLogoLg"
                     />
@@ -770,6 +783,9 @@ const VendorPayoutDetails = () => {
                   {displayVendorName ? `${displayVendorName} - ` : ""}
                   <strong>{vendorId}</strong>
                 </p>
+                <span className={`statusChip statusChip--${vendorAccount.key}`}>
+                  {vendorAccount.label}
+                </span>
               </div>
             </div>
             <div className="vendorPayouts__headingActions">
@@ -790,8 +806,26 @@ const VendorPayoutDetails = () => {
               >
                 Payer tout (filtre)
               </button>
+              <button
+                className="vendorPayouts__btn vendorPayouts__btn--light"
+                onClick={handleExportFilteredCsv}
+                disabled={!filteredRows.length}
+              >
+                Export CSV
+              </button>
             </div>
           </div>
+
+          {payoutRequiresReview ? (
+            <div className="vendorPayouts__reviewBanner">
+              <strong>Contrôle requis avant paiement.</strong>
+              <span>{vendorAccount.description}</span>
+              {vendorAccount.reason ? <span>Motif : {vendorAccount.reason}</span> : null}
+              {vendorAccount.deletedAt ? (
+                <span>Suppression : {formatDateTime(vendorAccount.deletedAt)}</span>
+              ) : null}
+            </div>
+          ) : null}
 
           {(actionError || actionFeedback) && (
             <div
@@ -868,12 +902,159 @@ const VendorPayoutDetails = () => {
             />
           </div>
 
+          <section className="vendorPayouts__history">
+            <div className="vendorPayouts__historyHeader">
+              <h2>Historique des paiements</h2>
+              <span>{payoutBatches.length} batch(s)</span>
+            </div>
+            {payoutBatches.length ? (
+              <div className="vendorPayouts__historyList">
+                {payoutBatches.slice(0, 8).map((batch) => (
+                  <div className="vendorPayouts__historyItem" key={batch.id}>
+                    <div>
+                      <strong>{formatCurrency(batch.netAmount, batch.currency)}</strong>
+                      <span>{batch.paidEntriesCount} ligne(s)</span>
+                    </div>
+                    <div>
+                      <span className={`statusChip statusChip--${batch.status || "completed"}`}>
+                        {batch.status === "failed"
+                          ? "Erreur"
+                          : batch.status === "processing"
+                          ? "En cours"
+                          : "Payé"}
+                      </span>
+                      <span>{formatDateTime(batch.completedAt || batch.createdAt)}</span>
+                      <span>{batch.createdByLabel}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="vendorPayouts__emptyText">
+                Aucun paiement enregistré pour ce vendeur.
+              </p>
+            )}
+          </section>
+
           <div className="vendorPayouts__footer">
             <button className="vendorPayouts__btn vendorPayouts__btn--light" onClick={() => navigate(-1)}>
               Revenir en arrière
             </button>
           </div>
         </div>
+
+        {pendingPayoutEntries.length > 0 ? (
+          <div
+            className="vendorPayouts__confirmOverlay"
+            onClick={closePayoutConfirmation}
+            role="presentation"
+          >
+            <div
+              className="vendorPayouts__confirmModal"
+              onClick={(event) => event.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Confirmer le paiement vendeur"
+            >
+              <div className="vendorPayouts__confirmHeader">
+                <div>
+                  <h2>Confirmer le paiement vendeur</h2>
+                  <p>
+                    {displayVendorName ? `${displayVendorName} - ` : ""}
+                    <strong>{vendorId}</strong>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="vendorPayouts__imageClose"
+                  onClick={closePayoutConfirmation}
+                  aria-label="Fermer la confirmation"
+                  disabled={isProcessing}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="vendorPayouts__confirmGrid">
+                <div className="vendorPayouts__confirmItem">
+                  <span>Nombre de lignes</span>
+                  <strong>{payoutConfirmationSummary.count}</strong>
+                </div>
+                <div className="vendorPayouts__confirmItem">
+                  <span>Brut</span>
+                  <strong>
+                    {formatCurrency(
+                      payoutConfirmationSummary.gross,
+                      payoutConfirmationSummary.currency
+                    )}
+                  </strong>
+                </div>
+                <div className="vendorPayouts__confirmItem">
+                  <span>Commission</span>
+                  <strong>
+                    {formatCurrency(
+                      payoutConfirmationSummary.commission,
+                      payoutConfirmationSummary.currency
+                    )}
+                  </strong>
+                </div>
+                <div className="vendorPayouts__confirmItem vendorPayouts__confirmItem--net">
+                  <span>Net à payer</span>
+                  <strong>
+                    {formatCurrency(
+                      payoutConfirmationSummary.net,
+                      payoutConfirmationSummary.currency
+                    )}
+                  </strong>
+                </div>
+              </div>
+              {payoutRequiresReview ? (
+                <div className="vendorPayouts__sensitiveConfirm">
+                  <div>
+                    <strong>Paiement sensible</strong>
+                    <p>
+                      Compte vendeur : {vendorAccount.label}. {vendorAccount.description}
+                    </p>
+                    {vendorAccount.reason ? <p>Motif existant : {vendorAccount.reason}</p> : null}
+                  </div>
+                  <label className="vendorPayouts__toggle">
+                    <input
+                      type="checkbox"
+                      checked={forceSensitivePayout}
+                      onChange={(event) => setForceSensitivePayout(event.target.checked)}
+                      disabled={isProcessing}
+                    />
+                    <span>Je valide ce paiement exceptionnel</span>
+                  </label>
+                  <textarea
+                    className="vendorPayouts__reasonInput"
+                    value={sensitivePayoutReason}
+                    onChange={(event) => setSensitivePayoutReason(event.target.value)}
+                    placeholder="Motif du paiement malgré ce statut vendeur..."
+                    disabled={isProcessing}
+                  />
+                </div>
+              ) : null}
+              <div className="vendorPayouts__confirmActions">
+                <button
+                  type="button"
+                  className="vendorPayouts__btn vendorPayouts__btn--light"
+                  onClick={closePayoutConfirmation}
+                  disabled={isProcessing}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  className="vendorPayouts__btn vendorPayouts__btn--primary"
+                  onClick={confirmSettleEntries}
+                  disabled={!canConfirmPayout}
+                >
+                  {isProcessing ? "Paiement en cours..." : "Confirmer le paiement"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {imagePreview.url ? (
           <div
