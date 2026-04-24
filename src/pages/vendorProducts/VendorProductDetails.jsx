@@ -173,11 +173,48 @@ const FIELD_LABELS = {
   category: "Catégorie",
   categoryId: "Catégorie",
   topCategory: "Catégorie principale",
+  status: "Statut",
+  vm_status: "Statut vendeur",
+  vmStatus: "Statut vendeur",
+  mm_status: "Statut Monmarché",
+  mmStatus: "Statut Monmarché",
+  draft_status: "Modification en attente",
+  draftStatus: "Modification en attente",
+  rating: "Note",
+  "rating.count": "Nombre d'avis",
+  "rating.average": "Note moyenne",
   media: "Medias",
   "media.cover": "Medias > couverture",
   "media.gallery": "Medias > galerie",
   "media.byOption": "Medias > par option",
   "media.byOption.color": "Medias > par option > couleur",
+  fulfillment: "Livraison",
+  "fulfillment.shippedBy": "Expédié par",
+  "fulfillment.deliveryOptions": "Options de livraison",
+  "fulfillment.vendorDeliveryAreas": "Zones de livraison vendeur",
+  "fulfillment.vendorShipping": "Expédition vendeur",
+  "fulfillment.vendorShipping.localAreas": "Zones locales",
+  "fulfillment.vendorShipping.nationalCarriers": "Transporteurs nationaux",
+  "fulfillment.vendorShipping.internationalCarriers": "Transporteurs internationaux",
+  "fulfillment.vendorShipping.pickupPoints": "Points de retrait",
+  "fulfillment.deliveryNote": "Note de livraison",
+  "fulfillment.leadTimeDays": "Délai de préparation",
+  "fulfillment.weightGr": "Poids (g)",
+  "fulfillment.dimensionsCm": "Dimensions (cm)",
+  city: "Ville",
+  fee: "Frais",
+  minDelayDays: "Délai min. (jours)",
+  maxDelayDays: "Délai max. (jours)",
+  carrier: "Transporteur",
+  serviceName: "Service",
+  coverage: "Couverture",
+  baseFee: "Frais de base",
+  estimatedDays: "Délai estimé",
+  notes: "Notes",
+  label: "Libellé",
+  address: "Adresse",
+  hours: "Horaires",
+  instructions: "Instructions",
   ...ATTRIBUTE_FIELD_LABELS,
 };
 
@@ -187,6 +224,22 @@ const SEGMENT_LABEL_OVERRIDES = {
   gallery: "Galerie",
   byoption: "Par option",
   color: "Couleur",
+  fulfillment: "Livraison",
+  vendorshipping: "Expédition vendeur",
+  vendordeliveryareas: "Zones de livraison vendeur",
+  localareas: "Zones locales",
+  nationalcarriers: "Transporteurs nationaux",
+  internationalcarriers: "Transporteurs internationaux",
+  pickuppoints: "Points de retrait",
+  deliveryoptions: "Options de livraison",
+  shippedby: "Expédié par",
+  deliverynote: "Note de livraison",
+  leadtimedays: "Délai de préparation",
+  mindelaydays: "Délai min. (jours)",
+  maxdelaydays: "Délai max. (jours)",
+  servicename: "Service",
+  basefee: "Frais de base",
+  estimateddays: "Délai estimé",
 };
 
 const splitFieldPath = (path) =>
@@ -207,6 +260,9 @@ const normalizeFieldPath = (path) => {
 
 const humanizeSegment = (segment) => {
   if (!segment) return "";
+  if (/^\d+$/.test(segment)) {
+    return `#${Number(segment) + 1}`;
+  }
   const normalized = segment.toLowerCase();
   if (SEGMENT_LABEL_OVERRIDES[normalized]) {
     return SEGMENT_LABEL_OVERRIDES[normalized];
@@ -261,13 +317,131 @@ const getAttributeLabel = (key) => {
 
 const getNestedValue = (source, path) => {
   if (!source || typeof source !== "object") return undefined;
+  if (
+    typeof path === "string" &&
+    Object.prototype.hasOwnProperty.call(source, path)
+  ) {
+    return source[path];
+  }
   const segments = splitFieldPath(path);
   if (!segments.length) return undefined;
-  return segments.reduce((cursor, segment) => {
+  const nestedValue = segments.reduce((cursor, segment) => {
     if (cursor === undefined || cursor === null) return undefined;
     if (typeof cursor !== "object") return undefined;
     return cursor[segment];
   }, source);
+  if (nestedValue !== undefined) return nestedValue;
+
+  for (let index = segments.length - 1; index > 0; index -= 1) {
+    const joinedHead = segments.slice(0, index).join(".");
+    const tailPath = segments.slice(index).join(".");
+    if (Object.prototype.hasOwnProperty.call(source, joinedHead)) {
+      const headValue = source[joinedHead];
+      return tailPath ? getNestedValue(headValue, tailPath) : headValue;
+    }
+  }
+
+  return undefined;
+};
+
+const isPlainObject = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+const normalizeComparableValue = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(normalizeComparableValue);
+  }
+  if (isPlainObject(value)) {
+    return Object.keys(value)
+      .sort()
+      .reduce((acc, key) => {
+        acc[key] = normalizeComparableValue(value[key]);
+        return acc;
+      }, {});
+  }
+  return value;
+};
+
+const areValuesEqual = (left, right) => {
+  if (left === right) return true;
+  if (left === undefined && right === null) return true;
+  if (left === null && right === undefined) return true;
+  return (
+    JSON.stringify(normalizeComparableValue(left)) ===
+    JSON.stringify(normalizeComparableValue(right))
+  );
+};
+
+const collectChangedLeafPaths = (basePath, vendorValue, publishedValue) => {
+  const normalizedBasePath = normalizeFieldPath(basePath);
+  const changedPaths = [];
+
+  const walk = (relativePath, vendorNode, publishedNode) => {
+    if (areValuesEqual(vendorNode, publishedNode)) {
+      return;
+    }
+
+    const hasObject = isPlainObject(vendorNode) || isPlainObject(publishedNode);
+    const hasArray = Array.isArray(vendorNode) || Array.isArray(publishedNode);
+    if (!hasObject && !hasArray) {
+      if (!areValuesEqual(vendorNode, publishedNode)) {
+        changedPaths.push(
+          relativePath ? `${normalizedBasePath}.${relativePath}` : normalizedBasePath
+        );
+      }
+      return;
+    }
+
+    const keys = hasArray
+      ? new Set([
+          ...(Array.isArray(vendorNode) ? vendorNode : []).map((_, index) => String(index)),
+          ...(Array.isArray(publishedNode) ? publishedNode : []).map((_, index) => String(index)),
+        ])
+      : new Set([
+          ...Object.keys(isPlainObject(vendorNode) ? vendorNode : {}),
+          ...Object.keys(isPlainObject(publishedNode) ? publishedNode : {}),
+        ]);
+    keys.forEach((key) => {
+      walk(
+        relativePath ? `${relativePath}.${key}` : key,
+        vendorNode[key],
+        publishedNode[key]
+      );
+    });
+  };
+
+  walk("", vendorValue, publishedValue);
+  return changedPaths;
+};
+
+const VALUE_LABELS = {
+  platform: "Monmarché",
+  vendor: "Vendeur",
+  pickup: "Retrait",
+  local_delivery: "Livraison locale",
+  carrier: "Transporteur",
+  digital: "Digital",
+  active: "Actif",
+  draft: "Brouillon",
+  archived: "Archivé",
+  standard: "Standard",
+  reduced: "Réduit",
+  exempt: "Exonéré",
+};
+
+const getDisplayValue = (value) => {
+  if (typeof value !== "string") return value;
+  return VALUE_LABELS[value] || value;
+};
+
+const hasRenderableValue = (value) => {
+  if (value === undefined || value === null) return false;
+  if (typeof value === "string") return value.trim() !== "";
+  if (Array.isArray(value)) return value.some(hasRenderableValue);
+  if (isPlainObject(value)) {
+    return Object.values(value).some(hasRenderableValue);
+  }
+  return true;
 };
 
 const isLikelyImageUrl = (value = "", path = "") => {
@@ -430,7 +604,7 @@ const VendorProductDetails = () => {
       product?.core?.pricing?.currency,
       product?.draft?.core?.pricing?.currency
     );
-
+ 
     const normalizeList = (value) =>
       Array.isArray(value) ? value : value ? [value] : [];
     const unique = (items) =>
@@ -753,7 +927,6 @@ const VendorProductDetails = () => {
       product.core?.media?.byOption ||
       product.draft?.core?.media?.byOption;
     if (!source || typeof source !== "object") return [];
-    console.log("Source: ", source)
     const collected = [];
     const walk = (node, prefix = "") => {
       if (!node || typeof node !== "object") return;
@@ -1096,6 +1269,26 @@ const VendorProductDetails = () => {
     return Object.entries(base);
   }, [product]);
 
+  const fulfillmentDetails = useMemo(
+    () =>
+      firstValue(
+        product?.fulfillment,
+        product?.core?.fulfillment,
+        product?.draft?.core?.fulfillment
+      ),
+    [product]
+  );
+
+  const ratingDetails = useMemo(
+    () =>
+      firstValue(
+        product?.rating,
+        product?.core?.rating,
+        product?.draft?.core?.rating
+      ),
+    [product]
+  );
+
   const lastUpdated = useMemo(() => {
     if (!product) return "-";
     const source = firstValue(
@@ -1180,36 +1373,100 @@ const VendorProductDetails = () => {
   );
 
   const resolveDraftValue = useCallback(
-    (path) =>
-      getNestedValue(product?.draft?.core, path) ??
-      getNestedValue(product?.draft, path) ??
-      getNestedValue(product, path),
+    (path) => {
+      const normalizedPath = normalizeFieldPath(path);
+      return (
+        getNestedValue(product?.draft?.core, normalizedPath) ??
+        getNestedValue(product?.draft, normalizedPath) ??
+        getNestedValue(product?.["draft.core"], normalizedPath) ??
+        getNestedValue(product, `draft.core.${normalizedPath}`) ??
+        getNestedValue(product, `draft.${normalizedPath}`) ??
+        getNestedValue(product, path) ??
+        getNestedValue(product, normalizedPath)
+      );
+    },
     [product]
   );
 
   const resolveCurrentValue = useCallback(
-    (path) =>
-      getNestedValue(publicProduct, path) ??
-      getNestedValue(product?.core, path) ??
-      getNestedValue(product, path),
+    (path) => {
+      const normalizedPath = normalizeFieldPath(path);
+      const hasStructuredValues = Boolean(
+        product?.core ||
+          product?.draft ||
+          product?.draft?.core ||
+          Object.keys(product || {}).some((key) => key.startsWith("core."))
+      );
+      const structuredValue =
+        getNestedValue(publicProduct, normalizedPath) ??
+        getNestedValue(publicProduct, path) ??
+        getNestedValue(product?.core, normalizedPath) ??
+        getNestedValue(product?.core, path) ??
+        getNestedValue(product?.["core"], normalizedPath) ??
+        getNestedValue(product, `core.${normalizedPath}`);
+      if (structuredValue !== undefined || hasStructuredValues) {
+        return structuredValue;
+      }
+      return (
+        getNestedValue(product, normalizedPath)
+      );
+    },
     [publicProduct, product]
   );
 
   const draftChangeDetails = useMemo(() => {
     if (!pendingDraftChanges) return [];
-    return draftChanges
-      .map((rawPath) => {
-        const path =
-          typeof rawPath === "string" ? rawPath.trim() : "";
-        if (!path) return null;
-        return {
+    const details = [];
+    const seenPaths = new Set();
+
+    draftChanges.forEach((rawPath) => {
+      const path =
+        typeof rawPath === "string" ? rawPath.trim() : "";
+      if (!path) return;
+
+      const vendorValue = resolveDraftValue(path);
+      const publishedValue = resolveCurrentValue(path);
+
+      if (isPlainObject(vendorValue) || isPlainObject(publishedValue)) {
+        const changedLeafPaths = collectChangedLeafPaths(
           path,
-          label: getFieldLabel(path),
-          vendorValue: resolveDraftValue(path),
-          publishedValue: resolveCurrentValue(path),
-        };
-      })
-      .filter(Boolean);
+          vendorValue,
+          publishedValue
+        );
+        if (changedLeafPaths.length > 0) {
+          changedLeafPaths.forEach((attributePath) => {
+            if (!attributePath || seenPaths.has(attributePath)) return;
+            seenPaths.add(attributePath);
+            details.push({
+              path: attributePath,
+              label: getFieldLabel(attributePath),
+              vendorValue: resolveDraftValue(attributePath),
+              publishedValue: resolveCurrentValue(attributePath),
+            });
+          });
+        } else if (!seenPaths.has(path)) {
+          seenPaths.add(path);
+          details.push({
+            path,
+            label: getFieldLabel(path),
+            vendorValue,
+            publishedValue,
+          });
+        }
+        return;
+      }
+
+      if (seenPaths.has(path)) return;
+      seenPaths.add(path);
+      details.push({
+        path,
+        label: getFieldLabel(path),
+        vendorValue,
+        publishedValue,
+      });
+    });
+
+    return details;
   }, [
     draftChanges,
     pendingDraftChanges,
@@ -1271,7 +1528,7 @@ const VendorProductDetails = () => {
         }
         return (
           <span className="vendorProductDetails__draftValue">
-            {value}
+            {getDisplayValue(value)}
           </span>
         );
       }
@@ -1768,44 +2025,59 @@ const VendorProductDetails = () => {
 
           <div className="vendorProductDetails__layout">
             <div className="vendorProductDetails__primaryColumn">
-              {draftChangeDetails.length > 0 && (
-                <section className="vendorProductDetails__card vendorProductDetails__card--section">
+              {pendingDraftChanges && (
+                <section className="vendorProductDetails__card vendorProductDetails__card--section vendorProductDetails__card--validation">
                   <div className="vendorProductDetails__cardHeader">
-                    <h2>Champs modifies</h2>
+                    <div className="vendorProductDetails__validationTitle">
+                      <h2>Nouveaux champs a valider</h2>
+                      <span className="vendorProductDetails__validationBadge">
+                        {draftChangeDetails.length || draftChanges.length} champ
+                        {(draftChangeDetails.length || draftChanges.length) > 1
+                          ? "s"
+                          : ""}
+                      </span>
+                    </div>
                     <p>
                       Ces champs ont ete modifies par le vendeur. Comparez la
                       proposition a la version publiee avant de valider.
                     </p>
                   </div>
-                  <ul className="vendorProductDetails__draftList vendorProductDetails__draftList--detailed">
-                    {draftChangeDetails.map((change) => (
-                      <li key={change.path}>
-                        <div className="vendorProductDetails__draftField">
-                          <strong>{change.label}</strong>
-                          <span className="vendorProductDetails__draftPath">
-                            {change.path}
-                          </span>
-                        </div>
-                      <div className="vendorProductDetails__draftValues">
-                        <div>
-                          <span className="vendorProductDetails__draftValuesLabel">
-                            Proposition vendeur
-                          </span>
-                          {renderChangeValue(change.vendorValue, change.path)}
-                        </div>
-                        <div>
-                          <span className="vendorProductDetails__draftValuesLabel">
-                            Version publiee
-                          </span>
-                          {renderChangeValue(
-                            change.publishedValue,
-                            change.path
-                          )}
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                  {draftChangeDetails.length > 0 ? (
+                    <ul className="vendorProductDetails__draftList vendorProductDetails__draftList--detailed">
+                      {draftChangeDetails.map((change) => (
+                        <li key={change.path}>
+                          <div className="vendorProductDetails__draftField">
+                            <strong>{change.label}</strong>
+                            <span className="vendorProductDetails__draftPath">
+                              {change.path}
+                            </span>
+                          </div>
+                          <div className="vendorProductDetails__draftValues">
+                            <div>
+                              <span className="vendorProductDetails__draftValuesLabel">
+                                Proposition vendeur
+                              </span>
+                              {renderChangeValue(change.vendorValue, change.path)}
+                            </div>
+                            <div>
+                              <span className="vendorProductDetails__draftValuesLabel">
+                                Version publiee
+                              </span>
+                              {renderChangeValue(
+                                change.publishedValue,
+                                change.path
+                              )}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="vendorProductDetails__description">
+                      Des modifications sont en attente, mais aucun ecart de
+                      valeur n'a ete detecte avec la version publiee.
+                    </p>
+                  )}
                 </section>
               )}
 
@@ -1856,6 +2128,30 @@ const VendorProductDetails = () => {
                         </span>
                       </div>
                     ))}
+                  </div>
+                </section>
+              )}
+
+              {hasRenderableValue(fulfillmentDetails) && (
+                <section className="vendorProductDetails__card vendorProductDetails__card--section">
+                  <div className="vendorProductDetails__cardHeader">
+                    <h2>Livraison detaillee</h2>
+                    <p>Informations de livraison fournies pour ce produit.</p>
+                  </div>
+                  <div className="vendorProductDetails__detailsBlock">
+                    {renderChangeValue(fulfillmentDetails, "fulfillment")}
+                  </div>
+                </section>
+              )}
+
+              {hasRenderableValue(ratingDetails) && (
+                <section className="vendorProductDetails__card vendorProductDetails__card--section">
+                  <div className="vendorProductDetails__cardHeader">
+                    <h2>Avis & notes</h2>
+                    <p>Indicateurs publics associes au produit.</p>
+                  </div>
+                  <div className="vendorProductDetails__detailsBlock">
+                    {renderChangeValue(ratingDetails, "rating")}
                   </div>
                 </section>
               )}

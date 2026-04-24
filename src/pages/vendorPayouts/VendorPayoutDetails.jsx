@@ -9,13 +9,17 @@ import {
   increment,
   onSnapshot,
   query,
+  runTransaction,
   serverTimestamp,
+  Timestamp,
   where,
   writeBatch,
 } from "firebase/firestore";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
-import { db } from "../../firebase";
+import { auth, db } from "../../firebase";
+
+const PAYOUT_LOCK_TTL_MS = 10 * 60 * 1000;
 
 const dataGridFrLocaleText = {
   noRowsLabel: "Aucune ligne",
@@ -105,6 +109,9 @@ const formatCurrency = (value, currency = "GNF") => {
     maximumFractionDigits: 0,
   }).format(amount);
 };
+
+const createPayoutLockToken = () =>
+  `payout_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
 const VendorPayoutDetails = () => {
   const navigate = useNavigate();
@@ -348,6 +355,128 @@ const VendorPayoutDetails = () => {
     [filteredRows]
   );
 
+  const acquirePayoutLock = useCallback(async () => {
+    if (!vendorId) {
+      throw new Error("Vendeur introuvable.");
+    }
+
+    const lockRef = doc(db, "vendor_payout_locks", vendorId);
+    const lockToken = createPayoutLockToken();
+    const actorUid = auth.currentUser?.uid || null;
+    const actorLabel = auth.currentUser?.email || actorUid || "admin";
+    const nowMs = Date.now();
+    const expiresAt = Timestamp.fromMillis(nowMs + PAYOUT_LOCK_TTL_MS);
+
+    await runTransaction(db, async (transaction) => {
+      const lockSnap = await transaction.get(lockRef);
+      if (lockSnap.exists()) {
+        const lockData = lockSnap.data() || {};
+        const expiresAtMs = toMillis(lockData.expiresAt);
+        const activeToken =
+          typeof lockData.lockToken === "string" ? lockData.lockToken : "";
+        if (activeToken && expiresAtMs > nowMs) {
+          const activeActor =
+            typeof lockData.actorLabel === "string" && lockData.actorLabel.trim()
+              ? lockData.actorLabel.trim()
+              : "un autre admin";
+          const until = formatDateTime(lockData.expiresAt);
+          throw new Error(
+            `Un paiement est deja en cours pour ce vendeur par ${activeActor} jusqu'au ${until}.`
+          );
+        }
+      }
+
+      transaction.set(lockRef, {
+        vendorId,
+        lockToken,
+        actorUid,
+        actorLabel,
+        createdAt: Timestamp.fromMillis(nowMs),
+        expiresAt,
+        updatedAt: Timestamp.fromMillis(nowMs),
+      });
+    });
+
+    return { ref: lockRef, token: lockToken };
+  }, [vendorId]);
+
+  const releasePayoutLock = useCallback(async (lock) => {
+    if (!lock?.ref || !lock?.token) return;
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const lockSnap = await transaction.get(lock.ref);
+        if (!lockSnap.exists()) return;
+
+        const lockData = lockSnap.data() || {};
+        if (lockData.lockToken !== lock.token) return;
+
+        transaction.delete(lock.ref);
+      });
+    } catch (error) {
+      console.error("Erreur liberation verrou paiement vendeur:", error);
+    }
+  }, []);
+
+  const reloadPendingEntries = useCallback(
+    async (entriesToReload) => {
+      const snapshots = await Promise.all(
+        entriesToReload.map((entry) => getDoc(doc(db, "vendor_ledger", entry.id)))
+      );
+
+      const nextEntries = [];
+      const conflicts = [];
+
+      snapshots.forEach((snap, index) => {
+        const fallbackEntry = entriesToReload[index];
+        if (!snap.exists()) {
+          conflicts.push(fallbackEntry.orderId || fallbackEntry.id);
+          return;
+        }
+
+        const data = snap.data() || {};
+        const currentVendorId = data.vendorId || vendorId || "";
+        const currentStatus = data.status || "pending";
+
+        if (currentVendorId !== vendorId || currentStatus !== "pending") {
+          conflicts.push(data.orderId || fallbackEntry.orderId || snap.id);
+          return;
+        }
+
+        nextEntries.push({
+          id: snap.id,
+          vendorId: currentVendorId,
+          orderId: data.orderId || fallbackEntry.orderId || "—",
+          title: data.title || fallbackEntry.title || "—",
+          productId: data.productId || fallbackEntry.productId || "—",
+          vendorName: data.vendorName || fallbackEntry.vendorName || "",
+          qty: toNumber(data.qty),
+          unitPrice: toNumber(data.unitPrice),
+          grossAmount: toNumber(data.grossAmount),
+          commissionAmount: toNumber(data.commissionAmount),
+          netAmount: toNumber(data.netAmount),
+          currency: data.currency || fallbackEntry.currency || "GNF",
+          status: currentStatus,
+          deliveredAt: data.deliveredAt || fallbackEntry.deliveredAt || null,
+          createdAt: data.createdAt || fallbackEntry.createdAt || null,
+          paidAt: data.paidAt || fallbackEntry.paidAt || null,
+        });
+      });
+
+      if (conflicts.length) {
+        const preview = conflicts.slice(0, 3).join(", ");
+        const suffix =
+          conflicts.length > 3 ? `, +${conflicts.length - 3} autres` : "";
+        throw new Error(
+          `Certaines lignes ne sont plus en attente. Recharge la page puis reessaie. Commandes: ${preview}${suffix}.`
+        );
+      }
+
+      return nextEntries;
+    },
+    [vendorId]
+  );
+
   const settleEntries = async (entriesToSettle) => {
     if (!vendorId || !entriesToSettle.length || isProcessing) return;
 
@@ -362,21 +491,24 @@ const VendorPayoutDetails = () => {
     setActionError("");
     setActionFeedback("");
     setIsProcessing(true);
+    let payoutLock = null;
     try {
-      const grossDelta = entriesToSettle.reduce((sum, entry) => sum + entry.grossAmount, 0);
-      const commissionDelta = entriesToSettle.reduce(
+      payoutLock = await acquirePayoutLock();
+      const freshEntries = await reloadPendingEntries(entriesToSettle);
+      const grossDelta = freshEntries.reduce((sum, entry) => sum + entry.grossAmount, 0);
+      const commissionDelta = freshEntries.reduce(
         (sum, entry) => sum + entry.commissionAmount,
         0
       );
-      const netDelta = entriesToSettle.reduce((sum, entry) => sum + entry.netAmount, 0);
-      const entriesDelta = entriesToSettle.length;
+      const netDelta = freshEntries.reduce((sum, entry) => sum + entry.netAmount, 0);
+      const entriesDelta = freshEntries.length;
       const payoutBatchId = `manual_${Date.now()}`;
       const balanceRef = doc(db, "vendor_balances", vendorId);
 
       const chunkSize = 400;
-      for (let start = 0; start < entriesToSettle.length; start += chunkSize) {
-        const chunk = entriesToSettle.slice(start, start + chunkSize);
-        const isLastChunk = start + chunkSize >= entriesToSettle.length;
+      for (let start = 0; start < freshEntries.length; start += chunkSize) {
+        const chunk = freshEntries.slice(start, start + chunkSize);
+        const isLastChunk = start + chunkSize >= freshEntries.length;
         const batch = writeBatch(db);
 
         chunk.forEach((entry) => {
@@ -415,14 +547,19 @@ const VendorPayoutDetails = () => {
 
       setSelectionModel([]);
       setActionFeedback(
-        `${entriesToSettle.length} ligne(s) marquée(s) comme payée(s), total ${formatCurrency(
+        `${freshEntries.length} ligne(s) marquée(s) comme payée(s), total ${formatCurrency(
           netDelta
         )}.`
       );
     } catch (error) {
       console.error("Erreur paiement vendeur:", error);
-      setActionError("Impossible de marquer ces lignes comme payées.");
+      const message =
+        typeof error?.message === "string" && error.message.trim()
+          ? error.message.trim()
+          : "Impossible de marquer ces lignes comme payees.";
+      setActionError(message);
     } finally {
+      await releasePayoutLock(payoutLock);
       setIsProcessing(false);
     }
   };

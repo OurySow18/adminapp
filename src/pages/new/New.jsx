@@ -9,7 +9,7 @@ import { useState, useEffect, useRef } from "react";
 import "./new.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
-import { auth, db, storage } from "../../firebase";
+import { auth, db, functions, storage } from "../../firebase";
 import {
   addDoc,
   collection,
@@ -22,17 +22,62 @@ import {
   limit,
 } from "firebase/firestore";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
-import { createUserWithEmailAndPassword } from "firebase/auth";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useNavigate } from "react-router-dom";
 import FeedbackPopup from "../../components/feedbackPopup/FeedbackPopup";
 import { sendPasswordResetEmail } from "firebase/auth";
+import { httpsCallable } from "firebase/functions";
 
 //Array fÃ¼r die User Kategorie
 const categorieUser = ["ADMIN", "DRIVER"];
 const ROLE_COLLECTION_MAP = {
   ADMIN: "admin",
   DRIVER: "drivers",
+};
+
+const createStaffAccountCallable = httpsCallable(functions, "createStaffAccount");
+
+const STAFF_CREATION_ERROR_MESSAGES = {
+  auth_required: "Tu dois être connecté pour créer ce compte.",
+  admin_required: "Seul un administrateur peut créer ce compte.",
+  super_admin_required:
+    "Seul le super administrateur peut ajouter un administrateur.",
+  invalid_role: "Le rôle demandé est invalide.",
+  email_required: "L'email est obligatoire.",
+  password_required: "Le mot de passe est obligatoire.",
+  username_required:
+    "Le nom d'utilisateur est obligatoire pour un administrateur.",
+  username_already_exists:
+    "Ce nom d'utilisateur est déjà utilisé par un autre administrateur.",
+  email_already_exists: "Un compte Auth existe déjà avec cet email.",
+  admin_already_exists: "Un administrateur avec cet email existe déjà.",
+  drivers_already_exists: "Un driver avec cet email existe déjà.",
+  invalid_password:
+    "Le mot de passe fourni ne respecte pas les règles Firebase.",
+  failed_to_load_auth_user:
+    "Impossible de vérifier le compte utilisateur pour le moment.",
+  failed_to_create_auth_user:
+    "Impossible de créer le compte d'authentification pour le moment.",
+};
+
+const formatStaffCreationError = (error) => {
+  const code = typeof error?.code === "string" ? error.code : "";
+  const message = typeof error?.message === "string" ? error.message : "";
+  const normalizedCode = code.startsWith("functions/")
+    ? code.slice("functions/".length)
+    : code;
+  const normalizedMessage = message.replace(/^functions\/[a-z-]+:\s*/i, "").trim();
+
+  if (STAFF_CREATION_ERROR_MESSAGES[normalizedMessage]) {
+    return STAFF_CREATION_ERROR_MESSAGES[normalizedMessage];
+  }
+  if (STAFF_CREATION_ERROR_MESSAGES[normalizedCode]) {
+    return STAFF_CREATION_ERROR_MESSAGES[normalizedCode];
+  }
+  return (
+    normalizedMessage ||
+    "Une erreur inattendue est survenue. Merci de réessayer."
+  );
 };
 //Array fÃ¼r die Product Type
 const categorieType = [
@@ -435,127 +480,32 @@ const New = ({ inputs, title, typeCmp }) => {
           );
         }
 
-        let uid;
+        const result = await createStaffAccountCallable({
+          email: userPayload.email,
+          password,
+          role: normalizedRole,
+          profile: userPayload,
+        });
 
-        // 2) Essayer de créer l'utilisateur dans Auth
-        try {
-          const res = await createUserWithEmailAndPassword(
-            auth,
-            userPayload.email,
-            password
-          );
+        const htmlTemplate =
+          normalizedRole === "ADMIN" ? adminHtmlTemplate : driverHtmlTemplate;
 
-          uid = res.user.uid;
+        await sendWelcomeEmails(userPayload.email, normalizedRole, htmlTemplate);
 
-          await setDoc(doc(db, targetCollection, uid), {
-            ...userPayload,
-            role: normalizedRole,
-            timeStamp: serverTimestamp(),
-            status: true,
-          });
+        const response = result?.data || {};
+        const linkedExistingAuthUser = response?.linkedExistingAuthUser === true;
 
-          const htmlTemplate =
-            normalizedRole === "ADMIN" ? adminHtmlTemplate : driverHtmlTemplate;
-
-          await sendWelcomeEmails(userPayload.email, normalizedRole, htmlTemplate);
-
-          showFeedback({
-            type: "success",
-            title: "Opération réussie",
-            message: "Le compte a été créé avec succès.",
-            afterClose: () => navigate(-1),
-          });
-          return;
-        } catch (err) {
-          // 3) Email déjà utilisé dans Firebase Auth
-          if (err.code === "auth/email-already-in-use") {
-            const userQuery = query(
-              collection(db, "users"),
-              where("email", "==", userPayload.email),
-              limit(1)
-            );
-            const userSnap = await getDocs(userQuery);
-
-            if (userSnap.empty) {
-              throw new Error(
-                "Cet email est déjà utilisé dans le système, mais aucun utilisateur associé n'a été trouvé dans la collection 'users'."
-              );
-            }
-
-            const existingUserDoc = userSnap.docs[0];
-            uid = existingUserDoc.id;
-
-            // Popup de confirmation customisé
-            showFeedback({
-              type: "info",
-              title: "Utilisateur existant",
-              message: `Cet email est déjà utilisé par un autre compte.\n\nVoulez-vous quand même l'ajouter comme ${
+        showFeedback({
+          type: "success",
+          title: "Opération réussie",
+          message: linkedExistingAuthUser
+            ? `Le compte existant a été ajouté comme ${
                 normalizedRole === "ADMIN" ? "administrateur" : "driver"
-              } ?`,
-              actions: (
-                <>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={handleFeedbackClose}
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={async () => {
-                      handleFeedbackClose();
-                      try {
-                        await setDoc(doc(db, targetCollection, uid), {
-                          ...userPayload,
-                          role: normalizedRole,
-                          timeStamp: serverTimestamp(),
-                          status: true,
-                        });
-                        const htmlTemplate =
-                          normalizedRole === "ADMIN"
-                            ? adminHtmlTemplate
-                            : driverHtmlTemplate;
-
-                        await sendWelcomeEmails(
-                          userPayload.email,
-                          normalizedRole,
-                          htmlTemplate
-                        );
-                        showFeedback({
-                          type: "success",
-                          title: "Opération réussie",
-                          message: `L'utilisateur existant a été ajouté comme ${
-                            normalizedRole === "ADMIN"
-                              ? "administrateur."
-                              : "driver."
-                          }`,
-                          afterClose: () => navigate(-1),
-                        });
-                      } catch (e) {
-                        console.error(e);
-                        showFeedback({
-                          type: "error",
-                          title: "Échec de l'opération",
-                          message:
-                            e?.message ||
-                            "Une erreur est survenue lors de l'ajout de l'utilisateur.",
-                        });
-                      }
-                    }}
-                  >
-                    Oui, l'ajouter
-                  </button>
-                </>
-              ),
-            });
-
-            return;
-          }
-
-          throw err;
-        }
+              }.`
+            : "Le compte a été créé avec succès.",
+          afterClose: () => navigate(-1),
+        });
+        return;
       } else {
         // produits (inchangé)
         await addDoc(collection(db, typeCmp), {
@@ -576,9 +526,7 @@ const New = ({ inputs, title, typeCmp }) => {
       showFeedback({
         type: "error",
         title: "Échec de l'opération",
-        message:
-          err?.message ||
-          "Une erreur inattendue est survenue. Merci de réessayer.",
+        message: formatStaffCreationError(err),
       });
     } finally {
       console.log("We do cleanup here");

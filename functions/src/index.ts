@@ -3,7 +3,7 @@ import * as crypto from "crypto";
 import * as logger from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import { onRequest } from "firebase-functions/v2/https";
+import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 
 admin.initializeApp();
@@ -99,6 +99,15 @@ interface VendorLedgerApplyResult {
   missingVendorItems: number;
 }
 
+type StaffRole = "ADMIN" | "DRIVER";
+
+interface CreateStaffAccountPayload {
+  email?: unknown;
+  password?: unknown;
+  role?: unknown;
+  profile?: unknown;
+}
+
 const asDate = (value: unknown): Date | null => {
   if (!value) return null;
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
@@ -158,6 +167,38 @@ const normalizeDocIdPart = (value: unknown, fallback = "unknown"): string => {
 };
 
 const isTrue = (value: unknown): boolean => value === true;
+
+const SUPER_ADMIN_UID = "rgFo1YPQNDdJxyfRCiWFXETpJHB2";
+const STAFF_ROLE_COLLECTION: Record<StaffRole, "admin" | "drivers"> = {
+  ADMIN: "admin",
+  DRIVER: "drivers",
+};
+
+const isSuperAdminUid = (uid: string | null | undefined): boolean =>
+  Boolean(uid && uid === SUPER_ADMIN_UID);
+
+const isAdminUid = async (uid: string | null | undefined): Promise<boolean> => {
+  if (!uid) return false;
+  if (isSuperAdminUid(uid)) return true;
+  const snap = await db.doc(`admin/${uid}`).get();
+  return snap.exists;
+};
+
+const ensureNonEmptyString = (value: unknown, field: string): string => {
+  const normalized = nonEmptyString(value);
+  if (!normalized) {
+    throw new HttpsError("invalid-argument", `${field}_required`);
+  }
+  return normalized;
+};
+
+const parseStaffRole = (value: unknown): StaffRole => {
+  const normalized = nonEmptyString(value)?.toUpperCase();
+  if (normalized === "ADMIN" || normalized === "DRIVER") {
+    return normalized;
+  }
+  throw new HttpsError("invalid-argument", "invalid_role");
+};
 
 const isOrderEligibleForVendorPayout = (order: Record<string, any>): VendorLedgerComputation => {
   if (!isTrue(order.payed)) {
@@ -952,6 +993,107 @@ export const submitReview = onRequest(
     } catch (error: any) {
       res.status(400).json({ ok: false, error: String(error?.message ?? error) });
     }
+  }
+);
+
+export const createStaffAccount = onCall(
+  {
+    region: REGION,
+  },
+  async (request) => {
+    const callerUid = request.auth?.uid ?? null;
+    if (!callerUid) {
+      throw new HttpsError("unauthenticated", "auth_required");
+    }
+
+    const payload = (request.data ?? {}) as CreateStaffAccountPayload;
+    const email = ensureNonEmptyString(payload.email, "email").toLowerCase();
+    const password = ensureNonEmptyString(payload.password, "password");
+    const role = parseStaffRole(payload.role);
+    const profile =
+      payload.profile && typeof payload.profile === "object" && !Array.isArray(payload.profile)
+        ? { ...(payload.profile as Record<string, unknown>) }
+        : {};
+
+    const callerIsAdmin = await isAdminUid(callerUid);
+    if (!callerIsAdmin) {
+      throw new HttpsError("permission-denied", "admin_required");
+    }
+    if (role === "ADMIN" && !isSuperAdminUid(callerUid)) {
+      throw new HttpsError("permission-denied", "super_admin_required");
+    }
+
+    const targetCollection = STAFF_ROLE_COLLECTION[role];
+    const username =
+      role === "ADMIN" ? ensureNonEmptyString(profile.username, "username") : null;
+
+    if (username) {
+      const usernameSnap = await db
+        .collection("admin")
+        .where("username", "==", username)
+        .limit(1)
+        .get();
+      if (!usernameSnap.empty) {
+        throw new HttpsError("already-exists", "username_already_exists");
+      }
+    }
+
+    let authUser: admin.auth.UserRecord;
+    let authUserCreated = false;
+    try {
+      authUser = await admin.auth().getUserByEmail(email);
+    } catch (error: any) {
+      if (error?.code !== "auth/user-not-found") {
+        logger.error("Failed to load auth user before staff creation", error);
+        throw new HttpsError("internal", "failed_to_load_auth_user");
+      }
+
+      try {
+        authUser = await admin.auth().createUser({
+          email,
+          password,
+          displayName:
+            nonEmptyString(profile.username, profile.firstName, profile.lastName, profile.name) ??
+            undefined,
+        });
+        authUserCreated = true;
+      } catch (createError: any) {
+        logger.error("Failed to create auth user for staff account", createError);
+        const code = String(createError?.code ?? "");
+        if (code === "auth/email-already-exists") {
+          throw new HttpsError("already-exists", "email_already_exists");
+        }
+        if (code === "auth/invalid-password") {
+          throw new HttpsError("invalid-argument", "invalid_password");
+        }
+        throw new HttpsError("internal", "failed_to_create_auth_user");
+      }
+    }
+
+    const roleDocRef = db.doc(`${targetCollection}/${authUser.uid}`);
+    const roleDocSnap = await roleDocRef.get();
+    if (roleDocSnap.exists) {
+      throw new HttpsError("already-exists", `${targetCollection}_already_exists`);
+    }
+
+    await roleDocRef.set({
+      ...profile,
+      email,
+      role,
+      status: true,
+      timeStamp: admin.firestore.FieldValue.serverTimestamp(),
+      createdByUid: callerUid,
+      updatedByUid: callerUid,
+    });
+
+    return {
+      ok: true,
+      uid: authUser.uid,
+      role,
+      collection: targetCollection,
+      authUserCreated,
+      linkedExistingAuthUser: !authUserCreated,
+    };
   }
 );
 

@@ -8,6 +8,7 @@
 import { initializeApp } from "firebase/app" 
 import { getAuth  } from "firebase/auth";
 import { getFirestore}  from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
  
 // Packet die Zugriffsinformationen unseres Firebase-Projekts 
@@ -35,6 +36,7 @@ const firebaseConfig = {
   
   // Initialize Cloud Firestore and get a reference to the service
   export const db = getFirestore(app);
+  export const functions = getFunctions(app, "europe-west1");
 
   // Get a reference to the storage service, which is used to create references in your storage bucket
 export const storage = getStorage(app);
