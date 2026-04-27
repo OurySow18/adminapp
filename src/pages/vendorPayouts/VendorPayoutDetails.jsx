@@ -6,6 +6,8 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
+  limit,
   onSnapshot,
   query,
   where,
@@ -17,6 +19,15 @@ import { db, functions } from "../../firebase";
 import { resolveVendorAccountState } from "../../utils/vendorStatus";
 
 const settleVendorPayoutCallable = httpsCallable(functions, "settleVendorPayout");
+
+const vendorIdLookupFields = [
+  "vendorId",
+  "uid",
+  "userId",
+  "ownerId",
+  "profile.uid",
+  "profile.vendorId",
+];
 
 const dataGridFrLocaleText = {
   noRowsLabel: "Aucune ligne",
@@ -66,6 +77,49 @@ const pickVendorName = (data) => {
     (value) => typeof value === "string" && value.trim()
   );
   return hit ? hit.trim() : "";
+};
+
+const pickOrderDisplayId = (data) => {
+  const candidates = [
+    data?.orderId,
+    data?.orderNumber,
+    data?.invoiceNumber,
+    data?.invoiceId,
+    data?.noFacture,
+    data?.number,
+    data?.orderSnapshot?.orderId,
+    data?.orderSnapshot?.orderNumber,
+  ];
+  const hit = candidates.find(
+    (value) => typeof value === "string" && value.trim()
+  );
+  return hit ? hit.trim() : "";
+};
+
+const findVendorByKnownId = async (collectionName, vendorId) => {
+  const cleanVendorId =
+    typeof vendorId === "string" && vendorId.trim() ? vendorId.trim() : "";
+  if (!cleanVendorId) return null;
+
+  const directSnap = await getDoc(doc(db, collectionName, cleanVendorId));
+  if (directSnap.exists()) {
+    return { id: directSnap.id, ...(directSnap.data() || {}) };
+  }
+
+  for (const field of vendorIdLookupFields) {
+    const fallbackQuery = query(
+      collection(db, collectionName),
+      where(field, "==", cleanVendorId),
+      limit(1)
+    );
+    const fallbackSnap = await getDocs(fallbackQuery);
+    if (!fallbackSnap.empty) {
+      const docSnap = fallbackSnap.docs[0];
+      return { id: docSnap.id, ...(docSnap.data() || {}) };
+    }
+  }
+
+  return null;
 };
 
 const pickProductImage = (data) => {
@@ -152,6 +206,7 @@ const VendorPayoutDetails = () => {
   const [entries, setEntries] = useState([]);
   const [payoutBatches, setPayoutBatches] = useState([]);
   const [productImagesById, setProductImagesById] = useState({});
+  const [orderLabelsById, setOrderLabelsById] = useState({});
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -212,44 +267,53 @@ const VendorPayoutDetails = () => {
 
   useEffect(() => {
     if (!vendorId) return undefined;
-    const vendorRef = doc(db, "vendors", vendorId);
-    const unsub = onSnapshot(
-      vendorRef,
-      (snap) => {
-        if (!snap.exists()) {
+    let cancelled = false;
+    const loadVendor = async () => {
+      try {
+        const data = await findVendorByKnownId("vendors", vendorId);
+        if (cancelled) return;
+        if (!data) {
           setVendorData(null);
           setVendorLabel("");
           setVendorLogo("");
           return;
         }
-        const data = snap.data() || {};
         setVendorData(data);
         setVendorLogo(pickVendorLogo(data));
         setVendorLabel(pickVendorName(data));
-      },
-      () => {
+      } catch (error) {
+        if (cancelled) return;
+        console.error("Erreur lecture vendors:", error);
         setVendorData(null);
         setVendorLabel("");
         setVendorLogo("");
       }
-    );
-    return () => unsub();
+    };
+    loadVendor();
+    return () => {
+      cancelled = true;
+    };
   }, [vendorId]);
 
   useEffect(() => {
     if (!vendorId) return undefined;
-    const deletedVendorRef = doc(db, "deletedVendors", vendorId);
-    const unsub = onSnapshot(
-      deletedVendorRef,
-      (snap) => {
-        setDeletedVendorData(snap.exists() ? { id: snap.id, ...(snap.data() || {}) } : null);
-      },
-      (error) => {
+    let cancelled = false;
+    const loadDeletedVendor = async () => {
+      try {
+        const data = await findVendorByKnownId("deletedVendors", vendorId);
+        if (!cancelled) {
+          setDeletedVendorData(data);
+        }
+      } catch (error) {
+        if (cancelled) return;
         console.error("Erreur lecture deletedVendors:", error);
         setDeletedVendorData(null);
       }
-    );
-    return () => unsub();
+    };
+    loadDeletedVendor();
+    return () => {
+      cancelled = true;
+    };
   }, [vendorId]);
 
   useEffect(() => {
@@ -402,24 +466,87 @@ const VendorPayoutDetails = () => {
     };
   }, [entries, vendorId]);
 
+  useEffect(() => {
+    const orderIds = Array.from(
+      new Set(
+        entries
+          .map((entry) => entry.orderId)
+          .filter(
+            (value) => typeof value === "string" && value.trim() && value !== "—"
+          )
+      )
+    );
+
+    if (!orderIds.length) {
+      setOrderLabelsById({});
+      return undefined;
+    }
+
+    let cancelled = false;
+    const loadOrderLabels = async () => {
+      const nextMap = {};
+
+      await Promise.all(
+        orderIds.map(async (orderDocId) => {
+          const refs = [
+            doc(db, "archivedOrders", orderDocId),
+            doc(db, "orders", orderDocId),
+          ];
+
+          for (const ref of refs) {
+            try {
+              const snap = await getDoc(ref);
+              if (!snap.exists()) continue;
+              const label = pickOrderDisplayId(snap.data() || {});
+              if (label) {
+                nextMap[orderDocId] = label;
+                break;
+              }
+            } catch (error) {
+              // Non bloquant: on tente le prochain fallback.
+            }
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setOrderLabelsById(nextMap);
+      }
+    };
+
+    loadOrderLabels();
+    return () => {
+      cancelled = true;
+    };
+  }, [entries]);
+
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
+  const rowsWithOrderLabels = useMemo(
+    () =>
+      entries.map((entry) => ({
+        ...entry,
+        orderDisplayId: orderLabelsById[entry.orderId] || entry.orderId,
+      })),
+    [entries, orderLabelsById]
+  );
+
   const filteredRows = useMemo(() => {
-    return entries.filter((row) => {
+    return rowsWithOrderLabels.filter((row) => {
       if (statusFilter !== "all" && row.status !== statusFilter) return false;
       if (!normalizedSearch) return true;
-      const candidates = [row.orderId, row.title, row.productId];
+      const candidates = [row.orderDisplayId, row.orderId, row.title, row.productId];
       return candidates
         .filter((value) => typeof value === "string" && value.trim())
         .some((value) => value.toLowerCase().includes(normalizedSearch));
     });
-  }, [entries, normalizedSearch, statusFilter]);
+  }, [rowsWithOrderLabels, normalizedSearch, statusFilter]);
 
   const rowsById = useMemo(() => {
     const map = new Map();
-    entries.forEach((entry) => map.set(entry.id, entry));
+    rowsWithOrderLabels.forEach((entry) => map.set(entry.id, entry));
     return map;
-  }, [entries]);
+  }, [rowsWithOrderLabels]);
 
   const selectedPendingEntries = useMemo(
     () =>
@@ -565,7 +692,7 @@ const VendorPayoutDetails = () => {
         "Payé le",
       ],
       ...filteredRows.map((row) => [
-        row.orderId,
+        row.orderDisplayId || row.orderId,
         row.title,
         row.productId,
         row.qty,
@@ -584,8 +711,8 @@ const VendorPayoutDetails = () => {
     setActionFeedback(`${filteredRows.length} ligne(s) exportée(s) en CSV.`);
   };
 
-  const handleCopyOrderId = useCallback(async (orderId) => {
-    const value = typeof orderId === "string" ? orderId.trim() : "";
+  const handleCopyOrderId = useCallback(async (orderLabel) => {
+    const value = typeof orderLabel === "string" ? orderLabel.trim() : "";
     if (!value || value === "—") return;
     try {
       if (navigator?.clipboard?.writeText) {
@@ -609,25 +736,26 @@ const VendorPayoutDetails = () => {
   const columns = useMemo(
     () => [
       {
-        field: "orderId",
+        field: "orderDisplayId",
         headerName: "Commande",
         minWidth: 360,
         flex: 1.4,
         renderCell: (params) => {
           const orderId = params.row.orderId || "—";
+          const orderLabel = params.row.orderDisplayId || orderId;
           return (
             <div className="vendorPayouts__orderIdCell">
-              <span className="vendorPayouts__orderIdValue" title={orderId}>
-                {orderId}
+              <span className="vendorPayouts__orderIdValue" title={`UID: ${orderId}`}>
+                {orderLabel}
               </span>
               <button
                 type="button"
                 className="vendorPayouts__copyBtn"
                 onClick={(event) => {
                   event.stopPropagation();
-                  handleCopyOrderId(orderId);
+                  handleCopyOrderId(orderLabel);
                 }}
-                title="Copier l'ID commande"
+                title="Copier le numero de commande"
               >
                 Copier
               </button>
