@@ -277,6 +277,41 @@ const parseStatusFlagOrNull = (value) => {
   return null;
 };
 
+const PRODUCT_TYPE_LABELS = {
+  grocery: "Épicerie",
+  fashion: "Mode",
+  baby: "Bébé",
+  electronics: "Électronique",
+  home: "Maison",
+  beauty: "Beauté",
+  sports: "Sport",
+  media: "Médias",
+  vehicles: "Véhicules",
+  diy: "Bricolage",
+  pet: "Animaux",
+  services: "Services",
+};
+
+const formatProductTypes = (value) => {
+  if (!Array.isArray(value) || value.length === 0) return "-";
+  const labels = value
+    .map((item) => {
+      if (typeof item !== "string") return null;
+      const code = item.trim();
+      if (!code) return null;
+      return PRODUCT_TYPE_LABELS[code] || code;
+    })
+    .filter(Boolean);
+  return labels.length ? labels.join(", ") : "-";
+};
+
+const formatNullableBooleanLabel = (value) => {
+  const parsed = parseStatusFlagOrNull(value);
+  if (parsed === true) return "Oui";
+  if (parsed === false) return "Non";
+  return "Non renseigné";
+};
+
 const getProfileSection = (vendor) => {
   if (!vendor || typeof vendor !== "object") return {};
   return vendor.profile || vendor.vendor || vendor || {};
@@ -461,6 +496,10 @@ const VendorDetails = () => {
   const isPauseRequested = isVendorPauseRequested(vendor);
   const isBlocked = normalizedStatus === "blocked";
   const isApproved = normalizedStatus === "approved";
+  const canAssistDelivery = useMemo(
+    () => parseStatusFlagOrNull(ops?.canAssistDelivery),
+    [ops]
+  );
   const normalizedVendorEmail = useMemo(() => {
     const candidates = [
       company?.email,
@@ -3716,19 +3755,37 @@ const VendorDetails = () => {
                 <ul>
                   <li>
                     <strong>Types de produits :</strong>{" "}
-                    {ops?.productTypes ?? vendor?.productTypes ?? "-"}
+                    {formatProductTypes(ops?.productTypes ?? vendor?.productTypes)}
                   </li>
                   <li>
+                    <strong>Peut aider à la livraison :</strong>{" "}
+                    {formatNullableBooleanLabel(ops?.canAssistDelivery)}
+                  </li>
+                  {canAssistDelivery === true && (
+                    <li>
+                      <strong>Détails collaboration livraison :</strong>{" "}
+                      <span style={{ whiteSpace: "pre-line" }}>
+                        {ops?.deliveryCollaborationDetails?.trim() || "-"}
+                      </span>
+                    </li>
+                  )}
+                  <li>
                     <strong>Horaires d'ouverture :</strong>{" "}
-                    {ops?.openingHours ?? "-"}
+                    <span style={{ whiteSpace: "pre-line" }}>
+                      {ops?.openingHours ?? "-"}
+                    </span>
                   </li>
                   <li>
                     <strong>Points de retrait :</strong>{" "}
-                    {ops?.pickupAddresses ?? "-"}
+                    <span style={{ whiteSpace: "pre-line" }}>
+                      {ops?.pickupAddresses ?? "-"}
+                    </span>
                   </li>
                   <li>
                     <strong>Contact opération :</strong>{" "}
-                    {ops?.opsContact ?? "-"}
+                    <span style={{ whiteSpace: "pre-line" }}>
+                      {ops?.opsContact ?? "-"}
+                    </span>
                   </li>
                 </ul>
               </div>

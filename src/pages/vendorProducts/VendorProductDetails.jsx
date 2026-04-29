@@ -219,6 +219,8 @@ const FIELD_LABELS = {
 };
 
 const SEGMENT_LABEL_OVERRIDES = {
+  attributes: "Attributs",
+  nutrition: "Nutrition",
   media: "Medias",
   cover: "Couverture",
   gallery: "Galerie",
@@ -283,6 +285,17 @@ const getFieldLabel = (path) => {
   const segments = splitFieldPath(resolvedPath);
   if (!segments.length) return "-";
   return segments.map(humanizeSegment).join(" > ");
+};
+
+const getFieldPathHint = (path) => {
+  const normalized = normalizeFieldPath(path);
+  const segments = splitFieldPath(normalized || path);
+  if (segments.length <= 1) return "";
+  return segments
+    .slice(0, -1)
+    .map(humanizeSegment)
+    .filter(Boolean)
+    .join(" > ");
 };
 
 const trimAttributeLabel = (value) => {
@@ -402,10 +415,20 @@ const collectChangedLeafPaths = (basePath, vendorValue, publishedValue) => {
           ...Object.keys(isPlainObject(publishedNode) ? publishedNode : {}),
         ]);
     keys.forEach((key) => {
+      const nextVendorNode =
+        vendorNode !== null && vendorNode !== undefined && typeof vendorNode === "object"
+          ? vendorNode[key]
+          : undefined;
+      const nextPublishedNode =
+        publishedNode !== null &&
+        publishedNode !== undefined &&
+        typeof publishedNode === "object"
+          ? publishedNode[key]
+          : undefined;
       walk(
         relativePath ? `${relativePath}.${key}` : key,
-        vendorNode[key],
-        publishedNode[key]
+        nextVendorNode,
+        nextPublishedNode
       );
     });
   };
@@ -2048,9 +2071,14 @@ const VendorProductDetails = () => {
                         <li key={change.path}>
                           <div className="vendorProductDetails__draftField">
                             <strong>{change.label}</strong>
-                            <span className="vendorProductDetails__draftPath">
-                              {change.path}
-                            </span>
+                            {getFieldPathHint(change.path) ? (
+                              <span
+                                className="vendorProductDetails__draftPath"
+                                title={change.path}
+                              >
+                                {getFieldPathHint(change.path)}
+                              </span>
+                            ) : null}
                           </div>
                           <div className="vendorProductDetails__draftValues">
                             <div>
