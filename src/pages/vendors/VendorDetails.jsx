@@ -83,6 +83,11 @@ const toTimeNumber = (value) => {
   return 0;
 };
 
+const toNumberOrZero = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const getProductSortValue = (item) =>
   toTimeNumber(
     item?.updatedAt ??
@@ -3044,6 +3049,49 @@ const VendorDetails = () => {
     ];
   }, [vendor, profile, vendorStatus]);
 
+  const vendorSalesSummary = useMemo(() => {
+    if (productsLoading) {
+      return {
+        unitsSold: null,
+        ordersCount: null,
+        display: "Chargement...",
+      };
+    }
+
+    const totals = products.reduce(
+      (acc, item) => {
+        const sales =
+          item?.stats?.sales ??
+          item?.core?.stats?.sales ??
+          item?.draft?.core?.stats?.sales ??
+          null;
+        if (!sales || typeof sales !== "object") {
+          return acc;
+        }
+
+        acc.unitsSold += toNumberOrZero(sales.unitsSold);
+        acc.ordersCount += toNumberOrZero(sales.ordersCount);
+        return acc;
+      },
+      { unitsSold: 0, ordersCount: 0 }
+    );
+
+    if (!totals.unitsSold && !totals.ordersCount) {
+      return {
+        ...totals,
+        display: "0",
+      };
+    }
+
+    return {
+      ...totals,
+      display:
+        totals.ordersCount > 0
+          ? `${totals.unitsSold} unite(s) (${totals.ordersCount} commande(s))`
+          : `${totals.unitsSold} unite(s)`,
+    };
+  }, [products, productsLoading]);
+
   const stats = useMemo(() => {
     if (!vendor) return [];
     const base = [
@@ -3087,9 +3135,13 @@ const VendorDetails = () => {
         label: "Partenaire",
         value: isPartner ? "Oui" : "Non",
       },
+      {
+        label: "Ventes vendeur",
+        value: vendorSalesSummary.display,
+      },
     ];
     return base;
-  }, [vendor, profile, requiredDocs.length, isPartner]);
+  }, [vendor, profile, requiredDocs.length, isPartner, vendorSalesSummary.display]);
 
   if (loading) {
     return (

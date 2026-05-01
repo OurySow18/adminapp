@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataGrid } from "@mui/x-data-grid";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  addDoc,
   collection,
   doc,
   getDoc,
@@ -19,6 +20,7 @@ import { db, functions } from "../../firebase";
 import { resolveVendorAccountState } from "../../utils/vendorStatus";
 
 const settleVendorPayoutCallable = httpsCallable(functions, "settleVendorPayout");
+const VENDOR_PAYOUT_NOTIFY_EMAIL = "infos@monmarchegn.com";
 
 const vendorIdLookupFields = [
   "vendorId",
@@ -77,6 +79,22 @@ const pickVendorName = (data) => {
     (value) => typeof value === "string" && value.trim()
   );
   return hit ? hit.trim() : "";
+};
+
+const pickVendorEmail = (data) => {
+  const candidates = [
+    data?.company?.email,
+    data?.email,
+    data?.contactEmail,
+    data?.profile?.email,
+    data?.profile?.company?.email,
+    data?.company?.contact?.email,
+    data?.contact?.email,
+  ];
+  const hit = candidates.find(
+    (value) => typeof value === "string" && value.trim()
+  );
+  return hit ? hit.trim().toLowerCase() : "";
 };
 
 const pickOrderDisplayId = (data) => {
@@ -176,9 +194,291 @@ const formatCurrency = (value, currency = "GNF") => {
   }).format(amount);
 };
 
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const buildPayoutOrderGroups = (entries) => {
+  const groups = new Map();
+  entries.forEach((entry) => {
+    const orderKey =
+      (typeof entry?.orderId === "string" && entry.orderId.trim()) ||
+      "unknown_order";
+    const orderLabel =
+      (typeof entry?.orderDisplayId === "string" && entry.orderDisplayId.trim()) ||
+      orderKey;
+    const current = groups.get(orderKey) || {
+      orderLabel,
+      grossAmount: 0,
+      commissionAmount: 0,
+      netAmount: 0,
+      items: [],
+    };
+    current.grossAmount += toNumber(entry?.grossAmount);
+    current.commissionAmount += toNumber(entry?.commissionAmount);
+    current.netAmount += toNumber(entry?.netAmount);
+    current.items.push(entry);
+    groups.set(orderKey, current);
+  });
+  return Array.from(groups.values()).sort((left, right) =>
+    left.orderLabel.localeCompare(right.orderLabel, "fr")
+  );
+};
+
+const sendVendorPayoutEmails = async ({
+  vendorId,
+  vendorName,
+  vendorEmail,
+  entries,
+  batchId,
+  currency,
+  totals,
+}) => {
+  const mailCollection = collection(db, "mail");
+  const paidAtText = new Date().toLocaleString("fr-FR");
+  const orderGroups = buildPayoutOrderGroups(entries);
+
+  const orderSectionsHtml = orderGroups
+    .map((group) => {
+      const itemsHtml = group.items
+        .map(
+          (item) => `
+            <tr>
+              <td style="padding:8px;border:1px solid #e5e7eb">${escapeHtml(item.title || "Produit")}</td>
+              <td style="padding:8px;border:1px solid #e5e7eb;text-align:center">${toNumber(item.qty)}</td>
+              <td style="padding:8px;border:1px solid #e5e7eb;text-align:right">${escapeHtml(
+                formatCurrency(toNumber(item.grossAmount), item.currency || currency)
+              )}</td>
+              <td style="padding:8px;border:1px solid #e5e7eb;text-align:right">${escapeHtml(
+                formatCurrency(toNumber(item.netAmount), item.currency || currency)
+              )}</td>
+            </tr>
+          `
+        )
+        .join("");
+
+      return `
+        <div style="margin-top:24px">
+          <h3 style="margin:0 0 8px;font-size:16px;color:#111827">Commande ${escapeHtml(
+            group.orderLabel
+          )}</h3>
+          <p style="margin:0 0 12px;color:#4b5563;font-size:14px">
+            Brut ${escapeHtml(formatCurrency(group.grossAmount, currency))} |
+            Commission ${escapeHtml(formatCurrency(group.commissionAmount, currency))} |
+            Net ${escapeHtml(formatCurrency(group.netAmount, currency))}
+          </p>
+          <table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;font-size:14px">
+            <thead>
+              <tr style="background:#f3f4f6">
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:left">Produit</th>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:center">Qté</th>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:right">Montant brut</th>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:right">Net vendeur</th>
+              </tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+          </table>
+        </div>
+      `;
+    })
+    .join("");
+
+  const vendorText = [
+    `Bonjour ${vendorName},`,
+    "",
+    `Votre paiement vendeur a ete effectue le ${paidAtText}.`,
+    `Batch: ${batchId}`,
+    `Commandes reglees: ${orderGroups.length}`,
+    `Produits/lignes regles: ${toNumber(totals.count)}`,
+    `Montant brut: ${formatCurrency(toNumber(totals.gross), currency)}`,
+    `Commission: ${formatCurrency(toNumber(totals.commission), currency)}`,
+    `Net verse: ${formatCurrency(toNumber(totals.net), currency)}`,
+    "",
+    "Detail des commandes et produits vendus:",
+    ...orderGroups.flatMap((group) => [
+      `- Commande ${group.orderLabel}: brut ${formatCurrency(
+        group.grossAmount,
+        currency
+      )}, commission ${formatCurrency(
+        group.commissionAmount,
+        currency
+      )}, net ${formatCurrency(group.netAmount, currency)}`,
+      ...group.items.map(
+        (item) =>
+          `  - ${item.title || "Produit"} x${toNumber(item.qty)} | brut ${formatCurrency(
+            toNumber(item.grossAmount),
+            item.currency || currency
+          )} | net ${formatCurrency(
+            toNumber(item.netAmount),
+            item.currency || currency
+          )}`
+      ),
+    ]),
+  ].join("\n");
+
+  const vendorHtml = `
+    <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Paiement vendeur effectué - Monmarché</title></head>
+    <body style="margin:0;padding:24px;background:#f9fafb;font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;color:#111827">
+      <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+        <div style="padding:18px 24px;background:#111827;color:#ffffff">
+          <h1 style="margin:0;font-size:22px">Paiement vendeur effectué</h1>
+        </div>
+        <div style="padding:24px">
+          <p style="margin-top:0">Bonjour <strong>${escapeHtml(vendorName)}</strong>,</p>
+          <p>Votre paiement vendeur a été effectué le <strong>${escapeHtml(
+            paidAtText
+          )}</strong>.</p>
+          <div style="padding:16px;background:#f3f4f6;border-radius:10px">
+            <p style="margin:0 0 8px"><strong>Batch :</strong> ${escapeHtml(batchId)}</p>
+            <p style="margin:0 0 8px"><strong>Commandes réglées :</strong> ${orderGroups.length}</p>
+            <p style="margin:0 0 8px"><strong>Lignes réglées :</strong> ${toNumber(
+              totals.count
+            )}</p>
+            <p style="margin:0 0 8px"><strong>Montant brut :</strong> ${escapeHtml(
+              formatCurrency(toNumber(totals.gross), currency)
+            )}</p>
+            <p style="margin:0 0 8px"><strong>Commission :</strong> ${escapeHtml(
+              formatCurrency(toNumber(totals.commission), currency)
+            )}</p>
+            <p style="margin:0"><strong>Net versé :</strong> ${escapeHtml(
+              formatCurrency(toNumber(totals.net), currency)
+            )}</p>
+          </div>
+          ${orderSectionsHtml}
+          <p style="margin:24px 0 0;color:#4b5563">Merci,<br />Equipe Monmarché</p>
+        </div>
+      </div>
+    </body></html>`;
+
+  const adminText = [
+    "Notification admin de paiement vendeur.",
+    "",
+    `Vendeur: ${vendorName}`,
+    `Vendor ID: ${vendorId}`,
+    `Email vendeur: ${vendorEmail || "-"}`,
+    `Paiement effectue le: ${paidAtText}`,
+    `Batch: ${batchId}`,
+    `Commandes reglees: ${orderGroups.length}`,
+    `Produits/lignes regles: ${toNumber(totals.count)}`,
+    `Montant brut: ${formatCurrency(toNumber(totals.gross), currency)}`,
+    `Commission: ${formatCurrency(toNumber(totals.commission), currency)}`,
+    `Net verse: ${formatCurrency(toNumber(totals.net), currency)}`,
+    "",
+    "Detail des commandes et produits vendus:",
+    ...orderGroups.flatMap((group) => [
+      `- Commande ${group.orderLabel}: brut ${formatCurrency(
+        group.grossAmount,
+        currency
+      )}, commission ${formatCurrency(
+        group.commissionAmount,
+        currency
+      )}, net ${formatCurrency(group.netAmount, currency)}`,
+      ...group.items.map(
+        (item) =>
+          `  - ${item.title || "Produit"} x${toNumber(item.qty)} | brut ${formatCurrency(
+            toNumber(item.grossAmount),
+            item.currency || currency
+          )} | net ${formatCurrency(
+            toNumber(item.netAmount),
+            item.currency || currency
+          )}`
+      ),
+    ]),
+  ].join("\n");
+
+  const adminHtml = `
+    <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Paiement vendeur (admin) - Monmarché</title></head>
+    <body style="margin:0;padding:24px;background:#f9fafb;font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;color:#111827">
+      <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+        <div style="padding:18px 24px;background:#111827;color:#ffffff">
+          <h1 style="margin:0;font-size:22px">Notification admin paiement vendeur</h1>
+        </div>
+        <div style="padding:24px">
+          <p style="margin-top:0"><strong>Vendeur :</strong> ${escapeHtml(vendorName)}</p>
+          <p><strong>Vendor ID :</strong> ${escapeHtml(vendorId)}</p>
+          <p><strong>Email vendeur :</strong> ${escapeHtml(vendorEmail || "-")}</p>
+          <p><strong>Paiement effectué le :</strong> ${escapeHtml(paidAtText)}</p>
+          <div style="padding:16px;background:#f3f4f6;border-radius:10px">
+            <p style="margin:0 0 8px"><strong>Batch :</strong> ${escapeHtml(batchId)}</p>
+            <p style="margin:0 0 8px"><strong>Commandes réglées :</strong> ${orderGroups.length}</p>
+            <p style="margin:0 0 8px"><strong>Lignes réglées :</strong> ${toNumber(
+              totals.count
+            )}</p>
+            <p style="margin:0 0 8px"><strong>Montant brut :</strong> ${escapeHtml(
+              formatCurrency(toNumber(totals.gross), currency)
+            )}</p>
+            <p style="margin:0 0 8px"><strong>Commission :</strong> ${escapeHtml(
+              formatCurrency(toNumber(totals.commission), currency)
+            )}</p>
+            <p style="margin:0"><strong>Net versé :</strong> ${escapeHtml(
+              formatCurrency(toNumber(totals.net), currency)
+            )}</p>
+          </div>
+          ${orderSectionsHtml}
+        </div>
+      </div>
+    </body></html>`;
+
+  const mailWrites = [
+    addDoc(mailCollection, {
+      to: VENDOR_PAYOUT_NOTIFY_EMAIL,
+      message: {
+        subject: `Paiement vendeur effectué - ${vendorName}`,
+        text: adminText,
+        html: adminHtml,
+      },
+    }),
+  ];
+
+  if (vendorEmail) {
+    mailWrites.push(
+      addDoc(mailCollection, {
+        to: vendorEmail,
+        message: {
+          subject: "Paiement effectué pour vos ventes Monmarché",
+          text: vendorText,
+          html: vendorHtml,
+        },
+      })
+    );
+  }
+
+  await Promise.all(mailWrites);
+  return { vendorQueued: Boolean(vendorEmail), adminQueued: true };
+};
+
 const csvEscape = (value) => {
   const raw = value === undefined || value === null ? "" : String(value);
   return `"${raw.replace(/"/g, '""')}"`;
+};
+
+const preserveSpreadsheetText = (value) => {
+  const raw = value === undefined || value === null ? "" : String(value).trim();
+  if (!raw) return "";
+  return `="${raw.replace(/"/g, '""')}"`;
+};
+
+const formatFileDate = (value = new Date()) => {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const sanitizeFilePart = (value, fallback) => {
+  const cleaned = String(value || fallback)
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, " ")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return cleaned || fallback;
 };
 
 const downloadCsv = (filename, rows) => {
@@ -626,22 +926,67 @@ const VendorPayoutDetails = () => {
 
     setIsProcessing(true);
     try {
+      const settledEntries = [...pendingPayoutEntries];
+      const vendorSource = vendorData || deletedVendorData || null;
+      const vendorName =
+        pickVendorName(vendorSource) ||
+        displayVendorName ||
+        vendorId ||
+        "Boutique";
+      const vendorEmail = pickVendorEmail(vendorSource);
       const result = await settleVendorPayoutCallable({
         vendorId,
-        entryIds: pendingPayoutEntries.map((entry) => entry.id),
+        entryIds: settledEntries.map((entry) => entry.id),
         forceSensitiveVendor: payoutRequiresReview ? true : false,
         forceReason: payoutRequiresReview ? forceReason : "",
       });
       const data = result.data || {};
       const paidCount = toNumber(data.entriesCount);
       const netAmount = toNumber(data.netAmount);
+      const payoutCurrency =
+        data.currency ||
+        settledEntries.find((entry) => entry?.currency)?.currency ||
+        "GNF";
+      let mailFeedback = "";
+
+      try {
+        const mailResult = await sendVendorPayoutEmails({
+          vendorId,
+          vendorName,
+          vendorEmail,
+          entries: settledEntries,
+          batchId: data.batchId || `manual_${Date.now()}`,
+          currency: payoutCurrency,
+          totals: {
+            count: paidCount,
+            gross: settledEntries.reduce(
+              (sum, entry) => sum + toNumber(entry.grossAmount),
+              0
+            ),
+            commission: settledEntries.reduce(
+              (sum, entry) => sum + toNumber(entry.commissionAmount),
+              0
+            ),
+            net: netAmount,
+          },
+        });
+        mailFeedback = mailResult.vendorQueued
+          ? " Emails vendeur et admin envoyés."
+          : " Email admin envoyé.";
+      } catch (mailError) {
+        console.error("Erreur envoi emails paiement vendeur:", mailError);
+        mailFeedback = " Paiement effectué, mais l'envoi des emails a échoué.";
+      }
 
       setSelectionModel([]);
       setPendingPayoutEntries([]);
       setForceSensitivePayout(false);
       setSensitivePayoutReason("");
       setActionFeedback(
-        `${paidCount} ligne(s) marquée(s) comme payée(s), total ${formatCurrency(netAmount)}.`
+        `${paidCount} ligne(s) marquée(s) comme payée(s), total ${formatCurrency(
+          netAmount,
+          payoutCurrency
+        )}.${mailFeedback}`
       );
     } catch (error) {
       console.error("Erreur paiement vendeur:", error);
@@ -692,7 +1037,7 @@ const VendorPayoutDetails = () => {
         "Payé le",
       ],
       ...filteredRows.map((row) => [
-        row.orderDisplayId || row.orderId,
+        preserveSpreadsheetText(row.orderDisplayId || row.orderId),
         row.title,
         row.productId,
         row.qty,
@@ -705,8 +1050,12 @@ const VendorPayoutDetails = () => {
         formatDateTime(row.paidAt),
       ]),
     ];
-    const vendorPart = String(vendorId || "vendeur").replace(/[^a-zA-Z0-9_-]/g, "_");
-    downloadCsv(`paiements_${vendorPart}_${Date.now()}.csv`, rows);
+    const vendorPart = sanitizeFilePart(
+      displayVendorName || vendorLabel || vendorId || "vendeur",
+      "vendeur"
+    );
+    const paymentDatePart = formatFileDate(new Date());
+    downloadCsv(`paiements_${vendorPart}_${paymentDatePart}.csv`, rows);
     setActionError("");
     setActionFeedback(`${filteredRows.length} ligne(s) exportée(s) en CSV.`);
   };

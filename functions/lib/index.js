@@ -46,12 +46,14 @@ const db = admin.firestore();
 const REGION = "europe-west1";
 const REVIEW_PAGE_URL = "https://monmarchegn.com/avis";
 const REVIEW_LINK_SECRET = (0, params_1.defineSecret)("REVIEW_LINK_SECRET");
+const VENDOR_PAYOUT_NOTIFY_EMAIL = "infos@monmarchegn.com";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const REVIEW_DELAY_MS = DAY_MS;
 const LINK_TTL_MS = 14 * DAY_MS;
 const MAX_ATTEMPTS = 3;
 const PLATFORM_COMMISSION_RATE = 0.05;
 const VENDOR_LEDGER_VERSION = 1;
+const PRODUCT_SALES_LEDGER_VERSION = 1;
 const asDate = (value) => {
     if (!value)
         return null;
@@ -250,6 +252,242 @@ const tsToMillis = (value) => {
 };
 const pickUserId = (order) => nonEmptyString(order.userId, order.uid, order.customerId, order.user?.uid, order.client?.uid);
 const pickEmail = (order) => nonEmptyString(order.mail_invoice, order.email, order.userEmail, order.customerEmail, order.user?.email, order.client?.email, order.deliverInfos?.email);
+const pickVendorEmail = (vendor) => nonEmptyString(vendor?.company?.email, vendor?.email, vendor?.profile?.email, vendor?.profile?.company?.email, vendor?.company?.contact?.email, vendor?.contact?.email);
+const pickVendorDisplayName = (vendor) => nonEmptyString(vendor?.vendorName, vendor?.displayName, vendor?.profile?.displayName, vendor?.profile?.company?.name, vendor?.company?.name, vendor?.companyName, vendor?.name) ?? "Boutique";
+const pickOrderDisplayId = (order) => nonEmptyString(order?.orderId, order?.orderNumber, order?.invoiceNumber, order?.invoiceId, order?.noFacture, order?.number, order?.orderSnapshot?.orderId, order?.orderSnapshot?.orderNumber);
+const escapeHtml = (value) => String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+const formatCurrencyForEmail = (value, currency = "GNF") => new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency,
+    currencyDisplay: "code",
+    maximumFractionDigits: 0,
+}).format(toNumber(value, 0));
+const formatDateTimeForEmail = (value) => new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Africa/Conakry",
+}).format(value);
+const sendVendorPayoutSummaryEmail = async (params) => {
+    const vendorSource = params.vendorData ?? params.deletedVendorData ?? null;
+    const vendorEmail = pickVendorEmail(vendorSource);
+    const vendorName = pickVendorDisplayName(vendorSource);
+    const paidAt = new Date();
+    const uniqueOrderIds = Array.from(new Set(params.settledEntries
+        .map((entry) => nonEmptyString(entry.orderId))
+        .filter((value) => Boolean(value))));
+    const orderDisplayIdMap = new Map();
+    await Promise.all(uniqueOrderIds.map(async (orderId) => {
+        const refs = [db.doc(`archivedOrders/${orderId}`), db.doc(`orders/${orderId}`)];
+        for (const ref of refs) {
+            const snap = await ref.get().catch(() => null);
+            if (!snap?.exists)
+                continue;
+            const label = pickOrderDisplayId(snap.data() || {});
+            if (label) {
+                orderDisplayIdMap.set(orderId, label);
+                break;
+            }
+        }
+    }));
+    const groupedOrders = new Map();
+    params.settledEntries.forEach((entry) => {
+        const orderId = nonEmptyString(entry.orderId) ?? "unknown_order";
+        const orderDisplayId = orderDisplayIdMap.get(orderId) ?? orderId;
+        const current = groupedOrders.get(orderId) ?? {
+            orderDisplayId,
+            grossAmount: 0,
+            commissionAmount: 0,
+            netAmount: 0,
+            items: [],
+        };
+        current.grossAmount = roundMoney(current.grossAmount + entry.grossAmount);
+        current.commissionAmount = roundMoney(current.commissionAmount + entry.commissionAmount);
+        current.netAmount = roundMoney(current.netAmount + entry.netAmount);
+        current.items.push(entry);
+        groupedOrders.set(orderId, current);
+    });
+    const orderSectionsHtml = Array.from(groupedOrders.values())
+        .sort((left, right) => left.orderDisplayId.localeCompare(right.orderDisplayId, "fr"))
+        .map((group) => {
+        const itemsHtml = group.items
+            .map((item) => `
+            <tr>
+              <td style="padding:8px;border:1px solid #e5e7eb">${escapeHtml(item.title ?? "Produit")}</td>
+              <td style="padding:8px;border:1px solid #e5e7eb;text-align:center">${item.qty}</td>
+              <td style="padding:8px;border:1px solid #e5e7eb;text-align:right">${escapeHtml(formatCurrencyForEmail(item.grossAmount, item.currency))}</td>
+              <td style="padding:8px;border:1px solid #e5e7eb;text-align:right">${escapeHtml(formatCurrencyForEmail(item.netAmount, item.currency))}</td>
+            </tr>
+          `)
+            .join("");
+        return `
+        <div style="margin-top:24px">
+          <h3 style="margin:0 0 8px;font-size:16px;color:#111827">Commande ${escapeHtml(group.orderDisplayId)}</h3>
+          <p style="margin:0 0 12px;color:#4b5563;font-size:14px">
+            Brut ${escapeHtml(formatCurrencyForEmail(group.grossAmount, params.currency))} |
+            Commission ${escapeHtml(formatCurrencyForEmail(group.commissionAmount, params.currency))} |
+            Net ${escapeHtml(formatCurrencyForEmail(group.netAmount, params.currency))}
+          </p>
+          <table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;font-size:14px">
+            <thead>
+              <tr style="background:#f3f4f6">
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:left">Produit</th>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:center">Qté</th>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:right">Montant brut</th>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:right">Net vendeur</th>
+              </tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+          </table>
+        </div>
+      `;
+    })
+        .join("");
+    const subject = "Paiement effectue pour vos ventes Monmarche";
+    const adminSubject = `Paiement vendeur effectue - ${vendorName}`;
+    const textLines = [
+        `Bonjour ${vendorName},`,
+        "",
+        `Votre paiement vendeur a ete effectue le ${formatDateTimeForEmail(paidAt)}.`,
+        `Batch: ${params.batchId}`,
+        `Commandes reglees: ${groupedOrders.size}`,
+        `Produits/lignes regles: ${params.totals.entriesCount}`,
+        `Montant brut: ${formatCurrencyForEmail(params.totals.grossAmount, params.currency)}`,
+        `Commission: ${formatCurrencyForEmail(params.totals.commissionAmount, params.currency)}`,
+        `Net verse: ${formatCurrencyForEmail(params.totals.netAmount, params.currency)}`,
+        "",
+        "Detail des commandes et produits vendus:",
+        ...Array.from(groupedOrders.values())
+            .sort((left, right) => left.orderDisplayId.localeCompare(right.orderDisplayId, "fr"))
+            .flatMap((group) => [
+            `- Commande ${group.orderDisplayId}: brut ${formatCurrencyForEmail(group.grossAmount, params.currency)}, commission ${formatCurrencyForEmail(group.commissionAmount, params.currency)}, net ${formatCurrencyForEmail(group.netAmount, params.currency)}`,
+            ...group.items.map((item) => `  - ${item.title ?? "Produit"} x${item.qty} | brut ${formatCurrencyForEmail(item.grossAmount, item.currency)} | net ${formatCurrencyForEmail(item.netAmount, item.currency)}`),
+        ]),
+    ];
+    const html = `
+    <!DOCTYPE html>
+    <html lang="fr">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>${escapeHtml(subject)}</title>
+      </head>
+      <body style="margin:0;padding:24px;background:#f9fafb;font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;color:#111827">
+        <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+          <div style="padding:18px 24px;background:#111827;color:#ffffff">
+            <h1 style="margin:0;font-size:22px">Paiement vendeur effectue</h1>
+          </div>
+          <div style="padding:24px">
+            <p style="margin-top:0">Bonjour <strong>${escapeHtml(vendorName)}</strong>,</p>
+            <p>Votre paiement vendeur a ete effectue le <strong>${escapeHtml(formatDateTimeForEmail(paidAt))}</strong>.</p>
+            <div style="padding:16px;background:#f3f4f6;border-radius:10px">
+              <p style="margin:0 0 8px"><strong>Batch :</strong> ${escapeHtml(params.batchId)}</p>
+              <p style="margin:0 0 8px"><strong>Commandes reglees :</strong> ${groupedOrders.size}</p>
+              <p style="margin:0 0 8px"><strong>Lignes reglees :</strong> ${params.totals.entriesCount}</p>
+              <p style="margin:0 0 8px"><strong>Montant brut :</strong> ${escapeHtml(formatCurrencyForEmail(params.totals.grossAmount, params.currency))}</p>
+              <p style="margin:0 0 8px"><strong>Commission :</strong> ${escapeHtml(formatCurrencyForEmail(params.totals.commissionAmount, params.currency))}</p>
+              <p style="margin:0"><strong>Net verse :</strong> ${escapeHtml(formatCurrencyForEmail(params.totals.netAmount, params.currency))}</p>
+            </div>
+            ${orderSectionsHtml}
+            <p style="margin:24px 0 0;color:#4b5563">Merci,<br />Equipe Monmarche</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+    const adminTextLines = [
+        "Notification admin de paiement vendeur.",
+        "",
+        `Vendeur: ${vendorName}`,
+        `Vendor ID: ${params.vendorId}`,
+        `Email vendeur: ${vendorEmail ?? "-"}`,
+        `Paiement effectue le: ${formatDateTimeForEmail(paidAt)}`,
+        `Batch: ${params.batchId}`,
+        `Commandes reglees: ${groupedOrders.size}`,
+        `Produits/lignes regles: ${params.totals.entriesCount}`,
+        `Montant brut: ${formatCurrencyForEmail(params.totals.grossAmount, params.currency)}`,
+        `Commission: ${formatCurrencyForEmail(params.totals.commissionAmount, params.currency)}`,
+        `Net verse: ${formatCurrencyForEmail(params.totals.netAmount, params.currency)}`,
+        "",
+        "Detail des commandes et produits vendus:",
+        ...Array.from(groupedOrders.values())
+            .sort((left, right) => left.orderDisplayId.localeCompare(right.orderDisplayId, "fr"))
+            .flatMap((group) => [
+            `- Commande ${group.orderDisplayId}: brut ${formatCurrencyForEmail(group.grossAmount, params.currency)}, commission ${formatCurrencyForEmail(group.commissionAmount, params.currency)}, net ${formatCurrencyForEmail(group.netAmount, params.currency)}`,
+            ...group.items.map((item) => `  - ${item.title ?? "Produit"} x${item.qty} | brut ${formatCurrencyForEmail(item.grossAmount, item.currency)} | net ${formatCurrencyForEmail(item.netAmount, item.currency)}`),
+        ]),
+    ];
+    const adminHtml = `
+    <!DOCTYPE html>
+    <html lang="fr">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>${escapeHtml(adminSubject)}</title>
+      </head>
+      <body style="margin:0;padding:24px;background:#f9fafb;font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;color:#111827">
+        <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+          <div style="padding:18px 24px;background:#111827;color:#ffffff">
+            <h1 style="margin:0;font-size:22px">Notification admin paiement vendeur</h1>
+          </div>
+          <div style="padding:24px">
+            <p style="margin-top:0"><strong>Vendeur :</strong> ${escapeHtml(vendorName)}</p>
+            <p><strong>Vendor ID :</strong> ${escapeHtml(params.vendorId)}</p>
+            <p><strong>Email vendeur :</strong> ${escapeHtml(vendorEmail ?? "-")}</p>
+            <p><strong>Paiement effectue le :</strong> ${escapeHtml(formatDateTimeForEmail(paidAt))}</p>
+            <div style="padding:16px;background:#f3f4f6;border-radius:10px">
+              <p style="margin:0 0 8px"><strong>Batch :</strong> ${escapeHtml(params.batchId)}</p>
+              <p style="margin:0 0 8px"><strong>Commandes reglees :</strong> ${groupedOrders.size}</p>
+              <p style="margin:0 0 8px"><strong>Lignes reglees :</strong> ${params.totals.entriesCount}</p>
+              <p style="margin:0 0 8px"><strong>Montant brut :</strong> ${escapeHtml(formatCurrencyForEmail(params.totals.grossAmount, params.currency))}</p>
+              <p style="margin:0 0 8px"><strong>Commission :</strong> ${escapeHtml(formatCurrencyForEmail(params.totals.commissionAmount, params.currency))}</p>
+              <p style="margin:0"><strong>Net verse :</strong> ${escapeHtml(formatCurrencyForEmail(params.totals.netAmount, params.currency))}</p>
+            </div>
+            ${orderSectionsHtml}
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+    const mailWrites = [
+        db.collection("mail").add({
+            to: VENDOR_PAYOUT_NOTIFY_EMAIL,
+            message: {
+                subject: adminSubject,
+                text: adminTextLines.join("\n"),
+                html: adminHtml,
+            },
+            meta: {
+                type: "vendor_payout_settled_admin",
+                vendorId: params.vendorId,
+                batchId: params.batchId,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+        }),
+    ];
+    if (vendorEmail) {
+        mailWrites.push(db.collection("mail").add({
+            to: vendorEmail,
+            message: {
+                subject,
+                text: textLines.join("\n"),
+                html,
+            },
+            meta: {
+                type: "vendor_payout_settled",
+                vendorId: params.vendorId,
+                batchId: params.batchId,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+        }));
+    }
+    await Promise.all(mailWrites);
+    return vendorEmail ? "sent" : "sent_admin_only";
+};
 const signToken = (token, expiresAtMs, secret) => crypto.createHmac("sha256", secret).update(`${token}${expiresAtMs}`).digest("hex");
 const safeEqual = (left, right) => {
     const a = Buffer.from(left);
@@ -381,6 +619,16 @@ const buildLedgerEntryId = (orderId, lineIndex, vendorId, productId) => {
         .slice(0, 16);
     return `vled_${orderPart}_${vendorPart}_${lineIndex}_${productPart}_${hash}`;
 };
+const buildProductSalesEntryId = (orderId, lineIndex, productId) => {
+    const orderPart = normalizeDocIdPart(orderId, "order");
+    const productPart = normalizeDocIdPart(productId, "product");
+    const hash = crypto
+        .createHash("sha1")
+        .update(`${orderId}|${lineIndex}|${productId}`)
+        .digest("hex")
+        .slice(0, 16);
+    return `psled_${orderPart}_${lineIndex}_${productPart}_${hash}`;
+};
 const computeVendorLedger = (orderId, archivedOrder, snapshot) => {
     const eligibility = isOrderEligibleForVendorPayout(archivedOrder);
     if (!eligibility.eligible) {
@@ -439,6 +687,66 @@ const computeVendorLedger = (orderId, archivedOrder, snapshot) => {
         eligible: true,
         entries,
         missingVendorItems,
+        totals,
+    };
+};
+const computeProductSales = (orderId, archivedOrder, snapshot) => {
+    const eligibility = isOrderEligibleForVendorPayout(archivedOrder);
+    if (!eligibility.eligible) {
+        return {
+            eligible: false,
+            reason: eligibility.reason,
+            entries: [],
+            missingProductItems: [],
+            totals: { grossAmount: 0, unitsSold: 0 },
+        };
+    }
+    const entries = [];
+    const missingProductItems = [];
+    const totals = {
+        grossAmount: 0,
+        unitsSold: 0,
+    };
+    snapshot.items.forEach((item, index) => {
+        const qty = Math.max(1, Math.floor(toNumber(item.qty, 1)));
+        const unitPrice = roundMoney(toNumber(item.price, 0));
+        const grossAmount = roundMoney(qty * unitPrice);
+        if (grossAmount <= 0) {
+            return;
+        }
+        const productId = nonEmptyString(item.productId) ?? undefined;
+        const vendorId = nonEmptyString(item.vendorId) ?? undefined;
+        const vendorName = nonEmptyString(item.vendorName) ?? undefined;
+        totals.grossAmount = roundMoney(totals.grossAmount + grossAmount);
+        totals.unitsSold += qty;
+        if (!productId) {
+            missingProductItems.push({
+                lineIndex: index,
+                title: item.title,
+                ...(vendorId ? { vendorId } : {}),
+                ...(vendorName ? { vendorName } : {}),
+            });
+            return;
+        }
+        entries.push({
+            entryId: buildProductSalesEntryId(orderId, index, productId),
+            orderId,
+            lineIndex: index,
+            productId,
+            title: item.title,
+            qty,
+            unitPrice,
+            grossAmount,
+            ...(vendorId ? { vendorId } : {}),
+            ...(vendorName ? { vendorName } : {}),
+            currency: snapshot.currency,
+            deliveredAt: snapshot.deliveredAt,
+        });
+    });
+    return {
+        eligible: true,
+        entries,
+        missingProductItems,
         totals,
     };
 };
@@ -543,6 +851,176 @@ const applyVendorLedgerForArchivedOrder = async (archivedRef, orderId, archivedO
         missingVendorItems: computed.missingVendorItems.length,
     };
 };
+const buildProductStatsRefs = (productId, vendorId) => {
+    const refs = [db.doc(`products_public/${productId}`), db.doc(`products/${productId}`)];
+    refs.push(db.doc(`vendor_products/${productId}`));
+    if (vendorId) {
+        refs.push(db.doc(`vendor_products/${vendorId}/products/${productId}`));
+    }
+    const uniqueByPath = new Map();
+    refs.forEach((ref) => uniqueByPath.set(ref.path, ref));
+    return Array.from(uniqueByPath.values());
+};
+const applyProductSalesForArchivedOrder = async (archivedRef, orderId, archivedOrder, snapshot) => {
+    const computed = computeProductSales(orderId, archivedOrder, snapshot);
+    const baseStatus = !computed.eligible
+        ? "blocked"
+        : computed.entries.length === 0
+            ? "no_items"
+            : computed.missingProductItems.length > 0
+                ? "pending_with_issues"
+                : "pending";
+    if (!computed.eligible) {
+        await archivedRef.set({
+            productSalesEligible: false,
+            productSalesReason: computed.reason ?? "not_eligible",
+            productSalesStatus: baseStatus,
+            productSalesLedgerVersion: PRODUCT_SALES_LEDGER_VERSION,
+            productSalesEntriesCount: 0,
+            productSalesMissingProductItemsCount: 0,
+            productSalesTotals: computed.totals,
+            productSalesLedgerUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        return {
+            status: baseStatus,
+            reason: computed.reason,
+            entriesTotal: 0,
+            entriesCreated: 0,
+            missingProductItems: 0,
+            productDocsUpdated: 0,
+        };
+    }
+    let createdEntries = 0;
+    let productDocsUpdated = 0;
+    await db.runTransaction(async (tx) => {
+        let createdEntriesInTx = 0;
+        let updatedProductDocsInTx = 0;
+        const ledgerRefs = computed.entries.map((entry) => db.doc(`product_sales_ledger/${entry.entryId}`));
+        const existingSnaps = ledgerRefs.length ? await tx.getAll(...ledgerRefs) : [];
+        const ledgerWrites = [];
+        const deltasByProduct = new Map();
+        const existingProductIds = new Set();
+        computed.entries.forEach((entry, index) => {
+            const existing = existingSnaps[index];
+            if (existing?.exists) {
+                existingProductIds.add(entry.productId);
+                return;
+            }
+            createdEntriesInTx += 1;
+            ledgerWrites.push({
+                ref: ledgerRefs[index],
+                entry,
+            });
+            const current = deltasByProduct.get(entry.productId) ?? {
+                grossAmount: 0,
+                unitsSold: 0,
+                entriesCount: 0,
+                ordersCount: 0,
+                ...(entry.title ? { title: entry.title } : {}),
+                ...(entry.vendorId ? { vendorId: entry.vendorId } : {}),
+                ...(entry.vendorName ? { vendorName: entry.vendorName } : {}),
+                deliveredAt: entry.deliveredAt,
+            };
+            current.grossAmount = roundMoney(current.grossAmount + entry.grossAmount);
+            current.unitsSold += entry.qty;
+            current.entriesCount += 1;
+            current.deliveredAt =
+                tsToMillis(entry.deliveredAt) > tsToMillis(current.deliveredAt)
+                    ? entry.deliveredAt
+                    : current.deliveredAt;
+            if (!current.title && entry.title) {
+                current.title = entry.title;
+            }
+            if (!current.vendorId && entry.vendorId) {
+                current.vendorId = entry.vendorId;
+            }
+            if (!current.vendorName && entry.vendorName) {
+                current.vendorName = entry.vendorName;
+            }
+            deltasByProduct.set(entry.productId, current);
+        });
+        deltasByProduct.forEach((delta, productId) => {
+            if (!existingProductIds.has(productId)) {
+                delta.ordersCount = 1;
+            }
+        });
+        const statsRefByPath = new Map();
+        deltasByProduct.forEach((delta, productId) => {
+            buildProductStatsRefs(productId, delta.vendorId).forEach((ref) => {
+                statsRefByPath.set(ref.path, ref);
+            });
+        });
+        const statsRefs = Array.from(statsRefByPath.values());
+        const statsSnaps = statsRefs.length ? await tx.getAll(...statsRefs) : [];
+        const statsSnapByPath = new Map();
+        statsRefs.forEach((ref, index) => {
+            statsSnapByPath.set(ref.path, statsSnaps[index]);
+        });
+        ledgerWrites.forEach(({ ref, entry }) => {
+            tx.set(ref, {
+                ...entry,
+                ledgerVersion: PRODUCT_SALES_LEDGER_VERSION,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        });
+        deltasByProduct.forEach((delta, productId) => {
+            buildProductStatsRefs(productId, delta.vendorId).forEach((ref) => {
+                const statsSnap = statsSnapByPath.get(ref.path);
+                if (!statsSnap?.exists) {
+                    return;
+                }
+                updatedProductDocsInTx += 1;
+                const statsData = statsSnap.data() || {};
+                const existingSales = statsData.stats?.sales || {};
+                const existingFirstSoldAt = asDate(existingSales.firstSoldAt);
+                const existingLastSoldAt = asDate(existingSales.lastSoldAt);
+                const deliveredAtDate = delta.deliveredAt.toDate();
+                const firstSoldAt = !existingFirstSoldAt || deliveredAtDate.getTime() < existingFirstSoldAt.getTime()
+                    ? delta.deliveredAt
+                    : existingSales.firstSoldAt;
+                const lastSoldAt = !existingLastSoldAt || deliveredAtDate.getTime() > existingLastSoldAt.getTime()
+                    ? delta.deliveredAt
+                    : existingSales.lastSoldAt;
+                tx.set(ref, {
+                    stats: {
+                        sales: {
+                            ordersCount: admin.firestore.FieldValue.increment(delta.ordersCount),
+                            unitsSold: admin.firestore.FieldValue.increment(delta.unitsSold),
+                            grossRevenue: admin.firestore.FieldValue.increment(delta.grossAmount),
+                            firstSoldAt,
+                            lastSoldAt,
+                            lastOrderId: orderId,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        },
+                    },
+                }, { merge: true });
+            });
+        });
+        tx.set(archivedRef, {
+            productSalesEligible: true,
+            productSalesReason: admin.firestore.FieldValue.delete(),
+            productSalesStatus: baseStatus,
+            productSalesLedgerVersion: PRODUCT_SALES_LEDGER_VERSION,
+            productSalesEntriesCount: computed.entries.length,
+            productSalesNewEntriesCount: createdEntriesInTx,
+            productSalesMissingProductItemsCount: computed.missingProductItems.length,
+            productSalesMissingProductItems: computed.missingProductItems.slice(0, 25),
+            productSalesTotals: computed.totals,
+            productSalesUpdatedDocsCount: updatedProductDocsInTx,
+            productSalesLedgerUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        createdEntries = createdEntriesInTx;
+        productDocsUpdated = updatedProductDocsInTx;
+    });
+    return {
+        status: baseStatus,
+        entriesTotal: computed.entries.length,
+        entriesCreated: createdEntries,
+        missingProductItems: computed.missingProductItems.length,
+        productDocsUpdated,
+    };
+};
 const buildPublicReviewPayload = (orderId, snapshot) => ({
     ok: true,
     orderId,
@@ -597,14 +1075,21 @@ exports.onArchivedOrderCreated = (0, firestore_1.onDocumentCreated)({
         }, { merge: true });
     });
     const payoutResult = await applyVendorLedgerForArchivedOrder(snapshot.ref, orderId, archivedOrder, orderSnapshot);
-    logger.info("review job + vendor payout ledger processed", {
+    const productSalesResult = await applyProductSalesForArchivedOrder(snapshot.ref, orderId, archivedOrder, orderSnapshot);
+    logger.info("review job + vendor payout ledger + product sales processed", {
         orderId,
         jobId,
         payoutStatus: payoutResult.status,
         payoutEntriesTotal: payoutResult.entriesTotal,
         payoutEntriesCreated: payoutResult.entriesCreated,
         payoutMissingVendorItems: payoutResult.missingVendorItems,
+        productSalesStatus: productSalesResult.status,
+        productSalesEntriesTotal: productSalesResult.entriesTotal,
+        productSalesEntriesCreated: productSalesResult.entriesCreated,
+        productSalesMissingProductItems: productSalesResult.missingProductItems,
+        productSalesDocsUpdated: productSalesResult.productDocsUpdated,
         ...(payoutResult.reason ? { payoutReason: payoutResult.reason } : {}),
+        ...(productSalesResult.reason ? { productSalesReason: productSalesResult.reason } : {}),
     });
 });
 exports.processScheduledReviewJobs = (0, scheduler_1.onSchedule)({
@@ -942,6 +1427,7 @@ exports.settleVendorPayout = (0, https_1.onCall)({
     const balanceRef = db.doc(`vendor_balances/${vendorId}`);
     const chunkSize = 400;
     const paidEntryIds = [];
+    const settledEntries = [];
     const totals = {
         grossAmount: 0,
         commissionAmount: 0,
@@ -995,6 +1481,8 @@ exports.settleVendorPayout = (0, https_1.onCall)({
                     return {
                         ref: refs[index],
                         id: entryId,
+                        qty: Math.max(1, Math.floor(toNumber(data.qty, 1))),
+                        unitPrice: roundMoney(toNumber(data.unitPrice, 0)),
                         grossAmount: roundMoney(toNumber(data.grossAmount, 0)),
                         commissionAmount: roundMoney(toNumber(data.commissionAmount, 0)),
                         netAmount: roundMoney(toNumber(data.netAmount, 0)),
@@ -1049,6 +1537,18 @@ exports.settleVendorPayout = (0, https_1.onCall)({
                     ...chunkTotals,
                     currency: chunkCurrency,
                     entryIds: freshEntries.map((entry) => entry.id),
+                    settledEntries: freshEntries.map((entry) => ({
+                        id: entry.id,
+                        orderId: entry.orderId ?? null,
+                        productId: entry.productId ?? null,
+                        title: entry.title ?? null,
+                        qty: entry.qty,
+                        unitPrice: entry.unitPrice,
+                        grossAmount: entry.grossAmount,
+                        commissionAmount: entry.commissionAmount,
+                        netAmount: entry.netAmount,
+                        currency: entry.currency,
+                    })),
                 };
             });
             totals.grossAmount = roundMoney(totals.grossAmount + chunkResult.grossAmount);
@@ -1057,6 +1557,7 @@ exports.settleVendorPayout = (0, https_1.onCall)({
             totals.entriesCount += chunkResult.entriesCount;
             currency = chunkResult.currency;
             paidEntryIds.push(...chunkResult.entryIds);
+            settledEntries.push(...chunkResult.settledEntries);
         }
         await batchRef.set({
             status: "completed",
@@ -1069,6 +1570,25 @@ exports.settleVendorPayout = (0, https_1.onCall)({
             currency,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
+        let emailStatus = "failed";
+        try {
+            emailStatus = await sendVendorPayoutSummaryEmail({
+                vendorId,
+                vendorData: vendorSnap.data() || null,
+                deletedVendorData: deletedVendorSnap.data() || null,
+                batchId,
+                totals,
+                currency,
+                settledEntries,
+            });
+        }
+        catch (mailError) {
+            logger.error("vendor payout email failed", {
+                batchId,
+                vendorId,
+                error: mailError instanceof Error ? mailError.message : String(mailError),
+            });
+        }
         logger.info("vendor payout settled", {
             batchId,
             vendorId,
@@ -1076,6 +1596,7 @@ exports.settleVendorPayout = (0, https_1.onCall)({
             netAmount: totals.netAmount,
             actorUid: callerUid,
             vendorAccountStatus: vendorAccountState.key,
+            emailStatus,
         });
         return {
             ok: true,
@@ -1087,6 +1608,7 @@ exports.settleVendorPayout = (0, https_1.onCall)({
             netAmount: totals.netAmount,
             currency,
             vendorAccountStatus: vendorAccountState.key,
+            emailStatus,
         };
     }
     catch (error) {

@@ -71,6 +71,11 @@ const toBoolean = (value) =>
   value === 1 ||
   value === "1";
 
+const toNumberOrZero = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const ATTRIBUTE_LABELS = {
   perishables: "Produit perissable",
   originCountry: "Pays d'origine",
@@ -1282,6 +1287,33 @@ const VendorProductDetails = () => {
     return stock === undefined || stock === null ? "-" : stock;
   }, [product]);
 
+  const salesInfo = useMemo(() => {
+    const sales =
+      firstValue(
+        publicProduct?.stats?.sales,
+        product?.stats?.sales,
+        product?.core?.stats?.sales,
+        product?.draft?.core?.stats?.sales
+      ) || null;
+
+    if (!sales || typeof sales !== "object") {
+      return "-";
+    }
+
+    const unitsSold = toNumberOrZero(sales.unitsSold);
+    const ordersCount = toNumberOrZero(sales.ordersCount);
+
+    if (!unitsSold && !ordersCount) {
+      return "0";
+    }
+
+    if (ordersCount > 0) {
+      return `${unitsSold} unite(s) (${ordersCount} commande(s))`;
+    }
+
+    return `${unitsSold} unite(s)`;
+  }, [product, publicProduct]);
+
   const attributes = useMemo(() => {
     if (!product) return [];
     const base =
@@ -1969,6 +2001,14 @@ const VendorProductDetails = () => {
                         )}
                       >
                         {stockInfo}
+                      </span>
+                    </div>
+                    <div className="vendorProductDetails__stat">
+                      <span className="vendorProductDetails__statLabel">
+                        Ventes
+                      </span>
+                      <span className="vendorProductDetails__statValue">
+                        {salesInfo}
                       </span>
                     </div>
                     <div className="vendorProductDetails__stat">
