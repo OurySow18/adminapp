@@ -24,6 +24,7 @@ import {
   isVendorPaused,
   isVendorPauseRequested,
 } from "../../utils/vendorStatus";
+import { formatCatalogLabels } from "../../utils/catalogLabels";
 import { ensureUniqueVendorSlug } from "../../utils/slugUtils";
 import { format } from "date-fns";
 
@@ -282,39 +283,54 @@ const parseStatusFlagOrNull = (value) => {
   return null;
 };
 
-const PRODUCT_TYPE_LABELS = {
-  grocery: "Épicerie",
-  fashion: "Mode",
-  baby: "Bébé",
-  electronics: "Électronique",
-  home: "Maison",
-  beauty: "Beauté",
-  sports: "Sport",
-  media: "Médias",
-  vehicles: "Véhicules",
-  diy: "Bricolage",
-  pet: "Animaux",
-  services: "Services",
-};
-
-const formatProductTypes = (value) => {
-  if (!Array.isArray(value) || value.length === 0) return "-";
-  const labels = value
-    .map((item) => {
-      if (typeof item !== "string") return null;
-      const code = item.trim();
-      if (!code) return null;
-      return PRODUCT_TYPE_LABELS[code] || code;
-    })
-    .filter(Boolean);
-  return labels.length ? labels.join(", ") : "-";
-};
+const formatProductTypes = (value) => formatCatalogLabels(value);
 
 const formatNullableBooleanLabel = (value) => {
   const parsed = parseStatusFlagOrNull(value);
   if (parsed === true) return "Oui";
   if (parsed === false) return "Non";
   return "Non renseigné";
+};
+
+const formatOpsLabel = (key) =>
+  ({
+    productTypes: "Types de produits",
+    canAssistDelivery: "Peut aider à la livraison",
+    deliveryCollaborationDetails: "Détails collaboration livraison",
+    openingHours: "Horaires d'ouverture",
+    pickupAddresses: "Points de retrait",
+    opsContact: "Contact opération",
+  }[key] ||
+    String(key || "")
+      .replace(/[_-]+/g, " ")
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/\s+/g, " ")
+      .trim() ||
+    "-");
+
+const formatOpsValue = (key, value, fallbackProductTypes) => {
+  if (key === "productTypes") {
+    return formatProductTypes(value ?? fallbackProductTypes);
+  }
+  if (key === "canAssistDelivery") {
+    return formatNullableBooleanLabel(value);
+  }
+  if (typeof value === "boolean") {
+    return value ? "Oui" : "Non";
+  }
+  if (Array.isArray(value)) {
+    const items = value
+      .map((item) => (typeof item === "string" ? item.trim() : String(item ?? "").trim()))
+      .filter(Boolean);
+    return items.length ? items.join(", ") : "-";
+  }
+  if (typeof value === "string") {
+    return value.trim() || "-";
+  }
+  if (value === undefined || value === null || value === "") {
+    return "-";
+  }
+  return String(value);
 };
 
 const getProfileSection = (vendor) => {
@@ -501,10 +517,32 @@ const VendorDetails = () => {
   const isPauseRequested = isVendorPauseRequested(vendor);
   const isBlocked = normalizedStatus === "blocked";
   const isApproved = normalizedStatus === "approved";
-  const canAssistDelivery = useMemo(
-    () => parseStatusFlagOrNull(ops?.canAssistDelivery),
-    [ops]
-  );
+  const opsDetails = useMemo(() => {
+    const knownKeys = [
+      "productTypes",
+      "canAssistDelivery",
+      "deliveryCollaborationDetails",
+      "openingHours",
+      "pickupAddresses",
+      "opsContact",
+    ];
+
+    const entries = knownKeys.map((key) => ({
+      key,
+      label: formatOpsLabel(key),
+      value: formatOpsValue(key, ops?.[key], vendor?.productTypes),
+    }));
+
+    const extraEntries = Object.entries(ops || {})
+      .filter(([key]) => !knownKeys.includes(key))
+      .map(([key, value]) => ({
+        key,
+        label: formatOpsLabel(key),
+        value: formatOpsValue(key, value, vendor?.productTypes),
+      }));
+
+    return [...entries, ...extraEntries];
+  }, [ops, vendor?.productTypes]);
   const normalizedVendorEmail = useMemo(() => {
     const candidates = [
       company?.email,
@@ -3523,6 +3561,197 @@ const VendorDetails = () => {
           </section>
 
           <section>
+            <h2>Informations légales</h2>
+            <div className="vendorDetails__grid vendorDetails__grid--three">
+              <div className="vendorDetails__card">
+                <h3>Immatriculation</h3>
+                <ul>
+                  <li>
+                    <strong>Numéro fiscal :</strong>{" "}
+                    {legal?.steuernummer ?? vendor?.steuernummer ?? "-"}
+                  </li>
+                  <li>
+                    <strong>Numéro TVA :</strong> {legal?.ustIdNr ?? "-"}
+                  </li>
+                  <li>
+                    <strong>Micro-entreprise :</strong>{" "}
+                    {legal?.kleinunternehmer ? "Oui" : "Non"}
+                  </li>
+                </ul>
+              </div>
+              <div className="vendorDetails__card">
+                <h3>Documents légaux</h3>
+                <ul>
+                  <li>
+                    <strong>Mentions légales :</strong>{" "}
+                    {legal?.impressumUrl ? (
+                      <a
+                        href={legal.impressumUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Consulter
+                      </a>
+                    ) : (
+                      "-"
+                    )}
+                  </li>
+                  <li>
+                    <strong>CGV :</strong>{" "}
+                    {legal?.cgvUrl ? (
+                      <a href={legal.cgvUrl} target="_blank" rel="noreferrer">
+                        Consulter
+                      </a>
+                    ) : (
+                      "-"
+                    )}
+                  </li>
+                  <li>
+                    <strong>Droit de rétractation :</strong>{" "}
+                    {legal?.widerrufUrl ? (
+                      <a
+                        href={legal.widerrufUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Consulter
+                      </a>
+                    ) : (
+                      "-"
+                    )}
+                  </li>
+                </ul>
+              </div>
+              <div className="vendorDetails__card">
+                <h3>Paiements</h3>
+                <ul>
+                  <li>
+                    <strong>IBAN :</strong> {bank?.iban ?? "-"}
+                  </li>
+                  <li>
+                    <strong>Orange Money :</strong> {bank?.orangeMoney ?? "-"}
+                  </li>
+                  <li>
+                    <strong>Code marchand :</strong> {bank?.merchantCode ?? "-"}
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2>Activité & opérations</h2>
+            <div className="vendorDetails__grid vendorDetails__grid--two">
+              <div className="vendorDetails__card">
+                <h3>Ops, livraison & retrait</h3>
+                {opsDetails.length > 0 ? (
+                  <ul>
+                    {opsDetails.map((item) => (
+                      <li key={item.key}>
+                        <strong>{item.label} :</strong>{" "}
+                        <span style={{ whiteSpace: "pre-line" }}>{item.value}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>Aucune donnée ops enregistrée.</p>
+                )}
+              </div>
+              <div className="vendorDetails__card">
+                <h3>Food & conformité</h3>
+                <ul>
+                  <li>
+                    <strong>Activité alimentaire :</strong>{" "}
+                    {food?.isFoodBusiness ? "Oui" : "Non"}
+                  </li>
+                  <li>
+                    <strong>Chaîne du froid :</strong>{" "}
+                    {food?.coldChain ? "Oui" : "Non"}
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2>Consentements</h2>
+            <div className="vendorDetails__card">
+              {consent && Object.keys(consent).length > 0 ? (
+                <ul>
+                  {Object.entries(consent).map(([key, value]) => (
+                    <li key={key}>
+                      <strong>{formatConsentLabel(key)} :</strong>{" "}
+                      {value ? "Oui" : "Non"}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>Aucun consentement enregistré.</p>
+              )}
+            </div>
+          </section>
+
+          <section>
+            <h2>Documents requis</h2>
+            <div className="vendorDetails__card">
+              {requiredDocs.length > 0 ? (
+                <div className="vendorDetails__docsGrid">
+                  {requiredDocs.map((docKey) => {
+                    const label = REQUIRED_DOC_LABELS[docKey] || docKey;
+                    const delivered = Boolean(
+                      profile?.deliveredDocs?.[docKey] ?? vendor?.deliveredDocs?.[docKey]
+                    );
+                    return (
+                      <label
+                        key={docKey}
+                        className={`vendorDetails__docItem ${
+                          delivered ? "vendorDetails__docItem--delivered" : ""
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={delivered}
+                          readOnly
+                          disabled
+                        />
+                        <span className="vendorDetails__docLabel">{label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p>Aucun document supplémentaire requis.</p>
+              )}
+            </div>
+          </section>
+
+          <section>
+            <h2>Informations générales</h2>
+            <div className="vendorDetails__infoGrid--highlight">
+              <div className="vendorDetails__infoChip">
+                <span>Statut vendeur</span>
+                <span>{vendorStatus}</span>
+              </div>
+              <div className="vendorDetails__infoChip">
+                <span>Email</span>
+                <span>{company?.email ?? vendor?.email ?? "-"}</span>
+              </div>
+              <div className="vendorDetails__infoChip">
+                <span>Téléphone</span>
+                <span>{company?.phone ?? vendor?.phone ?? "-"}</span>
+              </div>
+              <div className="vendorDetails__infoChip">
+                <span>Ville</span>
+                <span>{company?.city ?? vendor?.city ?? "-"}</span>
+              </div>
+              <div className="vendorDetails__infoChip">
+                <span>Pays</span>
+                <span>{company?.country ?? vendor?.country ?? "-"}</span>
+              </div>
+            </div>
+          </section>
+
+          <section>
             <h2>Produits du vendeur</h2>
             <div className="vendorDetails__card vendorDetails__products">
               {productsLoading ? (
@@ -3717,221 +3946,6 @@ const VendorDetails = () => {
                   </table>
                 </div>
               )}
-            </div>
-          </section>
-
-          <section>
-            <h2>Informations légales</h2>
-            <div className="vendorDetails__grid vendorDetails__grid--three">
-              <div className="vendorDetails__card">
-                <h3>Immatriculation</h3>
-                <ul>
-                  <li>
-                    <strong>Numéro fiscal :</strong>{" "}
-                    {legal?.steuernummer ?? vendor?.steuernummer ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Numéro TVA :</strong> {legal?.ustIdNr ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Micro-entreprise :</strong>{" "}
-                    {legal?.kleinunternehmer ? "Oui" : "Non"}
-                  </li>
-                </ul>
-              </div>
-              <div className="vendorDetails__card">
-                <h3>Documents légaux</h3>
-                <ul>
-                  <li>
-                    <strong>Mentions légales :</strong>{" "}
-                    {legal?.impressumUrl ? (
-                      <a
-                        href={legal.impressumUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Consulter
-                      </a>
-                    ) : (
-                      "-"
-                    )}
-                  </li>
-                  <li>
-                    <strong>CGV :</strong>{" "}
-                    {legal?.cgvUrl ? (
-                      <a href={legal.cgvUrl} target="_blank" rel="noreferrer">
-                        Consulter
-                      </a>
-                    ) : (
-                      "-"
-                    )}
-                  </li>
-                  <li>
-                    <strong>Droit de rétractation :</strong>{" "}
-                    {legal?.widerrufUrl ? (
-                      <a
-                        href={legal.widerrufUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Consulter
-                      </a>
-                    ) : (
-                      "-"
-                    )}
-                  </li>
-                </ul>
-              </div>
-              <div className="vendorDetails__card">
-                <h3>Paiements</h3>
-                <ul>
-                  <li>
-                    <strong>IBAN :</strong> {bank?.iban ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Orange Money :</strong> {bank?.orangeMoney ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Code marchand :</strong> {bank?.merchantCode ?? "-"}
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <h2>Activité & opérations</h2>
-            <div className="vendorDetails__grid vendorDetails__grid--two">
-              <div className="vendorDetails__card">
-                <h3>Produits & logistique</h3>
-                <ul>
-                  <li>
-                    <strong>Types de produits :</strong>{" "}
-                    {formatProductTypes(ops?.productTypes ?? vendor?.productTypes)}
-                  </li>
-                  <li>
-                    <strong>Peut aider à la livraison :</strong>{" "}
-                    {formatNullableBooleanLabel(ops?.canAssistDelivery)}
-                  </li>
-                  {canAssistDelivery === true && (
-                    <li>
-                      <strong>Détails collaboration livraison :</strong>{" "}
-                      <span style={{ whiteSpace: "pre-line" }}>
-                        {ops?.deliveryCollaborationDetails?.trim() || "-"}
-                      </span>
-                    </li>
-                  )}
-                  <li>
-                    <strong>Horaires d'ouverture :</strong>{" "}
-                    <span style={{ whiteSpace: "pre-line" }}>
-                      {ops?.openingHours ?? "-"}
-                    </span>
-                  </li>
-                  <li>
-                    <strong>Points de retrait :</strong>{" "}
-                    <span style={{ whiteSpace: "pre-line" }}>
-                      {ops?.pickupAddresses ?? "-"}
-                    </span>
-                  </li>
-                  <li>
-                    <strong>Contact opération :</strong>{" "}
-                    <span style={{ whiteSpace: "pre-line" }}>
-                      {ops?.opsContact ?? "-"}
-                    </span>
-                  </li>
-                </ul>
-              </div>
-              <div className="vendorDetails__card">
-                <h3>Food & conformité</h3>
-                <ul>
-                  <li>
-                    <strong>Activité alimentaire :</strong>{" "}
-                    {food?.isFoodBusiness ? "Oui" : "Non"}
-                  </li>
-                  <li>
-                    <strong>Chaîne du froid :</strong>{" "}
-                    {food?.coldChain ? "Oui" : "Non"}
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <h2>Consentements</h2>
-            <div className="vendorDetails__card">
-              {consent && Object.keys(consent).length > 0 ? (
-                <ul>
-                  {Object.entries(consent).map(([key, value]) => (
-                    <li key={key}>
-                      <strong>{formatConsentLabel(key)} :</strong>{" "}
-                      {value ? "Oui" : "Non"}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>Aucun consentement enregistré.</p>
-              )}
-            </div>
-          </section>
-
-          <section>
-            <h2>Documents requis</h2>
-            <div className="vendorDetails__card">
-              {requiredDocs.length > 0 ? (
-                <div className="vendorDetails__docsGrid">
-                  {requiredDocs.map((docKey) => {
-                    const label = REQUIRED_DOC_LABELS[docKey] || docKey;
-                    const delivered = Boolean(
-                      profile?.deliveredDocs?.[docKey] ?? vendor?.deliveredDocs?.[docKey]
-                    );
-                    return (
-                      <label
-                        key={docKey}
-                        className={`vendorDetails__docItem ${
-                          delivered ? "vendorDetails__docItem--delivered" : ""
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={delivered}
-                          readOnly
-                          disabled
-                        />
-                        <span className="vendorDetails__docLabel">{label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p>Aucun document supplémentaire requis.</p>
-              )}
-            </div>
-          </section>
-
-          <section>
-            <h2>Informations générales</h2>
-            <div className="vendorDetails__infoGrid--highlight">
-              <div className="vendorDetails__infoChip">
-                <span>Statut vendeur</span>
-                <span>{vendorStatus}</span>
-              </div>
-              <div className="vendorDetails__infoChip">
-                <span>Email</span>
-                <span>{company?.email ?? vendor?.email ?? "-"}</span>
-              </div>
-              <div className="vendorDetails__infoChip">
-                <span>Téléphone</span>
-                <span>{company?.phone ?? vendor?.phone ?? "-"}</span>
-              </div>
-              <div className="vendorDetails__infoChip">
-                <span>Ville</span>
-                <span>{company?.city ?? vendor?.city ?? "-"}</span>
-              </div>
-              <div className="vendorDetails__infoChip">
-                <span>Pays</span>
-                <span>{company?.country ?? vendor?.country ?? "-"}</span>
-              </div>
             </div>
           </section>
         </div>

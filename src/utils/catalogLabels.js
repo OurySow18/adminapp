@@ -80,6 +80,28 @@ export const getCatalogLabel = (value) => {
   return humanizeCatalogKey(value);
 };
 
+const normalizeCatalogValues = (value) => {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item) => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  if (typeof value === "string" && value.trim()) {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
+export const formatCatalogLabels = (value, separator = ", ") => {
+  const values = normalizeCatalogValues(value);
+  if (!values.length) return "-";
+  return values.map((item) => getCatalogLabel(item)).join(separator);
+};
+
 export const TOP_CATEGORY_OPTIONS = Object.keys(TOP_CATEGORY_LABELS);
 
 export { CATEGORY_LABELS, TOP_CATEGORY_LABELS };

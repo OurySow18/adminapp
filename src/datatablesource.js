@@ -4,7 +4,7 @@ import {
   getVendorStatusLabel,
   isVendorPaused,
 } from "./utils/vendorStatus";
-import { getCatalogLabel } from "./utils/catalogLabels";
+import { formatCatalogLabels, getCatalogLabel } from "./utils/catalogLabels";
 const toDate = (value) => {
   if (!value) return undefined;
   if (typeof value?.toDate === "function") return value.toDate();
@@ -458,10 +458,10 @@ export const vendorColumns = [
     field: "productTypes",
     headerName: "Types produits",
     width: 200,
-    valueGetter: (params) => {
-      const ops = getVendorOpsInfo(params.row);
-      return firstValue(ops.productTypes, params.row.productTypes);
-    },
+    valueGetter: (params) =>
+      formatCatalogLabels(
+        firstValue(getVendorOpsInfo(params.row).productTypes, params.row.productTypes)
+      ),
   },
   {
     field: "submittedAt",

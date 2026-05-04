@@ -348,7 +348,7 @@ const Datatable = ({
       <div className="datatableTitle">
         <div className="datatableTitle__info">
           <span>
-            Number of {headerTitle} is {displayedCount}
+            Nombre de {headerTitle} : {displayedCount}
           </span>
           {!disableCreate && (
             <Link to={{ pathname: "new" }} className="link">

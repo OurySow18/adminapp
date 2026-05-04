@@ -31,10 +31,10 @@ const VendorsList = () => {
     return <Navigate to="/vendors" replace />;
   }
 
-  const baseTitle = "vendors";
+  const baseTitle = "Vendeurs";
   const pageTitle = normalizedStatus
     ? `${baseTitle} (${getVendorStatusLabel(normalizedStatus)})`
-    : `${baseTitle} (Tous)`;
+    : baseTitle;
   const disableCreate = Boolean(normalizedStatus);
   const columns = normalizedStatus === "paused" ? vendorPausedColumns : vendorColumns;
 
