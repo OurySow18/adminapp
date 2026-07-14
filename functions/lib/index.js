@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onVendorProductCreatedNotifyAdmins = exports.onVendorCreatedNotifyAdmins = exports.onOrderCreatedNotifyAdmins = exports.settleVendorPayout = exports.createStaffAccount = exports.submitReview = exports.validateReviewLink = exports.processScheduledReviewJobs = exports.onArchivedOrderCreated = void 0;
+exports.onVendorProductCreatedNotifyAdmins = exports.onVendorCreatedNotifyAdmins = exports.onOrderCreatedNotifyAdmins = exports.deletePendingVendorPayoutEntries = exports.settleVendorPayout = exports.createStaffAccount = exports.submitReview = exports.validateReviewLink = exports.processScheduledReviewJobs = exports.onArchivedOrderCreated = void 0;
 const admin = __importStar(require("firebase-admin"));
 const crypto = __importStar(require("crypto"));
 const logger = __importStar(require("firebase-functions/logger"));
@@ -487,6 +487,152 @@ const sendVendorPayoutSummaryEmail = async (params) => {
     }
     await Promise.all(mailWrites);
     return vendorEmail ? "sent" : "sent_admin_only";
+};
+const sendPendingVendorPayoutDeletionAdminEmail = async (params) => {
+    const vendorSource = params.vendorData ?? params.deletedVendorData ?? null;
+    const vendorName = pickVendorDisplayName(vendorSource);
+    const deletedAt = new Date();
+    const subject = `Suppression lignes paiement vendeur - ${vendorName}`;
+    const actorLabel = params.actorEmail ?? params.actorUid;
+    const reasonText = params.reason ? params.reason : "Aucun motif fourni";
+    const uniqueOrderIds = Array.from(new Set(params.deletedEntries
+        .map((entry) => nonEmptyString(entry.orderId))
+        .filter((value) => Boolean(value))));
+    const orderDisplayIdMap = new Map();
+    await Promise.all(uniqueOrderIds.map(async (orderId) => {
+        const refs = [db.doc(`archivedOrders/${orderId}`), db.doc(`orders/${orderId}`)];
+        for (const ref of refs) {
+            const snap = await ref.get().catch(() => null);
+            if (!snap?.exists)
+                continue;
+            const label = pickOrderDisplayId(snap.data() || {});
+            if (label) {
+                orderDisplayIdMap.set(orderId, label);
+                break;
+            }
+        }
+    }));
+    const groupedOrders = new Map();
+    params.deletedEntries.forEach((entry) => {
+        const orderId = nonEmptyString(entry.orderId) ?? "unknown_order";
+        const orderDisplayId = orderDisplayIdMap.get(orderId) ?? orderId;
+        const current = groupedOrders.get(orderId) ?? {
+            orderDisplayId,
+            grossAmount: 0,
+            commissionAmount: 0,
+            netAmount: 0,
+            items: [],
+        };
+        current.grossAmount = roundMoney(current.grossAmount + entry.grossAmount);
+        current.commissionAmount = roundMoney(current.commissionAmount + entry.commissionAmount);
+        current.netAmount = roundMoney(current.netAmount + entry.netAmount);
+        current.items.push(entry);
+        groupedOrders.set(orderId, current);
+    });
+    const orderSectionsHtml = Array.from(groupedOrders.values())
+        .sort((left, right) => left.orderDisplayId.localeCompare(right.orderDisplayId, "fr"))
+        .map((group) => {
+        const itemsHtml = group.items
+            .map((item) => `
+            <tr>
+              <td style="padding:8px;border:1px solid #e5e7eb">${escapeHtml(item.title ?? "Produit")}</td>
+              <td style="padding:8px;border:1px solid #e5e7eb;text-align:center">${item.qty}</td>
+              <td style="padding:8px;border:1px solid #e5e7eb;text-align:right">${escapeHtml(formatCurrencyForEmail(item.grossAmount, item.currency))}</td>
+              <td style="padding:8px;border:1px solid #e5e7eb;text-align:right">${escapeHtml(formatCurrencyForEmail(item.netAmount, item.currency))}</td>
+            </tr>
+          `)
+            .join("");
+        return `
+        <div style="margin-top:24px">
+          <h3 style="margin:0 0 8px;font-size:16px;color:#111827">Commande ${escapeHtml(group.orderDisplayId)}</h3>
+          <p style="margin:0 0 12px;color:#4b5563;font-size:14px">
+            Brut ${escapeHtml(formatCurrencyForEmail(group.grossAmount, params.currency))} |
+            Commission ${escapeHtml(formatCurrencyForEmail(group.commissionAmount, params.currency))} |
+            Net ${escapeHtml(formatCurrencyForEmail(group.netAmount, params.currency))}
+          </p>
+          <table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;font-size:14px">
+            <thead>
+              <tr style="background:#f3f4f6">
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:left">Produit</th>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:center">Qté</th>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:right">Montant brut</th>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:right">Net vendeur</th>
+              </tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+          </table>
+        </div>
+      `;
+    })
+        .join("");
+    const textLines = [
+        "Notification admin de suppression de lignes de paiement vendeur.",
+        "",
+        `Vendeur: ${vendorName}`,
+        `Vendor ID: ${params.vendorId}`,
+        `Supprime le: ${formatDateTimeForEmail(deletedAt)}`,
+        `Supprime par: ${actorLabel}`,
+        `Motif: ${reasonText}`,
+        `Lignes remises en attente: ${params.totals.entriesCount}`,
+        `Montant brut restaure: ${formatCurrencyForEmail(params.totals.grossAmount, params.currency)}`,
+        `Commission restauree: ${formatCurrencyForEmail(params.totals.commissionAmount, params.currency)}`,
+        `Net remis en attente: ${formatCurrencyForEmail(params.totals.netAmount, params.currency)}`,
+        "",
+        "Détail des commandes et produits supprimés:",
+        ...Array.from(groupedOrders.values())
+            .sort((left, right) => left.orderDisplayId.localeCompare(right.orderDisplayId, "fr"))
+            .flatMap((group) => [
+            `- Commande ${group.orderDisplayId}: brut ${formatCurrencyForEmail(group.grossAmount, params.currency)}, commission ${formatCurrencyForEmail(group.commissionAmount, params.currency)}, net ${formatCurrencyForEmail(group.netAmount, params.currency)}`,
+            ...group.items.map((item) => `  - ${item.title ?? "Produit"} x${item.qty} | brut ${formatCurrencyForEmail(item.grossAmount, item.currency)} | net ${formatCurrencyForEmail(item.netAmount, item.currency)}`),
+        ]),
+    ];
+    const html = `
+    <!DOCTYPE html>
+    <html lang="fr">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>${escapeHtml(subject)}</title>
+      </head>
+      <body style="margin:0;padding:24px;background:#f9fafb;font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;color:#111827">
+        <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+          <div style="padding:18px 24px;background:#991b1b;color:#ffffff">
+            <h1 style="margin:0;font-size:22px">Suppression de lignes paiement vendeur</h1>
+          </div>
+          <div style="padding:24px">
+            <p style="margin-top:0"><strong>Vendeur :</strong> ${escapeHtml(vendorName)}</p>
+            <p><strong>Vendor ID :</strong> ${escapeHtml(params.vendorId)}</p>
+            <p><strong>Suppression effectuée le :</strong> ${escapeHtml(formatDateTimeForEmail(deletedAt))}</p>
+            <p><strong>Par :</strong> ${escapeHtml(actorLabel)}</p>
+            <p><strong>Motif :</strong> ${escapeHtml(reasonText)}</p>
+            <div style="padding:16px;background:#f3f4f6;border-radius:10px">
+              <p style="margin:0 0 8px"><strong>Lignes remises en attente :</strong> ${params.totals.entriesCount}</p>
+              <p style="margin:0 0 8px"><strong>Montant brut restauré :</strong> ${escapeHtml(formatCurrencyForEmail(params.totals.grossAmount, params.currency))}</p>
+              <p style="margin:0 0 8px"><strong>Commission restaurée :</strong> ${escapeHtml(formatCurrencyForEmail(params.totals.commissionAmount, params.currency))}</p>
+              <p style="margin:0"><strong>Net remis en attente :</strong> ${escapeHtml(formatCurrencyForEmail(params.totals.netAmount, params.currency))}</p>
+            </div>
+            ${orderSectionsHtml}
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+    await db.collection("mail").add({
+        to: VENDOR_PAYOUT_NOTIFY_EMAIL,
+        message: {
+            subject,
+            text: textLines.join("\n"),
+            html,
+        },
+        meta: {
+            type: "vendor_payout_deleted_admin",
+            vendorId: params.vendorId,
+            actorUid: params.actorUid,
+            actorEmail: params.actorEmail ?? null,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+    });
+    return "sent";
 };
 const signToken = (token, expiresAtMs, secret) => crypto.createHmac("sha256", secret).update(`${token}${expiresAtMs}`).digest("hex");
 const safeEqual = (left, right) => {
@@ -1621,6 +1767,183 @@ exports.settleVendorPayout = (0, https_1.onCall)({
                     : "unknown_error",
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
+        throw error;
+    }
+});
+exports.deletePendingVendorPayoutEntries = (0, https_1.onCall)({
+    region: REGION,
+}, async (request) => {
+    const callerUid = request.auth?.uid ?? null;
+    if (!callerUid) {
+        throw new https_1.HttpsError("unauthenticated", "auth_required");
+    }
+    if (!(await isAdminUid(callerUid))) {
+        throw new https_1.HttpsError("permission-denied", "admin_required");
+    }
+    const payload = (request.data ?? {});
+    const vendorId = ensureNonEmptyString(payload.vendorId, "vendorId");
+    const rawEntryIds = Array.isArray(payload.entryIds) ? payload.entryIds : [];
+    const entryIds = Array.from(new Set(rawEntryIds
+        .map((value) => nonEmptyString(value))
+        .filter((value) => Boolean(value))));
+    const deleteReason = nonEmptyString(payload.reason) ?? null;
+    if (!entryIds.length) {
+        throw new https_1.HttpsError("invalid-argument", "entryIds_required");
+    }
+    if (entryIds.length > 1000) {
+        throw new https_1.HttpsError("invalid-argument", "too_many_entries");
+    }
+    const [vendorSnap, deletedVendorSnap] = await Promise.all([
+        db.doc(`vendors/${vendorId}`).get(),
+        db.doc(`deletedVendors/${vendorId}`).get(),
+    ]);
+    const actorRecord = await admin.auth().getUser(callerUid).catch(() => null);
+    const actorEmail = actorRecord?.email ?? request.auth?.token?.email ?? null;
+    const balanceRef = db.doc(`vendor_balances/${vendorId}`);
+    const chunkSize = 400;
+    const deletedEntries = [];
+    const totals = {
+        grossAmount: 0,
+        commissionAmount: 0,
+        netAmount: 0,
+        entriesCount: 0,
+    };
+    let currency = "GNF";
+    try {
+        for (let start = 0; start < entryIds.length; start += chunkSize) {
+            const chunkIds = entryIds.slice(start, start + chunkSize);
+            const chunkResult = await db.runTransaction(async (tx) => {
+                const refs = chunkIds.map((entryId) => db.doc(`vendor_ledger/${entryId}`));
+                const snaps = await tx.getAll(...refs);
+                const deletableEntries = [];
+                snaps.forEach((snap, index) => {
+                    const entryId = chunkIds[index];
+                    if (!snap.exists) {
+                        throw new https_1.HttpsError("failed-precondition", `entry_missing:${entryId}`);
+                    }
+                    const data = snap.data() || {};
+                    const currentVendorId = nonEmptyString(data.vendorId);
+                    if (currentVendorId !== vendorId) {
+                        throw new https_1.HttpsError("failed-precondition", `entry_vendor_mismatch:${entryId}`);
+                    }
+                    const currentStatus = nonEmptyString(data.status) ?? "pending";
+                    if (currentStatus !== "pending") {
+                        throw new https_1.HttpsError("failed-precondition", `entry_not_pending:${entryId}`);
+                    }
+                    deletableEntries.push({
+                        ref: refs[index],
+                        id: entryId,
+                        orderId: nonEmptyString(data.orderId),
+                        productId: nonEmptyString(data.productId),
+                        title: nonEmptyString(data.title),
+                        qty: Math.max(1, Math.floor(toNumber(data.qty, 1))),
+                        unitPrice: roundMoney(toNumber(data.unitPrice, 0)),
+                        grossAmount: roundMoney(toNumber(data.grossAmount, 0)),
+                        commissionAmount: roundMoney(toNumber(data.commissionAmount, 0)),
+                        netAmount: roundMoney(toNumber(data.netAmount, 0)),
+                        currency: nonEmptyString(data.currency) ?? "GNF",
+                    });
+                });
+                const chunkTotals = deletableEntries.reduce((acc, entry) => {
+                    acc.grossAmount = roundMoney(acc.grossAmount + entry.grossAmount);
+                    acc.commissionAmount = roundMoney(acc.commissionAmount + entry.commissionAmount);
+                    acc.netAmount = roundMoney(acc.netAmount + entry.netAmount);
+                    acc.entriesCount += 1;
+                    return acc;
+                }, { grossAmount: 0, commissionAmount: 0, netAmount: 0, entriesCount: 0 });
+                deletableEntries.forEach((entry) => {
+                    tx.delete(entry.ref);
+                });
+                if (chunkTotals.entriesCount > 0) {
+                    tx.set(balanceRef, {
+                        vendorId,
+                        pendingGrossAmount: admin.firestore.FieldValue.increment(-chunkTotals.grossAmount),
+                        pendingCommissionAmount: admin.firestore.FieldValue.increment(-chunkTotals.commissionAmount),
+                        pendingNetAmount: admin.firestore.FieldValue.increment(-chunkTotals.netAmount),
+                        pendingEntriesCount: admin.firestore.FieldValue.increment(-chunkTotals.entriesCount),
+                        lifetimeGrossAmount: admin.firestore.FieldValue.increment(-chunkTotals.grossAmount),
+                        lifetimeCommissionAmount: admin.firestore.FieldValue.increment(-chunkTotals.commissionAmount),
+                        lifetimeNetAmount: admin.firestore.FieldValue.increment(-chunkTotals.netAmount),
+                        lastDeletedPendingEntryAt: admin.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    }, { merge: true });
+                }
+                return {
+                    ...chunkTotals,
+                    currency: deletableEntries[0]?.currency ?? "GNF",
+                    entryIds: deletableEntries.map((entry) => entry.id),
+                    deletedEntries: deletableEntries.map((entry) => ({
+                        id: entry.id,
+                        orderId: entry.orderId,
+                        productId: entry.productId,
+                        title: entry.title,
+                        qty: entry.qty,
+                        unitPrice: entry.unitPrice,
+                        grossAmount: entry.grossAmount,
+                        commissionAmount: entry.commissionAmount,
+                        netAmount: entry.netAmount,
+                        currency: entry.currency,
+                    })),
+                };
+            });
+            if (chunkResult.entriesCount > 0) {
+                totals.grossAmount = roundMoney(totals.grossAmount + chunkResult.grossAmount);
+                totals.commissionAmount = roundMoney(totals.commissionAmount + chunkResult.commissionAmount);
+                totals.netAmount = roundMoney(totals.netAmount + chunkResult.netAmount);
+                totals.entriesCount += chunkResult.entriesCount;
+                currency = chunkResult.currency;
+                deletedEntries.push(...chunkResult.deletedEntries);
+            }
+        }
+        let emailStatus = "failed";
+        try {
+            emailStatus = await sendPendingVendorPayoutDeletionAdminEmail({
+                vendorId,
+                vendorData: vendorSnap.data() || null,
+                deletedVendorData: deletedVendorSnap.data() || null,
+                totals,
+                currency,
+                actorUid: callerUid,
+                actorEmail,
+                reason: deleteReason,
+                deletedEntries,
+            });
+        }
+        catch (mailError) {
+            logger.error("pending vendor payout deletion email failed", {
+                vendorId,
+                error: mailError instanceof Error ? mailError.message : String(mailError),
+            });
+        }
+        await createNotificationAndFanout({
+            id: `vendor_payout_pending_deleted_${normalizeDocIdPart(vendorId)}_${Date.now()}`,
+            type: "vendor",
+            title: "Lignes paiement vendeur supprimées",
+            message: `${vendorId} - ${formatCurrencyForEmail(totals.netAmount, currency)}`,
+            link: `/vendor-payouts/${vendorId}`,
+            severity: "warning",
+            source: "admin",
+            entity: { kind: "vendor", id: vendorId },
+        });
+        logger.info("pending vendor payout entries deleted", {
+            vendorId,
+            deletedEntriesCount: totals.entriesCount,
+            deletedNetAmount: totals.netAmount,
+            actorUid: callerUid,
+            emailStatus,
+        });
+        return {
+            ok: true,
+            vendorId,
+            entriesCount: totals.entriesCount,
+            grossAmount: totals.grossAmount,
+            commissionAmount: totals.commissionAmount,
+            netAmount: totals.netAmount,
+            currency,
+            emailStatus,
+        };
+    }
+    catch (error) {
         throw error;
     }
 });

@@ -94,6 +94,7 @@ const Sidbar = () => {
     error: false,
   });
   const [marketingMenuOpen, setMarketingMenuOpen] = useState(false);
+  const [statisticsMenuOpen, setStatisticsMenuOpen] = useState(false);
   const centerRef = useRef(null);
   const normalizedPath = useMemo(
     () => location.pathname.replace(/\/+$/, "") || "/",
@@ -295,6 +296,15 @@ const Sidbar = () => {
     return null;
   }, [normalizedPath]);
 
+  const statisticsActiveKey = useMemo(() => {
+    if (normalizedPath === "/stats") return "overview";
+    if (normalizedPath.startsWith("/stats/sales")) return "sales";
+    if (normalizedPath.startsWith("/stats/vendors")) return "vendors";
+    if (normalizedPath.startsWith("/stats/catalog")) return "catalog";
+    if (normalizedPath.startsWith("/stats/payouts")) return "payouts";
+    return null;
+  }, [normalizedPath]);
+
   const vendorActiveKey = useMemo(() => {
     if (normalizedPath.startsWith("/vendors/status/")) {
       const statusFromPath = normalizedPath.split("/vendors/status/")[1];
@@ -320,6 +330,7 @@ const Sidbar = () => {
     normalizedPath.startsWith("/delivredOrders");
   const isVendorPayoutsActive = normalizedPath.startsWith("/vendor-payouts");
   const isMarketingParentActive = marketingActiveKey !== null;
+  const isStatisticsParentActive = statisticsActiveKey !== null;
   const isVendorProductsParentActive = vendorProductsActiveKey !== null;
   const isVendorsParentActive = vendorActiveKey !== null;
 
@@ -344,6 +355,7 @@ const Sidbar = () => {
     vendorMenuOpen,
     vendorProductsMenuOpen,
     marketingMenuOpen,
+    statisticsMenuOpen,
     isMobileOpen,
     isCollapsed,
   ]);
@@ -359,6 +371,12 @@ const Sidbar = () => {
       setMarketingMenuOpen(true);
     }
   }, [marketingActiveKey, marketingMenuOpen]);
+
+  useEffect(() => {
+    if (statisticsActiveKey && !statisticsMenuOpen) {
+      setStatisticsMenuOpen(true);
+    }
+  }, [statisticsActiveKey, statisticsMenuOpen]);
 
   const handleToggleClick = () => {
     if (isMobile) {
@@ -436,6 +454,10 @@ const toggleVendorProductsMenu = () => {
 
 const toggleMarketingMenu = () => {
   setMarketingMenuOpen((prev) => !prev);
+};
+
+const toggleStatisticsMenu = () => {
+  setStatisticsMenuOpen((prev) => !prev);
 };
 
 const logout = async () => {
@@ -872,9 +894,123 @@ return (
             </li>
           </Link>
           <p className="title">UTILES</p>
-          <li>
-            <CreditCardIcon className="icon" />
-            <span>Statistiques</span>
+          <li className={`menu-group ${statisticsMenuOpen ? "open" : ""}`}>
+            <div className="menu-group__header">
+              <Link
+                to="/stats"
+                style={{ textDecoration: "none" }}
+                className={`menu-group__primary ${
+                  isStatisticsParentActive ? "active" : ""
+                }`}
+                onClick={handleNavLinkClick}
+              >
+                <DashboardIcon className="icon" />
+                <span>Statistiques</span>
+              </Link>
+              <button
+                type="button"
+                className={`menu-group__chevron ${
+                  statisticsMenuOpen ? "menu-group__chevron--open" : ""
+                }`}
+                onClick={toggleStatisticsMenu}
+                aria-label={
+                  statisticsMenuOpen
+                    ? "Reduire le sous-menu Statistiques"
+                    : "Deployer le sous-menu Statistiques"
+                }
+              >
+                <ExpandMoreIcon />
+              </button>
+            </div>
+            {statisticsMenuOpen && (
+              <ul className="submenu" id="sidebar-statistics-submenu">
+                <li
+                  className={`submenu__item ${
+                    statisticsActiveKey === "overview" ? "active" : ""
+                  }`}
+                >
+                  <Link
+                    to="/stats"
+                    className="submenu__link"
+                    style={{ textDecoration: "none" }}
+                    onClick={handleNavLinkClick}
+                  >
+                    <div className="submenu__linkLabel">
+                      <DashboardIcon className="icon icon--sm" />
+                      <span>Vue d’ensemble</span>
+                    </div>
+                  </Link>
+                </li>
+                <li
+                  className={`submenu__item ${
+                    statisticsActiveKey === "sales" ? "active" : ""
+                  }`}
+                >
+                  <Link
+                    to="/stats/sales"
+                    className="submenu__link"
+                    style={{ textDecoration: "none" }}
+                    onClick={handleNavLinkClick}
+                  >
+                    <div className="submenu__linkLabel">
+                      <CreditCardIcon className="icon icon--sm" />
+                      <span>Ventes</span>
+                    </div>
+                  </Link>
+                </li>
+                <li
+                  className={`submenu__item ${
+                    statisticsActiveKey === "vendors" ? "active" : ""
+                  }`}
+                >
+                  <Link
+                    to="/stats/vendors"
+                    className="submenu__link"
+                    style={{ textDecoration: "none" }}
+                    onClick={handleNavLinkClick}
+                  >
+                    <div className="submenu__linkLabel">
+                      <StorefrontIcon className="icon icon--sm" />
+                      <span>Vendeurs</span>
+                    </div>
+                  </Link>
+                </li>
+                <li
+                  className={`submenu__item ${
+                    statisticsActiveKey === "catalog" ? "active" : ""
+                  }`}
+                >
+                  <Link
+                    to="/stats/catalog"
+                    className="submenu__link"
+                    style={{ textDecoration: "none" }}
+                    onClick={handleNavLinkClick}
+                  >
+                    <div className="submenu__linkLabel">
+                      <CategoryOutlinedIcon className="icon icon--sm" />
+                      <span>Offre & catégories</span>
+                    </div>
+                  </Link>
+                </li>
+                <li
+                  className={`submenu__item ${
+                    statisticsActiveKey === "payouts" ? "active" : ""
+                  }`}
+                >
+                  <Link
+                    to="/stats/payouts"
+                    className="submenu__link"
+                    style={{ textDecoration: "none" }}
+                    onClick={handleNavLinkClick}
+                  >
+                    <div className="submenu__linkLabel">
+                      <AccountBalanceOutlinedIcon className="icon icon--sm" />
+                      <span>Paiements vendeurs</span>
+                    </div>
+                  </Link>
+                </li>
+              </ul>
+            )}
           </li>
           <li>
             <NotificationsNoneIcon className="icon" />

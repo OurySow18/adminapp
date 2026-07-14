@@ -20,6 +20,10 @@ import { db, functions } from "../../firebase";
 import { resolveVendorAccountState } from "../../utils/vendorStatus";
 
 const settleVendorPayoutCallable = httpsCallable(functions, "settleVendorPayout");
+const deletePendingVendorPayoutEntriesCallable = httpsCallable(
+  functions,
+  "deletePendingVendorPayoutEntries"
+);
 const VENDOR_PAYOUT_NOTIFY_EMAIL = "infos@monmarchegn.com";
 
 const vendorIdLookupFields = [
@@ -517,6 +521,8 @@ const VendorPayoutDetails = () => {
   const [pendingPayoutEntries, setPendingPayoutEntries] = useState([]);
   const [forceSensitivePayout, setForceSensitivePayout] = useState(false);
   const [sensitivePayoutReason, setSensitivePayoutReason] = useState("");
+  const [pendingDeletionEntries, setPendingDeletionEntries] = useState([]);
+  const [deleteEntriesReason, setDeleteEntriesReason] = useState("");
   const [imagePreview, setImagePreview] = useState({
     url: "",
     alt: "",
@@ -910,6 +916,20 @@ const VendorPayoutDetails = () => {
     setSensitivePayoutReason("");
   };
 
+  const requestDeleteEntries = (entriesToDelete) => {
+    if (!vendorId || !entriesToDelete.length || isProcessing) return;
+    setActionError("");
+    setActionFeedback("");
+    setDeleteEntriesReason("");
+    setPendingDeletionEntries(entriesToDelete);
+  };
+
+  const closeDeleteEntriesConfirmation = () => {
+    if (isProcessing) return;
+    setPendingDeletionEntries([]);
+    setDeleteEntriesReason("");
+  };
+
   const confirmSettleEntries = async () => {
     if (!vendorId || !pendingPayoutEntries.length || isProcessing) return;
 
@@ -1015,6 +1035,57 @@ const VendorPayoutDetails = () => {
       return;
     }
     requestSettleEntries(pendingEntries);
+  };
+
+  const confirmDeleteEntries = async () => {
+    if (!vendorId || !pendingDeletionEntries.length || isProcessing) return;
+
+    setActionError("");
+    setActionFeedback("");
+    setIsProcessing(true);
+
+    try {
+      const entriesToDelete = [...pendingDeletionEntries];
+      const result = await deletePendingVendorPayoutEntriesCallable({
+        vendorId,
+        entryIds: entriesToDelete.map((entry) => entry.id),
+        reason: deleteEntriesReason.trim(),
+      });
+      const data = result.data || {};
+      const deletedCount = toNumber(data.entriesCount);
+      const netAmount = toNumber(data.netAmount);
+      const payoutCurrency =
+        data.currency ||
+        entriesToDelete.find((entry) => entry?.currency)?.currency ||
+        "GNF";
+
+      setPendingDeletionEntries([]);
+      setDeleteEntriesReason("");
+      setSelectionModel([]);
+      setActionFeedback(
+        `${deletedCount} ligne(s) supprimée(s), total ${formatCurrency(
+          netAmount,
+          payoutCurrency
+        )}. Email admin envoyé.`
+      );
+    } catch (error) {
+      console.error("Erreur suppression paiement vendeur:", error);
+      const message =
+        typeof error?.message === "string" && error.message.trim()
+          ? error.message.trim()
+          : "Impossible de supprimer ce paiement.";
+      setActionError(message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDeleteSelectedPending = async () => {
+    if (!selectedPendingEntries.length) {
+      setActionError("Sélectionne au moins une ligne en attente à supprimer.");
+      return;
+    }
+    requestDeleteEntries(selectedPendingEntries);
   };
 
   const handleExportFilteredCsv = () => {
@@ -1222,6 +1293,24 @@ const VendorPayoutDetails = () => {
     (!payoutRequiresReview ||
       (forceSensitivePayout && sensitivePayoutReason.trim().length > 0));
 
+  const deletionConfirmationSummary = useMemo(
+    () =>
+      pendingDeletionEntries.reduce(
+        (acc, row) => {
+          acc.gross += row.grossAmount;
+          acc.commission += row.commissionAmount;
+          acc.net += row.netAmount;
+          acc.count += 1;
+          if (!acc.currency && row.currency) acc.currency = row.currency;
+          return acc;
+        },
+        { gross: 0, commission: 0, net: 0, count: 0, currency: "GNF" }
+      ),
+    [pendingDeletionEntries]
+  );
+
+  const canConfirmDeleteEntries = !isProcessing && pendingDeletionEntries.length > 0;
+
   return (
     <div className="vendorPayouts">
       <Sidebar />
@@ -1275,6 +1364,13 @@ const VendorPayoutDetails = () => {
                 disabled={isProcessing}
               >
                 Payer sélection
+              </button>
+              <button
+                className="vendorPayouts__btn vendorPayouts__btn--danger"
+                onClick={handleDeleteSelectedPending}
+                disabled={isProcessing || !selectedPendingEntries.length}
+              >
+                Supprimer sélection
               </button>
               <button
                 className="vendorPayouts__btn vendorPayouts__btn--secondary"
@@ -1382,7 +1478,7 @@ const VendorPayoutDetails = () => {
           <section className="vendorPayouts__history">
             <div className="vendorPayouts__historyHeader">
               <h2>Historique des paiements</h2>
-              <span>{payoutBatches.length} batch(s)</span>
+              <span>{payoutBatches.length} lot(s) de paiement</span>
             </div>
             {payoutBatches.length ? (
               <div className="vendorPayouts__historyList">
@@ -1527,6 +1623,108 @@ const VendorPayoutDetails = () => {
                   disabled={!canConfirmPayout}
                 >
                   {isProcessing ? "Paiement en cours..." : "Confirmer le paiement"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {pendingDeletionEntries.length > 0 ? (
+          <div
+            className="vendorPayouts__confirmOverlay"
+            onClick={closeDeleteEntriesConfirmation}
+            role="presentation"
+          >
+            <div
+              className="vendorPayouts__confirmModal"
+              onClick={(event) => event.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Confirmer la suppression des lignes de paiement vendeur"
+            >
+              <div className="vendorPayouts__confirmHeader">
+                <div>
+                  <h2>Supprimer les lignes sélectionnées</h2>
+                  <p>
+                    {displayVendorName ? `${displayVendorName} - ` : ""}
+                    <strong>{vendorId}</strong>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="vendorPayouts__imageClose"
+                  onClick={closeDeleteEntriesConfirmation}
+                  aria-label="Fermer la suppression"
+                  disabled={isProcessing}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="vendorPayouts__confirmGrid">
+                <div className="vendorPayouts__confirmItem">
+                  <span>Lignes à supprimer</span>
+                  <strong>{deletionConfirmationSummary.count}</strong>
+                </div>
+                <div className="vendorPayouts__confirmItem">
+                  <span>Brut</span>
+                  <strong>
+                    {formatCurrency(
+                      deletionConfirmationSummary.gross,
+                      deletionConfirmationSummary.currency
+                    )}
+                  </strong>
+                </div>
+                <div className="vendorPayouts__confirmItem">
+                  <span>Commission</span>
+                  <strong>
+                    {formatCurrency(
+                      deletionConfirmationSummary.commission,
+                      deletionConfirmationSummary.currency
+                    )}
+                  </strong>
+                </div>
+                <div className="vendorPayouts__confirmItem vendorPayouts__confirmItem--net">
+                  <span>Net concerné</span>
+                  <strong>
+                    {formatCurrency(
+                      deletionConfirmationSummary.net,
+                      deletionConfirmationSummary.currency
+                    )}
+                  </strong>
+                </div>
+              </div>
+              <div className="vendorPayouts__sensitiveConfirm">
+                <div>
+                  <strong>Cette action supprime uniquement les lignes pending sélectionnées</strong>
+                  <p>
+                    Les lignes disparaîtront de la liste et un email sera envoyé à
+                    l'administration.
+                  </p>
+                </div>
+                <textarea
+                  className="vendorPayouts__reasonInput"
+                  value={deleteEntriesReason}
+                  onChange={(event) => setDeleteEntriesReason(event.target.value)}
+                  placeholder="Motif de suppression (optionnel)..."
+                  disabled={isProcessing}
+                />
+              </div>
+              <div className="vendorPayouts__confirmActions">
+                <button
+                  type="button"
+                  className="vendorPayouts__btn vendorPayouts__btn--light"
+                  onClick={closeDeleteEntriesConfirmation}
+                  disabled={isProcessing}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  className="vendorPayouts__btn vendorPayouts__btn--danger"
+                  onClick={confirmDeleteEntries}
+                  disabled={!canConfirmDeleteEntries}
+                >
+                  {isProcessing ? "Suppression..." : "Supprimer la sélection"}
                 </button>
               </div>
             </div>

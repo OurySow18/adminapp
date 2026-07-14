@@ -50,6 +50,11 @@ import VendorPayoutsList from "./pages/vendorPayouts/VendorPayoutsList";
 import VendorPayoutDetails from "./pages/vendorPayouts/VendorPayoutDetails";
 import GuineaCitiesList from "./pages/cities/GuineaCitiesList";
 import CityEditor from "./pages/cities/CityEditor";
+import StatisticsOverview from "./pages/statistics/StatisticsOverview";
+import StatisticsSales from "./pages/statistics/StatisticsSales";
+import StatisticsVendors from "./pages/statistics/StatisticsVendors";
+import StatisticsPayouts from "./pages/statistics/StatisticsPayouts";
+import StatisticsCatalog from "./pages/statistics/StatisticsCatalog";
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -572,6 +577,48 @@ function App() {
                 }
               />
             </Route>
+
+            {/*Statistics*/}
+            <Route
+              path="stats"
+              element={
+                <RequireAuth>
+                  <StatisticsOverview />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="stats/sales"
+              element={
+                <RequireAuth>
+                  <StatisticsSales />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="stats/vendors"
+              element={
+                <RequireAuth>
+                  <StatisticsVendors />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="stats/catalog"
+              element={
+                <RequireAuth>
+                  <StatisticsCatalog />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="stats/payouts"
+              element={
+                <RequireAuth>
+                  <StatisticsPayouts />
+                </RequireAuth>
+              }
+            />
           </Route>
         </Routes>
       </BrowserRouter>
