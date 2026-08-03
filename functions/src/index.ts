@@ -163,6 +163,11 @@ interface DeletePendingVendorPayoutEntriesPayload {
   reason?: unknown;
 }
 
+interface PermanentlyDeleteVendorProductPayload {
+  productId?: unknown;
+  deletionRequestId?: unknown;
+}
+
 interface VendorPayoutAccountState {
   key: "active" | "blocked" | "deleted" | "missing" | "review";
   label: string;
@@ -2461,6 +2466,118 @@ export const settleVendorPayout = onCall(
       );
       throw error;
     }
+  }
+);
+
+/**
+ * Archives and permanently removes a vendor product after an administrator has
+ * reviewed its pending deletion request. Every state check and write happens in
+ * the same transaction so concurrent calls cannot process the request twice.
+ */
+export const permanentlyDeleteVendorProduct = onCall(
+  {
+    region: REGION,
+  },
+  async (request) => {
+    const callerUid = request.auth?.uid ?? null;
+    if (!callerUid) {
+      throw new HttpsError("unauthenticated", "auth_required");
+    }
+    if (!(await isAdminUid(callerUid))) {
+      throw new HttpsError("permission-denied", "admin_required");
+    }
+
+    const payload = (request.data ?? {}) as PermanentlyDeleteVendorProductPayload;
+    const productId = ensureNonEmptyString(payload.productId, "productId");
+    const deletionRequestId = ensureNonEmptyString(
+      payload.deletionRequestId,
+      "deletionRequestId"
+    );
+    const actorRecord = await admin.auth().getUser(callerUid).catch(() => null);
+    const actorEmail = actorRecord?.email ?? request.auth?.token?.email ?? null;
+
+    const productRef = db.doc(`vendor_products/${productId}`);
+    const publicProductRef = db.doc(`products_public/${productId}`);
+    const archiveRef = db.doc(`archived_vendor_products/${productId}`);
+    const changeRequestRef = db.doc(`product_change_requests/${deletionRequestId}`);
+
+    const result = await db.runTransaction(async (tx) => {
+      const [productSnap, changeRequestSnap, archiveSnap] = await tx.getAll(
+        productRef,
+        changeRequestRef,
+        archiveRef
+      );
+
+      if (!changeRequestSnap.exists) {
+        throw new HttpsError("not-found", "deletion_request_not_found");
+      }
+
+      const changeRequest = changeRequestSnap.data() || {};
+      const requestProductId = nonEmptyString(
+        changeRequest.productId,
+        changeRequest.vendorProductId,
+        changeRequest.entityId
+      );
+      if (
+        changeRequest.type !== "delete" ||
+        changeRequest.status !== "pending" ||
+        (requestProductId && requestProductId !== productId)
+      ) {
+        if (
+          changeRequest.type === "delete" &&
+          changeRequest.status === "approved" &&
+          !productSnap.exists &&
+          archiveSnap.exists &&
+          archiveSnap.data()?.deletionRequestId === deletionRequestId
+        ) {
+          return { alreadyProcessed: true };
+        }
+        throw new HttpsError("failed-precondition", "deletion_request_not_pending");
+      }
+
+      if (!productSnap.exists) {
+        throw new HttpsError("not-found", "vendor_product_not_found");
+      }
+
+      const product = productSnap.data() || {};
+      if (
+        product.deletionStatus !== "pending" ||
+        product.deletionRequestId !== deletionRequestId
+      ) {
+        throw new HttpsError("failed-precondition", "product_deletion_state_mismatch");
+      }
+      if (archiveSnap.exists) {
+        throw new HttpsError("already-exists", "product_archive_already_exists");
+      }
+
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      tx.create(archiveRef, {
+        ...product,
+        deletedAt: now,
+        deletedBy: callerUid,
+        deletedByEmail: actorEmail,
+        deletionRequestId,
+      });
+      tx.delete(productRef);
+      tx.delete(publicProductRef);
+      tx.update(changeRequestRef, {
+        status: "approved",
+        reviewedAt: now,
+        reviewedBy: callerUid,
+        reviewedByEmail: actorEmail,
+      });
+
+      return { alreadyProcessed: false };
+    });
+
+    logger.info("vendor product permanently deleted", {
+      productId,
+      deletionRequestId,
+      actorUid: callerUid,
+      alreadyProcessed: result.alreadyProcessed,
+    });
+
+    return { ok: true, productId, deletionRequestId, ...result };
   }
 );
 

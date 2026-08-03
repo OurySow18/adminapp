@@ -23,6 +23,11 @@ service cloud.firestore {
         collectionId == "vendor_payout_batches";
     }
 
+    function isServerOnlyProductDeletionCollection(collectionId) {
+      return collectionId == "archived_vendor_products" ||
+        collectionId == "product_change_requests";
+    }
+
     // Gestion du profil admin
     match /admin/{userId} {
       allow read: if isAdmin();
@@ -55,14 +60,16 @@ service cloud.firestore {
       allow read: if isAdmin() && collectionId != "admin";
       allow write: if isAdmin() &&
         collectionId != "admin" &&
-        !isProtectedPayoutCollection(collectionId);
+        !isProtectedPayoutCollection(collectionId) &&
+        !isServerOnlyProductDeletionCollection(collectionId);
     }
 
     match /{collectionId}/{docId}/{document=**} {
       allow read: if isAdmin() && collectionId != "admin";
       allow write: if isAdmin() &&
         collectionId != "admin" &&
-        !isProtectedPayoutCollection(collectionId);
+        !isProtectedPayoutCollection(collectionId) &&
+        !isServerOnlyProductDeletionCollection(collectionId);
     }
   }
 }

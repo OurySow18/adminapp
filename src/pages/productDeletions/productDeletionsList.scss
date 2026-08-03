@@ -1,0 +1,15 @@
+.productDeletions { display: flex; min-height: 100vh; width: 100%; background: #f5f6fa; }
+.productDeletions__container { flex: 1; min-width: 0; padding: 24px; }
+.productDeletions__header { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin: 24px 0; }
+.productDeletions__header h1 { margin: 0; color: #111827; }
+.productDeletions__header p { margin: 6px 0 0; color: #6b7280; }
+.productDeletions__header button { padding: 11px 18px; border: 0; border-radius: 9px; color: white; background: #ff6f00; font-weight: 600; cursor: pointer; }
+.productDeletions__header button:disabled { opacity: .55; cursor: not-allowed; }
+.productDeletions__table { background: white; padding: 18px; border-radius: 16px; box-shadow: 0 8px 24px rgba(15, 23, 42, .1); overflow-x: auto; }
+.productDeletions__table .MuiDataGrid-root { min-width: 1120px; border: 0; }
+.productDeletions__image { width: 56px; height: 56px; object-fit: contain; border: 1px solid #e5e7eb; border-radius: 10px; background: #f9fafb; }
+.productDeletions__deleteButton { padding: 8px 11px; border: 1px solid #dc2626; border-radius: 7px; background: #fff; color: #b91c1c; font-weight: 600; cursor: pointer; }
+.productDeletions__deleteButton:hover { background: #fef2f2; }
+.productDeletions__error { margin-bottom: 16px; padding: 13px 16px; color: #991b1b; background: #fee2e2; border-radius: 9px; }
+.confirmModal__button.productDeletions__confirmButton { background: #b91c1c; }
+@media (max-width: 768px) { .productDeletions { flex-direction: column; } .productDeletions__container { padding: 16px; } .productDeletions__header { align-items: flex-start; flex-direction: column; } }

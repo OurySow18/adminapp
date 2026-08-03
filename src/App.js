@@ -55,6 +55,7 @@ import StatisticsSales from "./pages/statistics/StatisticsSales";
 import StatisticsVendors from "./pages/statistics/StatisticsVendors";
 import StatisticsPayouts from "./pages/statistics/StatisticsPayouts";
 import StatisticsCatalog from "./pages/statistics/StatisticsCatalog";
+import ProductDeletionsList from "./pages/productDeletions/ProductDeletionsList";
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -202,6 +203,14 @@ function App() {
             </Route>
 
             {/*Vendor Products*/}
+            <Route
+              path="product-deletions"
+              element={
+                <RequireAuth>
+                  <ProductDeletionsList />
+                </RequireAuth>
+              }
+            />
             <Route path="vendor-products">
               <Route
                 index

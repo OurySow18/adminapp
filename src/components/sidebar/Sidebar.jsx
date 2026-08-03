@@ -39,6 +39,7 @@ import MenuOpenIcon from "@mui/icons-material/MenuOpen";
 import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
 import {
@@ -329,16 +330,25 @@ const Sidbar = () => {
   const isDeliveredOrdersActive =
     normalizedPath.startsWith("/delivredOrders");
   const isVendorPayoutsActive = normalizedPath.startsWith("/vendor-payouts");
+  const isProductDeletionsActive = normalizedPath === "/product-deletions";
   const isMarketingParentActive = marketingActiveKey !== null;
   const isStatisticsParentActive = statisticsActiveKey !== null;
-  const isVendorProductsParentActive = vendorProductsActiveKey !== null;
+  const isVendorProductsParentActive =
+    vendorProductsActiveKey !== null || isProductDeletionsActive;
   const isVendorsParentActive = vendorActiveKey !== null;
 
   useEffect(() => {
-    if (vendorProductsActiveKey && !vendorProductsMenuOpen) {
+    if (
+      (vendorProductsActiveKey || isProductDeletionsActive) &&
+      !vendorProductsMenuOpen
+    ) {
       setVendorProductsMenuOpen(true);
     }
-  }, [vendorProductsActiveKey, vendorProductsMenuOpen]);
+  }, [
+    vendorProductsActiveKey,
+    isProductDeletionsActive,
+    vendorProductsMenuOpen,
+  ]);
 
   useEffect(() => {
     if (!centerRef.current) return;
@@ -761,6 +771,23 @@ return (
                     </li>
                   );
                 })}
+                <li
+                  className={`submenu__item ${
+                    isProductDeletionsActive ? "active" : ""
+                  }`}
+                >
+                  <Link
+                    to="/product-deletions"
+                    className="submenu__link"
+                    style={{ textDecoration: "none" }}
+                    onClick={handleNavLinkClick}
+                  >
+                    <div className="submenu__linkLabel">
+                      <DeleteForeverIcon className="icon icon--sm" />
+                      <span>Produits à supprimer</span>
+                    </div>
+                  </Link>
+                </li>
               </ul>
             )}
           </li>

@@ -3,7 +3,7 @@ import "./detailsOrderPage.scss";
 import { useState, useEffect } from "react";
 import Sidebar from "../sidebar/Sidebar";
 import Navbar from "../navbar/Navbar";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { resolveOrderDate } from "../../utils/orderDate";
 import ConfirmModal from "../modal/ConfirmModal";
@@ -38,6 +38,8 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
   const [driverModalError, setDriverModalError] = useState("");
   const [activeDrivers, setActiveDrivers] = useState([]);
   const [selectedDriverUid, setSelectedDriverUid] = useState("");
+  const [previewImage, setPreviewImage] = useState(null);
+  const [orderVendors, setOrderVendors] = useState({});
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
@@ -76,6 +78,59 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
 
     return () => unsubscribe();
   }, [params.id, title]);
+
+  useEffect(() => {
+    const cart = Array.isArray(orderDetails?.cart) ? orderDetails.cart : [];
+    const vendorIds = Array.from(
+      new Set(
+        cart
+          .map(
+            (item) =>
+              item?.vendorId ||
+              item?.vendor?.vendorId ||
+              item?.vendor?.id ||
+              item?.vendor?.uid ||
+              item?.sellerId ||
+              item?.storeId
+          )
+          .filter(Boolean)
+          .map(String)
+      )
+    );
+
+    if (!vendorIds.length) {
+      setOrderVendors({});
+      return undefined;
+    }
+
+    let cancelled = false;
+    Promise.all(
+      vendorIds.map(async (vendorId) => {
+        try {
+          const snapshot = await getDoc(doc(db, "vendors", vendorId));
+          return [vendorId, snapshot.exists() ? snapshot.data() : null];
+        } catch (error) {
+          console.warn(`Impossible de charger la boutique ${vendorId}:`, error);
+          return [vendorId, null];
+        }
+      })
+    ).then((entries) => {
+      if (!cancelled) setOrderVendors(Object.fromEntries(entries));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [orderDetails?.cart]);
+
+  useEffect(() => {
+    if (!previewImage) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setPreviewImage(null);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [previewImage]);
 
   useEffect(() => {
     if (!actionFeedback) return undefined;
@@ -402,6 +457,8 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
     setDriverModalError("");
     await finalizeOrderValidation(selectedDriver);
   };
+  // Ancien modèle conservé provisoirement pour faciliter une comparaison visuelle.
+  // eslint-disable-next-line no-unused-vars
   const generatePrintContent = () => {
     const details = orderDetails || {};
     const delivery = details.deliverInfos || {};
@@ -642,8 +699,158 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
     return printContent;
   };
 
+  const generateCompactPrintContent = () => {
+    const details = orderDetails || {};
+    const delivery = details.deliverInfos || {};
+    const cart = Array.isArray(details.cart) ? details.cart : [];
+    const escapeHtml = (value) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    const money = (value) =>
+      `${toNumber(value, 0).toLocaleString("fr-FR")} GNF`;
+    const invoiceLines = cart.flatMap((product) => {
+      const name = product?.name || product?.title || product?.productName || "Produit";
+      const packaging =
+        product?.poids || product?.weight || product?.conditionnement || product?.unit || "—";
+      const lines = [];
+      const bulkQuantity = Math.max(0, toNumber(product?.quantityBulk, 0));
+      const detailQuantity = Math.max(0, toNumber(product?.quantityDetail, 0));
+      const bulkAmount = toNumber(product?.amountBulk, 0);
+      const detailAmount = toNumber(product?.amountDetail, 0);
+      if (bulkQuantity > 0 || bulkAmount > 0) {
+        lines.push({
+          name,
+          packaging,
+          quantity: bulkQuantity,
+          unitPrice: toNumber(product?.priceBulk, bulkQuantity ? bulkAmount / bulkQuantity : 0),
+          total: bulkAmount,
+        });
+      }
+      if (detailQuantity > 0 || detailAmount > 0) {
+        lines.push({
+          name,
+          packaging,
+          quantity: detailQuantity,
+          unitPrice: toNumber(
+            product?.priceDetail,
+            detailQuantity ? detailAmount / detailQuantity : 0
+          ),
+          total: detailAmount,
+        });
+      }
+      if (!lines.length) {
+        const quantity = Math.max(1, toNumber(product?.quantity ?? product?.qty, 1));
+        const total = toNumber(product?.totalAmount ?? product?.total ?? product?.amount, 0);
+        lines.push({
+          name,
+          packaging,
+          quantity,
+          unitPrice: toNumber(product?.price ?? product?.unitPrice, total / quantity),
+          total,
+        });
+      }
+      return lines;
+    });
+    const productsSubtotal = invoiceLines.reduce((sum, line) => sum + line.total, 0);
+    const deliveryFee = toNumber(details.deliveryFee, 0);
+    const invoiceTotal = toNumber(
+      details.total ?? details.totalAmount,
+      productsSubtotal + deliveryFee
+    );
+    const invoiceNumber = details.orderId || params.id || "—";
+    const formattedDate = format(resolveOrderDate(details), "dd/MM/yyyy à HH:mm");
+    const optionalCustomerFields = [
+      delivery.phone
+        ? `<div><span>Téléphone</span><strong>${escapeHtml(delivery.phone)}</strong></div>`
+        : "",
+      details.mail_invoice
+        ? `<div><span>E-mail</span><strong>${escapeHtml(details.mail_invoice)}</strong></div>`
+        : "",
+      delivery.additionalInfo
+        ? `<div class="full"><span>Instructions</span><strong>${escapeHtml(delivery.additionalInfo)}</strong></div>`
+        : "",
+    ].join("");
+
+    return `<!doctype html>
+      <html lang="fr">
+        <head>
+          <meta charset="utf-8" />
+          <title>Facture ${escapeHtml(invoiceNumber)}</title>
+          <style>
+            @page { size: A4; margin: 14mm; }
+            * { box-sizing: border-box; }
+            body { margin: 0; color: #1f2937; background: #fff; font: 12px Arial, sans-serif; }
+            .invoice { width: 100%; max-width: 900px; margin: 0 auto; }
+            header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 3px solid #ff6f00; }
+            .brand h1 { margin: 0 0 5px; color: #ff6f00; font-size: 25px; }
+            .brand p, .meta p { margin: 3px 0; color: #64748b; }
+            .meta { text-align: right; }
+            .meta h2 { margin: 0 0 7px; color: #111827; font-size: 22px; }
+            .meta strong { color: #111827; }
+            .customer { margin: 18px 0; padding: 14px 16px; border-radius: 8px; background: #f8fafc; }
+            .customer h3 { margin: 0 0 11px; color: #111827; font-size: 14px; }
+            .customer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; }
+            .customer-grid div { display: flex; gap: 8px; }
+            .customer-grid .full { grid-column: 1 / -1; }
+            .customer-grid span { min-width: 70px; color: #64748b; }
+            .customer-grid strong { color: #111827; font-weight: 600; }
+            table { width: 100%; border-collapse: collapse; }
+            th { padding: 9px 8px; color: #475569; background: #f1f5f9; border-bottom: 1px solid #cbd5e1; text-align: left; font-size: 10px; text-transform: uppercase; }
+            td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; }
+            tr { page-break-inside: avoid; }
+            .product { color: #111827; font-weight: 700; }
+            .number { text-align: right; white-space: nowrap; }
+            .line-total { color: #111827; font-weight: 700; }
+            .summary { width: 310px; margin: 18px 0 0 auto; }
+            .summary div { display: flex; justify-content: space-between; padding: 6px 0; }
+            .summary span { color: #64748b; }
+            .summary .total { margin-top: 5px; padding-top: 10px; border-top: 2px solid #ff6f00; color: #111827; font-size: 15px; font-weight: 800; }
+            .thanks { margin: 22px 0 0; color: #64748b; text-align: center; }
+            .signatures { display: flex; gap: 50px; margin-top: 55px; page-break-inside: avoid; }
+            .signature { flex: 1; padding-top: 8px; border-top: 1px solid #64748b; text-align: center; color: #475569; }
+            @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+          </style>
+        </head>
+        <body>
+          <main class="invoice">
+            <header>
+              <div class="brand"><h1>Monmarché</h1><p>+224 612 12 12 29 · infos@monmarchegn.com</p></div>
+              <div class="meta"><h2>Facture</h2><p>N° <strong>${escapeHtml(invoiceNumber)}</strong></p><p>${formattedDate}</p></div>
+            </header>
+            <section class="customer">
+              <h3>Livraison</h3>
+              <div class="customer-grid">
+                <div><span>Client</span><strong>${escapeHtml(delivery.name || "—")}</strong></div>
+                <div><span>Adresse</span><strong>${escapeHtml(delivery.address || "—")}</strong></div>
+                ${optionalCustomerFields}
+              </div>
+            </section>
+            <table>
+              <thead><tr><th>Produit</th><th>Format</th><th class="number">Qté</th><th class="number">Prix unitaire</th><th class="number">Total</th></tr></thead>
+              <tbody>${invoiceLines
+                .map(
+                  (line) => `<tr><td class="product">${escapeHtml(line.name)}</td><td>${escapeHtml(line.packaging)}</td><td class="number">${line.quantity}</td><td class="number">${money(line.unitPrice)}</td><td class="number line-total">${money(line.total)}</td></tr>`
+                )
+                .join("")}</tbody>
+            </table>
+            <section class="summary">
+              <div><span>Sous-total produits</span><strong>${money(productsSubtotal)}</strong></div>
+              <div><span>Livraison</span><strong>${deliveryFee > 0 ? money(deliveryFee) : "Offerte"}</strong></div>
+              <div class="total"><span>Total à payer</span><strong>${money(invoiceTotal)}</strong></div>
+            </section>
+            <p class="thanks">Merci pour votre commande.</p>
+            <div class="signatures"><div class="signature">Signature du client</div><div class="signature">Signature du livreur</div></div>
+          </main>
+        </body>
+      </html>`;
+  };
+
   const printOrder = () => {
-    const printContent = generatePrintContent();
+    const printContent = generateCompactPrintContent();
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
       setActionError("Impossible d'ouvrir la fenêtre d'impression.");
@@ -1012,8 +1219,155 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
   const orderDate = resolveOrderDate(orderDetails || {});
   const orderDateLabel = format(orderDate, "dd/MM/yyyy HH:mm:ss");
   const cartItems = Array.isArray(orderDetails?.cart) ? orderDetails.cart : [];
-  const cartTotal = cartItems.reduce(
-    (sum, product) => sum + (Number(product?.totalAmount) || 0),
+  const formatPackaging = (value, fallbackUnit = "") => {
+    if (value === undefined || value === null || value === "") return null;
+    if (typeof value === "object") {
+      const objectValue = [
+        value.label,
+        value.displayName,
+        value.value,
+        value.amount,
+        value.weight
+      ].find((candidate) => candidate !== undefined && candidate !== null && candidate !== "");
+      const unit = [value.unit, value.symbol, fallbackUnit].find(Boolean);
+      return objectValue !== undefined
+        ? `${objectValue}${unit ? ` ${unit}` : ""}`
+        : null;
+    }
+    return `${value}${fallbackUnit ? ` ${fallbackUnit}` : ""}`;
+  };
+  const orderItemRows = cartItems.map((product, index) => {
+    const productId = product?.productId || product?.id || product?.product?.id;
+    const vendorId =
+      product?.vendorId ||
+      product?.vendor?.vendorId ||
+      product?.vendor?.id ||
+      product?.vendor?.uid ||
+      product?.sellerId ||
+      product?.storeId;
+    const vendorDocument = vendorId ? orderVendors[String(vendorId)] || {} : {};
+    const vendorCompany =
+      vendorDocument?.company || vendorDocument?.profile?.company || {};
+    const packaging = [
+      product?.poids,
+      product?.weight,
+      product?.conditionnement,
+      product?.packaging,
+      product?.unit,
+      product?.attributes?.weight,
+      product?.attributes?.poids,
+    ].find((value) => value !== undefined && value !== null && value !== "");
+    const quantityBulk = Math.max(0, toNumber(product?.quantityBulk, 0));
+    const quantityDetail = Math.max(0, toNumber(product?.quantityDetail, 0));
+    const amountBulk = toNumber(product?.amountBulk, 0);
+    const amountDetail = toNumber(product?.amountDetail, 0);
+    const totalAmount = toNumber(
+      product?.totalAmount ?? product?.total ?? product?.amount,
+      amountBulk + amountDetail
+    );
+    const commissionAmount = Math.round(totalAmount * 0.05 * 100) / 100;
+    const vendorNetAmount =
+      Math.round((totalAmount - commissionAmount) * 100) / 100;
+    const genericQuantity = Math.max(
+      0,
+      toNumber(product?.quantity ?? product?.qty, 0)
+    );
+    const genericPrice = toNumber(
+      product?.price ?? product?.unitPrice,
+      genericQuantity > 0 ? totalAmount / genericQuantity : 0
+    );
+    const purchases = [];
+
+    if (quantityBulk > 0 || amountBulk > 0) {
+      purchases.push({
+        key: "bulk",
+        label: "Gros",
+        quantity: quantityBulk,
+        unitPrice: toNumber(
+          product?.priceBulk,
+          quantityBulk > 0 ? amountBulk / quantityBulk : 0
+        ),
+        amount: amountBulk,
+      });
+    }
+    if (quantityDetail > 0 || amountDetail > 0) {
+      purchases.push({
+        key: "detail",
+        label: "Détail",
+        quantity: quantityDetail,
+        unitPrice: toNumber(
+          product?.priceDetail,
+          quantityDetail > 0 ? amountDetail / quantityDetail : 0
+        ),
+        amount: amountDetail,
+      });
+    }
+    if (!purchases.length) {
+      purchases.push({
+        key: "unit",
+        label: "Unité",
+        quantity: genericQuantity || 1,
+        unitPrice: genericPrice || totalAmount,
+        amount: totalAmount,
+      });
+    }
+
+    return {
+      ...product,
+      productId,
+      vendorId,
+      rowKey: `${product?.productId || product?.id || "item"}-${index}`,
+      displayName: product?.name || product?.title || product?.productName || "Produit sans nom",
+      vendorName:
+        vendorCompany?.name ||
+        product?.vendorName ||
+        product?.vendor?.name ||
+        product?.vendor?.vendorName ||
+        "Monmarché",
+      vendorPhone:
+        vendorCompany?.phone ||
+        product?.vendorPhone ||
+        product?.shopPhone ||
+        product?.storePhone ||
+        product?.vendor?.phone ||
+        product?.vendor?.company?.phone ||
+        product?.vendor?.profile?.company?.phone ||
+        null,
+      vendorAddress:
+        vendorCompany?.address ||
+        product?.vendorAddress ||
+        product?.shopAddress ||
+        product?.storeAddress ||
+        product?.vendor?.address ||
+        product?.vendor?.company?.address ||
+        product?.vendor?.profile?.company?.address ||
+        null,
+      image:
+        product?.image ||
+        product?.img ||
+        product?.imageUrl ||
+        product?.photo ||
+        product?.media?.cover ||
+        product?.images?.[0] ||
+        null,
+      packaging: formatPackaging(packaging),
+      purchases,
+      totalAmount,
+      commissionAmount,
+      vendorNetAmount,
+    };
+  });
+  const cartTotal = orderItemRows.reduce(
+    (sum, product) => sum + product.totalAmount,
+    0
+  );
+  const vendorsNetTotal = orderItemRows.reduce(
+    (sum, product) => sum + product.vendorNetAmount,
+    0
+  );
+  const totalUnits = orderItemRows.reduce(
+    (sum, product) =>
+      sum + product.purchases.reduce((quantity, purchase) => quantity + purchase.quantity, 0),
     0
   );
   const isPrimaryActionDisabled = isDeliveryMode
@@ -1151,9 +1505,18 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
 
           {/* === Produits commandés === */}
           <div className="orderItems detailsOrderPage__products">
-            <h2>Produits commandés</h2>
+            <div className="orderItems__heading">
+              <div>
+                <h2>Produits commandés</h2>
+                <p>
+                  {orderItemRows.length} produit{orderItemRows.length > 1 ? "s" : ""}
+                  {totalUnits > 0 ? ` · ${totalUnits} article${totalUnits > 1 ? "s" : ""}` : ""}
+                </p>
+              </div>
+              <strong>{formatPrice(cartTotal)}</strong>
+            </div>
 
-            {cartItems.length > 0 ? (
+            {orderItemRows.length > 0 ? (
               <>
                 {/* Tableau (desktop) */}
                 <div className="orderTableWrap">
@@ -1161,40 +1524,96 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
                     <thead>
                       <tr>
                         <th>Produit</th>
-                        <th className="num">Qté gros</th>
-                        <th className="money">Montant gros</th>
-                        <th className="num">Qté détail</th>
-                        <th className="money">Montant détail</th>
+                        <th>Vendeur</th>
+                        <th>Conditionnement</th>
+                        <th>Achat</th>
+                        <th className="money">À payer au vendeur</th>
                         <th className="money">Total</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {cartItems.map((p, i) => (
-                        <tr key={i}>
-                          <td className="name">
-                            <span className="dot" />
-                            {p?.name ?? ""}
+                      {orderItemRows.map((p) => (
+                        <tr key={p.rowKey}>
+                          <td>
+                            <div className="orderProduct">
+                              {p.image ? (
+                                <button
+                                  type="button"
+                                  className="orderProduct__imageButton"
+                                  onClick={() =>
+                                    setPreviewImage({ src: p.image, title: p.displayName })
+                                  }
+                                  aria-label={`Agrandir l’image de ${p.displayName}`}
+                                >
+                                  <img src={p.image} alt={p.displayName} className="orderProduct__image" />
+                                </button>
+                              ) : (
+                                <span className="orderProduct__placeholder" aria-hidden="true">
+                                  {p.displayName.charAt(0).toUpperCase()}
+                                </span>
+                              )}
+                              <div>
+                                {p.productId ? (
+                                  <Link
+                                    to={`/vendor-products/${encodeURIComponent(p.productId)}`}
+                                    className="orderProduct__link"
+                                  >
+                                    {p.displayName}
+                                  </Link>
+                                ) : (
+                                  <strong>{p.displayName}</strong>
+                                )}
+                                {p.productId && <small>ID : {p.productId}</small>}
+                              </div>
+                            </div>
                           </td>
-                          <td className="num">{p?.quantityBulk ?? 0}</td>
-                          <td className="money">
-                            {p?.amountBulk ? formatPrice(p.amountBulk) : "—"}
+                          <td>
+                            <div className="orderVendor">
+                              <strong>{p.vendorName}</strong>
+                              {p.vendorPhone && (
+                                <a href={`tel:${p.vendorPhone}`}>{p.vendorPhone}</a>
+                              )}
+                              {p.vendorAddress && <span>{p.vendorAddress}</span>}
+                            </div>
                           </td>
-                          <td className="num">{p?.quantityDetail ?? 0}</td>
-                          <td className="money">
-                            {p?.amountDetail
-                              ? formatPrice(p.amountDetail)
-                              : "—"}
+                          <td>{p.packaging || "—"}</td>
+                          <td>
+                            <div className="orderPurchases">
+                              {p.purchases.map((purchase) => (
+                                <div className="orderPurchase" key={purchase.key}>
+                                  <span className={`orderPurchase__type orderPurchase__type--${purchase.key}`}>
+                                    {purchase.label}
+                                  </span>
+                                  <span>
+                                    {purchase.quantity} × {formatPrice(purchase.unitPrice)}
+                                  </span>
+                                  {p.purchases.length > 1 && (
+                                    <small>{formatPrice(purchase.amount)}</small>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="money vendorPayoutCell">
+                            <strong>{formatPrice(p.vendorNetAmount)}</strong>
+                            <small>
+                              Commission 5 % : {formatPrice(p.commissionAmount)}
+                            </small>
                           </td>
                           <td className="money totalCell">
-                            {p?.totalAmount ? formatPrice(p.totalAmount) : "—"}
+                            {formatPrice(p.totalAmount)}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot>
                       <tr>
-                        <td colSpan={5} className="tfootLabel">
-                          Total commande
+                        <td colSpan={4} className="tfootLabel">
+                          Totaux
+                        </td>
+                        <td className="money vendorPayoutTotal">
+                          <small>Net vendeurs</small>
+                          {formatPrice(vendorsNetTotal)}
                         </td>
                         <td className="money tfootTotal">
                           {formatPrice(
@@ -1208,51 +1627,95 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
 
                 {/* Cartes (mobile) */}
                 <div className="orderCards">
-                  {cartItems.map((p, i) => (
-                    <div className="orderCard" key={`card-${i}`}>
-                      <div className="row">
-                        <span className="label">Produit</span>
-                        <span className="value name">
-                          <span className="dot" />
-                          {p?.name ?? ""}
-                        </span>
+                  {orderItemRows.map((p) => (
+                    <div className="orderCard" key={`card-${p.rowKey}`}>
+                      <div className="orderProduct">
+                        {p.image ? (
+                          <button
+                            type="button"
+                            className="orderProduct__imageButton"
+                            onClick={() =>
+                              setPreviewImage({ src: p.image, title: p.displayName })
+                            }
+                            aria-label={`Agrandir l’image de ${p.displayName}`}
+                          >
+                            <img src={p.image} alt={p.displayName} className="orderProduct__image" />
+                          </button>
+                        ) : (
+                          <span className="orderProduct__placeholder" aria-hidden="true">
+                            {p.displayName.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                        <div>
+                          {p.productId ? (
+                            <Link
+                              to={`/vendor-products/${encodeURIComponent(p.productId)}`}
+                              className="orderProduct__link"
+                            >
+                              {p.displayName}
+                            </Link>
+                          ) : (
+                            <strong>{p.displayName}</strong>
+                          )}
+                          <small>{p.vendorName}</small>
+                          {p.vendorPhone && (
+                            <a className="orderProduct__vendorContact" href={`tel:${p.vendorPhone}`}>
+                              {p.vendorPhone}
+                            </a>
+                          )}
+                          {p.vendorAddress && (
+                            <small className="orderProduct__vendorAddress">
+                              {p.vendorAddress}
+                            </small>
+                          )}
+                        </div>
                       </div>
-                      <div className="row">
-                        <span className="label">Qté gros</span>
-                        <span className="value">{p?.quantityBulk ?? 0}</span>
-                      </div>
-                      <div className="row">
-                        <span className="label">Montant gros</span>
-                        <span className="value">
-                          {p?.amountBulk ? formatPrice(p.amountBulk) : "—"}
-                        </span>
-                      </div>
-                      <div className="row">
-                        <span className="label">Qté détail</span>
-                        <span className="value">{p?.quantityDetail ?? 0}</span>
-                      </div>
-                      <div className="row">
-                        <span className="label">Montant détail</span>
-                        <span className="value">
-                          {p?.amountDetail ? formatPrice(p.amountDetail) : "—"}
+                      {p.packaging && (
+                        <div className="row">
+                          <span className="label">Conditionnement</span>
+                          <span className="value">{p.packaging}</span>
+                        </div>
+                      )}
+                      <div className="row orderCard__purchaseRow">
+                        <span className="label">Achat</span>
+                        <span className="value orderPurchases">
+                          {p.purchases.map((purchase) => (
+                            <span className="orderPurchase" key={purchase.key}>
+                              <span className={`orderPurchase__type orderPurchase__type--${purchase.key}`}>
+                                {purchase.label}
+                              </span>
+                              <span>{purchase.quantity} × {formatPrice(purchase.unitPrice)}</span>
+                            </span>
+                          ))}
                         </span>
                       </div>
                       <div className="divider" />
+                      <div className="row vendorPayoutRow">
+                        <span className="label">À payer au vendeur</span>
+                        <span className="value">
+                          {formatPrice(p.vendorNetAmount)}
+                          <small>
+                            Commission 5 % : {formatPrice(p.commissionAmount)}
+                          </small>
+                        </span>
+                      </div>
                       <div className="row total">
                         <span className="label">Total</span>
                         <span className="value">
-                          {p?.totalAmount ? formatPrice(p.totalAmount) : "—"}
+                          {formatPrice(p.totalAmount)}
                         </span>
                       </div>
                     </div>
                   ))}
                   <div className="grandTotalCard">
-                    <span className="label">Total commande</span>
-                    <span className="value">
-                      {formatPrice(
-                        cartTotal
-                      )}
-                    </span>
+                    <div>
+                      <span className="label">Net vendeurs</span>
+                      <span className="value">{formatPrice(vendorsNetTotal)}</span>
+                    </div>
+                    <div>
+                      <span className="label">Sous-total produits</span>
+                      <span className="value">{formatPrice(cartTotal)}</span>
+                    </div>
                   </div>
                 </div>
               </>
@@ -1352,6 +1815,31 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
             <p className="workModal__error">{driverModalError}</p>
           ) : null}
         </ConfirmModal>
+        {previewImage && (
+          <div
+            className="orderImagePreview"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Image de ${previewImage.title}`}
+            onClick={() => setPreviewImage(null)}
+          >
+            <div
+              className="orderImagePreview__content"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="orderImagePreview__close"
+                onClick={() => setPreviewImage(null)}
+                aria-label="Fermer l’image"
+              >
+                ×
+              </button>
+              <img src={previewImage.src} alt={previewImage.title} />
+              <p>{previewImage.title}</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

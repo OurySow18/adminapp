@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onVendorProductCreatedNotifyAdmins = exports.onVendorCreatedNotifyAdmins = exports.onOrderCreatedNotifyAdmins = exports.deletePendingVendorPayoutEntries = exports.settleVendorPayout = exports.createStaffAccount = exports.submitReview = exports.validateReviewLink = exports.processScheduledReviewJobs = exports.onArchivedOrderCreated = void 0;
+exports.onVendorProductCreatedNotifyAdmins = exports.onVendorCreatedNotifyAdmins = exports.onOrderCreatedNotifyAdmins = exports.deletePendingVendorPayoutEntries = exports.permanentlyDeleteVendorProduct = exports.settleVendorPayout = exports.createStaffAccount = exports.submitReview = exports.validateReviewLink = exports.processScheduledReviewJobs = exports.onArchivedOrderCreated = void 0;
 const admin = __importStar(require("firebase-admin"));
 const crypto = __importStar(require("crypto"));
 const logger = __importStar(require("firebase-functions/logger"));
@@ -1769,6 +1769,86 @@ exports.settleVendorPayout = (0, https_1.onCall)({
         }, { merge: true });
         throw error;
     }
+});
+/**
+ * Archives and permanently removes a vendor product after an administrator has
+ * reviewed its pending deletion request. Every state check and write happens in
+ * the same transaction so concurrent calls cannot process the request twice.
+ */
+exports.permanentlyDeleteVendorProduct = (0, https_1.onCall)({
+    region: REGION,
+}, async (request) => {
+    const callerUid = request.auth?.uid ?? null;
+    if (!callerUid) {
+        throw new https_1.HttpsError("unauthenticated", "auth_required");
+    }
+    if (!(await isAdminUid(callerUid))) {
+        throw new https_1.HttpsError("permission-denied", "admin_required");
+    }
+    const payload = (request.data ?? {});
+    const productId = ensureNonEmptyString(payload.productId, "productId");
+    const deletionRequestId = ensureNonEmptyString(payload.deletionRequestId, "deletionRequestId");
+    const actorRecord = await admin.auth().getUser(callerUid).catch(() => null);
+    const actorEmail = actorRecord?.email ?? request.auth?.token?.email ?? null;
+    const productRef = db.doc(`vendor_products/${productId}`);
+    const publicProductRef = db.doc(`products_public/${productId}`);
+    const archiveRef = db.doc(`archived_vendor_products/${productId}`);
+    const changeRequestRef = db.doc(`product_change_requests/${deletionRequestId}`);
+    const result = await db.runTransaction(async (tx) => {
+        const [productSnap, changeRequestSnap, archiveSnap] = await tx.getAll(productRef, changeRequestRef, archiveRef);
+        if (!changeRequestSnap.exists) {
+            throw new https_1.HttpsError("not-found", "deletion_request_not_found");
+        }
+        const changeRequest = changeRequestSnap.data() || {};
+        const requestProductId = nonEmptyString(changeRequest.productId, changeRequest.vendorProductId, changeRequest.entityId);
+        if (changeRequest.type !== "delete" ||
+            changeRequest.status !== "pending" ||
+            (requestProductId && requestProductId !== productId)) {
+            if (changeRequest.type === "delete" &&
+                changeRequest.status === "approved" &&
+                !productSnap.exists &&
+                archiveSnap.exists &&
+                archiveSnap.data()?.deletionRequestId === deletionRequestId) {
+                return { alreadyProcessed: true };
+            }
+            throw new https_1.HttpsError("failed-precondition", "deletion_request_not_pending");
+        }
+        if (!productSnap.exists) {
+            throw new https_1.HttpsError("not-found", "vendor_product_not_found");
+        }
+        const product = productSnap.data() || {};
+        if (product.deletionStatus !== "pending" ||
+            product.deletionRequestId !== deletionRequestId) {
+            throw new https_1.HttpsError("failed-precondition", "product_deletion_state_mismatch");
+        }
+        if (archiveSnap.exists) {
+            throw new https_1.HttpsError("already-exists", "product_archive_already_exists");
+        }
+        const now = admin.firestore.FieldValue.serverTimestamp();
+        tx.create(archiveRef, {
+            ...product,
+            deletedAt: now,
+            deletedBy: callerUid,
+            deletedByEmail: actorEmail,
+            deletionRequestId,
+        });
+        tx.delete(productRef);
+        tx.delete(publicProductRef);
+        tx.update(changeRequestRef, {
+            status: "approved",
+            reviewedAt: now,
+            reviewedBy: callerUid,
+            reviewedByEmail: actorEmail,
+        });
+        return { alreadyProcessed: false };
+    });
+    logger.info("vendor product permanently deleted", {
+        productId,
+        deletionRequestId,
+        actorUid: callerUid,
+        alreadyProcessed: result.alreadyProcessed,
+    });
+    return { ok: true, productId, deletionRequestId, ...result };
 });
 exports.deletePendingVendorPayoutEntries = (0, https_1.onCall)({
     region: REGION,
