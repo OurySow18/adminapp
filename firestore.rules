@@ -25,7 +25,9 @@ service cloud.firestore {
 
     function isServerOnlyProductDeletionCollection(collectionId) {
       return collectionId == "archived_vendor_products" ||
-        collectionId == "product_change_requests";
+        collectionId == "product_change_requests" ||
+        collectionId == "image_optimization_jobs" ||
+        collectionId == "image_optimization_config";
     }
 
     // Gestion du profil admin

@@ -56,6 +56,7 @@ import StatisticsVendors from "./pages/statistics/StatisticsVendors";
 import StatisticsPayouts from "./pages/statistics/StatisticsPayouts";
 import StatisticsCatalog from "./pages/statistics/StatisticsCatalog";
 import ProductDeletionsList from "./pages/productDeletions/ProductDeletionsList";
+import ImageOptimization from "./pages/imageOptimization/ImageOptimization";
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -208,6 +209,14 @@ function App() {
               element={
                 <RequireAuth>
                   <ProductDeletionsList />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="image-optimization"
+              element={
+                <RequireAuth>
+                  <ImageOptimization />
                 </RequireAuth>
               }
             />

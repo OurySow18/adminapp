@@ -331,15 +331,20 @@ const Sidbar = () => {
     normalizedPath.startsWith("/delivredOrders");
   const isVendorPayoutsActive = normalizedPath.startsWith("/vendor-payouts");
   const isProductDeletionsActive = normalizedPath === "/product-deletions";
+  const isImageOptimizationActive = normalizedPath === "/image-optimization";
   const isMarketingParentActive = marketingActiveKey !== null;
   const isStatisticsParentActive = statisticsActiveKey !== null;
   const isVendorProductsParentActive =
-    vendorProductsActiveKey !== null || isProductDeletionsActive;
+    vendorProductsActiveKey !== null ||
+    isProductDeletionsActive ||
+    isImageOptimizationActive;
   const isVendorsParentActive = vendorActiveKey !== null;
 
   useEffect(() => {
     if (
-      (vendorProductsActiveKey || isProductDeletionsActive) &&
+      (vendorProductsActiveKey ||
+        isProductDeletionsActive ||
+        isImageOptimizationActive) &&
       !vendorProductsMenuOpen
     ) {
       setVendorProductsMenuOpen(true);
@@ -347,6 +352,7 @@ const Sidbar = () => {
   }, [
     vendorProductsActiveKey,
     isProductDeletionsActive,
+    isImageOptimizationActive,
     vendorProductsMenuOpen,
   ]);
 
@@ -785,6 +791,23 @@ return (
                     <div className="submenu__linkLabel">
                       <DeleteForeverIcon className="icon icon--sm" />
                       <span>Produits à supprimer</span>
+                    </div>
+                  </Link>
+                </li>
+                <li
+                  className={`submenu__item ${
+                    isImageOptimizationActive ? "active" : ""
+                  }`}
+                >
+                  <Link
+                    to="/image-optimization"
+                    className="submenu__link"
+                    style={{ textDecoration: "none" }}
+                    onClick={handleNavLinkClick}
+                  >
+                    <div className="submenu__linkLabel">
+                      <PhotoLibraryIcon className="icon icon--sm" />
+                      <span>Optimisation des images</span>
                     </div>
                   </Link>
                 </li>

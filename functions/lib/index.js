@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onVendorProductCreatedNotifyAdmins = exports.onVendorCreatedNotifyAdmins = exports.onOrderCreatedNotifyAdmins = exports.deletePendingVendorPayoutEntries = exports.permanentlyDeleteVendorProduct = exports.settleVendorPayout = exports.createStaffAccount = exports.submitReview = exports.validateReviewLink = exports.processScheduledReviewJobs = exports.onArchivedOrderCreated = void 0;
+exports.onVendorProductCreatedNotifyAdmins = exports.onVendorCreatedNotifyAdmins = exports.onOrderCreatedNotifyAdmins = exports.deletePendingVendorPayoutEntries = exports.permanentlyDeleteVendorProduct = exports.settleVendorPayout = exports.createStaffAccount = exports.submitReview = exports.validateReviewLink = exports.processScheduledReviewJobs = exports.onArchivedOrderCreated = exports.processImageOptimizationBatch = exports.startImageOptimizationJob = void 0;
 const admin = __importStar(require("firebase-admin"));
 const crypto = __importStar(require("crypto"));
 const logger = __importStar(require("firebase-functions/logger"));
@@ -41,6 +41,9 @@ const params_1 = require("firebase-functions/params");
 const firestore_1 = require("firebase-functions/v2/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
+var imageOptimization_1 = require("./imageOptimization");
+Object.defineProperty(exports, "startImageOptimizationJob", { enumerable: true, get: function () { return imageOptimization_1.startImageOptimizationJob; } });
+Object.defineProperty(exports, "processImageOptimizationBatch", { enumerable: true, get: function () { return imageOptimization_1.processImageOptimizationBatch; } });
 admin.initializeApp();
 const db = admin.firestore();
 const REGION = "europe-west1";

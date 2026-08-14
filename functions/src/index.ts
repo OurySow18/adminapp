@@ -6,6 +6,11 @@ import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 
+export {
+  startImageOptimizationJob,
+  processImageOptimizationBatch,
+} from "./imageOptimization";
+
 admin.initializeApp();
 const db = admin.firestore();
 
