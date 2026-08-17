@@ -11,6 +11,9 @@
 # production
 /build
 
+# firebase deploy cache (local, machine-specific)
+/.firebase
+
 # misc
 .DS_Store
 .env.local
