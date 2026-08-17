@@ -20,6 +20,8 @@ import {
 } from "./datatablesource";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { SidebarProvider } from "./context/sidebarContext";
+import { useIdleLogout } from "./hooks/useIdleLogout";
+import IdleLogoutWarning from "./components/idleLogout/IdleLogoutWarning";
 
 // Chaque page est chargee a la demande (code-splitting par route) plutot que
 // regroupee dans un seul bundle : l'admin ne telecharge que le code des
@@ -88,6 +90,11 @@ function App() {
     if (!authChecked) return null;
     return isAdmin ? children : <Navigate to="/login" />;
   };
+
+  // Deconnexion automatique apres 30 minutes d'inactivite (avec
+  // avertissement 1 minute avant), active uniquement pour une session
+  // admin confirmee.
+  const { showWarning, remainingSeconds, stayLoggedIn, logoutNow } = useIdleLogout(isAdmin);
 
   return (
     //prüft, ob der Dark Modus akiviert ist
@@ -671,6 +678,12 @@ function App() {
         </Suspense>
       </BrowserRouter>
       </SidebarProvider>
+      <IdleLogoutWarning
+        open={showWarning}
+        remainingSeconds={remainingSeconds}
+        onStayLoggedIn={stayLoggedIn}
+        onLogoutNow={logoutNow}
+      />
     </div>
   );
 }
