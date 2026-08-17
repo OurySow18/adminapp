@@ -67,11 +67,7 @@ const Featured = () => {
     const orderDate = order.timeStamp.toDate();
     return orderDate >= startOfToday && orderDate < today ? total + order.total : total;
   }, 0);
-  
 
- // console.log("totalRevenue: ", totalRevenueToday)
-
-  //console.log("totalRevenueToday: ", data)
   // Calculer le total des revenus réalisés ce mois-ci
   const totalRevenueThisMonth = data.reduce(
     (total, order) =>
@@ -84,14 +80,6 @@ const Featured = () => {
  
   // Calculer le total des revenus réalisés la semaine dernière
   const totalRevenueThisWeek = data.reduce((total, order) => {
-    //console.log("Order timestamp:", order.timeStamp.toDate());
-    //console.log("Last week:", lastWeek);
-    //console.log("Today:", today);
-    //console.log(
-    //  "Is within last week:",
-    //  order.timeStamp.toDate() >= lastWeek && order.timeStamp.toDate() < today
-    //);
-    //console.log("Amount:", order.total);
     return order.timeStamp.toDate() >= lastWeek &&
       order.timeStamp.toDate() < today
       ? total + order.total
@@ -106,7 +94,6 @@ const Featured = () => {
         : total,
     0
   );
-  //console.log("totalRevenueLastMonth: ", totalRevenueLastMonth);
   return (
     <div className="featured">
       <div className="top">

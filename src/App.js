@@ -17,6 +17,7 @@ import DetailsOrder from "./components/detailsOrder/DetailsOrder";
 import "./style/dark.scss";
 import { useContext } from "react";
 import { DarkModeContext } from "./context/darkModeContext";
+import { AuthContext } from "./context/AuthContext";
 import { productInputs, userInputs, zonesInputs } from "./formSource";
 import {
   userColumns,
@@ -27,8 +28,7 @@ import {
   zonesColumns,
 } from "./datatablesource";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { auth } from "./firebase";
-import Details from "./pages/productDetails/Details"; 
+import Details from "./pages/productDetails/Details";
 import DeliveredOrders from "./components/deliveredOrders/DeliveredOrdersInfos";
 import Zone from "./pages/zones/Zone"; 
 import VendorsList from "./pages/vendors/VendorsList";
@@ -64,9 +64,13 @@ function App() {
   const titleProduct = "Add new Product";
   const titleZone = "Add new Zone";
 
-  //prüft, ob der User eigeloggtist. Wenn nein bleibt man auf der login Seite
+  // Verifie que l'utilisateur est connecte ET que son statut admin a ete
+  // confirme cote Firestore (admin/{uid} ou super-admin), pas seulement
+  // qu'une session Firebase Auth existe.
+  const { authChecked, isAdmin } = useContext(AuthContext);
   const RequireAuth = ({ children }) => {
-    return auth.currentUser?.email ? children : <Navigate to="/login" />;
+    if (!authChecked) return null;
+    return isAdmin ? children : <Navigate to="/login" />;
   };
 
   return (
@@ -403,7 +407,11 @@ function App() {
             <Route path="products">
               <Route
                 index
-                element={<List typeColumns={productColumns} title="products" />}
+                element={
+                  <RequireAuth>
+                    <List typeColumns={productColumns} title="products" />
+                  </RequireAuth>
+                }
               />
               <Route
                 path=":id"
@@ -427,7 +435,11 @@ function App() {
             <Route path="zones">
               <Route
                 index
-                element={<List typeColumns={zonesColumns} title="zones" />}
+                element={
+                  <RequireAuth>
+                    <List typeColumns={zonesColumns} title="zones" />
+                  </RequireAuth>
+                }
               />
               <Route
                 path=":id"

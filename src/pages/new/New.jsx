@@ -188,18 +188,7 @@ const New = ({ inputs, title, typeCmp }) => {
         (snapshot) => {
           const progress =
             (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          console.log("Upload is " + progress + "% done");
           setPerc(progress);
-          switch (snapshot.state) {
-            case "paused":
-              console.log("Upload is paused");
-              break;
-            case "running":
-              console.log("Upload is running");
-              break;
-            default:
-              break;
-          }
         },
         (error) => {
           console.log(error);
@@ -406,7 +395,6 @@ const New = ({ inputs, title, typeCmp }) => {
           html: htmlTemplate,
         },
       });
-      console.log("📨 Email Monmarché envoyé à :", email);
     } catch (mailErr) {
       console.error("❌ Erreur envoi email Monmarché :", mailErr);
     }
@@ -414,7 +402,6 @@ const New = ({ inputs, title, typeCmp }) => {
     // 2️⃣ Envoi email Firebase pour définir un mot de passe
     try {
       await sendPasswordResetEmail(auth, email);
-      console.log("📧 Email de réinitialisation envoyé à :", email);
     } catch (resetErr) {
       console.error(
         "❌ Erreur sendPasswordResetEmail :",
@@ -528,8 +515,6 @@ const New = ({ inputs, title, typeCmp }) => {
         title: "Échec de l'opération",
         message: formatStaffCreationError(err),
       });
-    } finally {
-      console.log("We do cleanup here");
     }
   };
 

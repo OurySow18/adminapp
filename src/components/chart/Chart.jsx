@@ -102,7 +102,6 @@ const Chart = ({aspect, title}) => {
 
     fetchData();
   }, []);
-        console.log(data)
   return (
     <div className="chart" >
         <div className="title">{title}</div>

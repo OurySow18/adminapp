@@ -414,7 +414,6 @@ export default Details;
 
 export const Checkbox = (props) => {
   const [isChecked, setIsChecked] = useState();
-  console.log(props);
   useEffect(() => {
     setIsChecked(props.status);
   }, [props.status]);

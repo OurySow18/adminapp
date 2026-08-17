@@ -5,6 +5,24 @@ import { defineSecret } from "firebase-functions/params";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { SUPER_ADMIN_UID } from "./config";
+import {
+  PLATFORM_COMMISSION_RATE,
+  OrderItemSummary,
+  OrderSnapshotMinimal,
+  VendorLedgerEntryDraft,
+  VendorLedgerComputation,
+  toNumber,
+  roundMoney,
+  nonEmptyString,
+  normalizeDocIdPart,
+  isTrue,
+  normalizeStatusText,
+  isBlockedStatus,
+  isOrderEligibleForVendorPayout,
+  buildLedgerEntryId,
+  computeVendorLedger,
+} from "./payoutMath";
 
 export {
   startImageOptimizationJob,
@@ -27,25 +45,8 @@ const MAX_ATTEMPTS = 3;
 type ReviewJobStatus = "scheduled" | "sent" | "failed" | "used" | "revoked";
 type VendorLedgerStatus = "pending" | "paid" | "reversed";
 
-const PLATFORM_COMMISSION_RATE = 0.05;
 const VENDOR_LEDGER_VERSION = 1;
 const PRODUCT_SALES_LEDGER_VERSION = 1;
-
-interface OrderItemSummary {
-  title: string;
-  qty: number;
-  price: number;
-  productId?: string;
-  vendorId?: string;
-  vendorName?: string;
-}
-
-interface OrderSnapshotMinimal {
-  items: OrderItemSummary[];
-  total: number;
-  currency: string;
-  deliveredAt: FirebaseFirestore.Timestamp;
-}
 
 interface ReviewJobDoc {
   orderId: string;
@@ -60,42 +61,6 @@ interface ReviewJobDoc {
   sentAt?: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue;
   usedAt?: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue;
   lastError?: string;
-}
-
-interface VendorLedgerEntryDraft {
-  entryId: string;
-  orderId: string;
-  lineIndex: number;
-  productId?: string;
-  title: string;
-  qty: number;
-  unitPrice: number;
-  grossAmount: number;
-  commissionRate: number;
-  commissionAmount: number;
-  netAmount: number;
-  vendorId: string;
-  vendorName?: string;
-  currency: string;
-  deliveredAt: FirebaseFirestore.Timestamp;
-}
-
-interface VendorLedgerComputation {
-  eligible: boolean;
-  reason?: string;
-  entries: VendorLedgerEntryDraft[];
-  missingVendorItems: Array<{
-    lineIndex: number;
-    title: string;
-    productId?: string;
-    vendorName?: string;
-    vendorId?: string;
-  }>;
-  totals: {
-    grossAmount: number;
-    commissionAmount: number;
-    netAmount: number;
-  };
 }
 
 interface VendorLedgerApplyResult {
@@ -227,46 +192,6 @@ const asTimestamp = (value: unknown, fallback?: Date): FirebaseFirestore.Timesta
   return admin.firestore.Timestamp.fromDate(date);
 };
 
-const toNumber = (value: unknown, fallback = 0): number => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
-
-const roundMoney = (value: number): number =>
-  Math.round((toNumber(value, 0) + Number.EPSILON) * 100) / 100;
-
-const nonEmptyString = (...values: unknown[]): string | null => {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-  return null;
-};
-
-const normalizeDocIdPart = (value: unknown, fallback = "unknown"): string => {
-  const source = nonEmptyString(value);
-  if (!source) return fallback;
-  const normalized = source.replace(/[^a-zA-Z0-9_-]/g, "_");
-  return normalized.length ? normalized.slice(0, 80) : fallback;
-};
-
-const isTrue = (value: unknown): boolean => value === true;
-
-const normalizeStatusText = (value: unknown): string | null => {
-  const raw = nonEmptyString(value);
-  if (!raw) return null;
-  return raw.replace(/\s+/g, "_").toLowerCase();
-};
-
-const isBlockedStatus = (value: unknown): boolean => {
-  const normalized = normalizeStatusText(value);
-  return Boolean(
-    normalized &&
-      ["blocked", "disabled", "inactive", "suspended", "bloque", "bloqué"].includes(normalized)
-  );
-};
-
 const resolveVendorPayoutAccountState = (
   vendorSnap: FirebaseFirestore.DocumentSnapshot,
   deletedVendorSnap: FirebaseFirestore.DocumentSnapshot
@@ -356,7 +281,6 @@ const resolveVendorPayoutAccountState = (
   };
 };
 
-const SUPER_ADMIN_UID = "rgFo1YPQNDdJxyfRCiWFXETpJHB2";
 const STAFF_ROLE_COLLECTION: Record<StaffRole, "admin" | "drivers"> = {
   ADMIN: "admin",
   DRIVER: "drivers",
@@ -386,42 +310,6 @@ const parseStaffRole = (value: unknown): StaffRole => {
     return normalized;
   }
   throw new HttpsError("invalid-argument", "invalid_role");
-};
-
-const isOrderEligibleForVendorPayout = (order: Record<string, any>): VendorLedgerComputation => {
-  if (!isTrue(order.payed)) {
-    return {
-      eligible: false,
-      reason: "order_not_paid",
-      entries: [],
-      missingVendorItems: [],
-      totals: { grossAmount: 0, commissionAmount: 0, netAmount: 0 },
-    };
-  }
-  if (!isTrue(order.delivered)) {
-    return {
-      eligible: false,
-      reason: "order_not_delivered",
-      entries: [],
-      missingVendorItems: [],
-      totals: { grossAmount: 0, commissionAmount: 0, netAmount: 0 },
-    };
-  }
-  if (isTrue(order.fakeOrder)) {
-    return {
-      eligible: false,
-      reason: "order_marked_fake",
-      entries: [],
-      missingVendorItems: [],
-      totals: { grossAmount: 0, commissionAmount: 0, netAmount: 0 },
-    };
-  }
-  return {
-    eligible: true,
-    entries: [],
-    missingVendorItems: [],
-    totals: { grossAmount: 0, commissionAmount: 0, netAmount: 0 },
-  };
 };
 
 const tsToMillis = (value: unknown): number => {
@@ -1190,23 +1078,6 @@ const buildOrderSnapshot = (order: Record<string, any>): OrderSnapshotMinimal =>
   };
 };
 
-const buildLedgerEntryId = (
-  orderId: string,
-  lineIndex: number,
-  vendorId: string,
-  productId?: string
-): string => {
-  const orderPart = normalizeDocIdPart(orderId, "order");
-  const vendorPart = normalizeDocIdPart(vendorId, "vendor");
-  const productPart = normalizeDocIdPart(productId, "item");
-  const hash = crypto
-    .createHash("sha1")
-    .update(`${orderId}|${lineIndex}|${vendorId}|${productId ?? ""}`)
-    .digest("hex")
-    .slice(0, 16);
-  return `vled_${orderPart}_${vendorPart}_${lineIndex}_${productPart}_${hash}`;
-};
-
 const buildProductSalesEntryId = (
   orderId: string,
   lineIndex: number,
@@ -1220,79 +1091,6 @@ const buildProductSalesEntryId = (
     .digest("hex")
     .slice(0, 16);
   return `psled_${orderPart}_${lineIndex}_${productPart}_${hash}`;
-};
-
-const computeVendorLedger = (
-  orderId: string,
-  archivedOrder: Record<string, any>,
-  snapshot: OrderSnapshotMinimal
-): VendorLedgerComputation => {
-  const eligibility = isOrderEligibleForVendorPayout(archivedOrder);
-  if (!eligibility.eligible) {
-    return eligibility;
-  }
-
-  const entries: VendorLedgerEntryDraft[] = [];
-  const missingVendorItems: VendorLedgerComputation["missingVendorItems"] = [];
-  const totals = {
-    grossAmount: 0,
-    commissionAmount: 0,
-    netAmount: 0,
-  };
-
-  snapshot.items.forEach((item, index) => {
-    const qty = Math.max(1, Math.floor(toNumber(item.qty, 1)));
-    const unitPrice = roundMoney(toNumber(item.price, 0));
-    const grossAmount = roundMoney(qty * unitPrice);
-    if (grossAmount <= 0) {
-      return;
-    }
-
-    const commissionAmount = roundMoney(grossAmount * PLATFORM_COMMISSION_RATE);
-    const netAmount = roundMoney(grossAmount - commissionAmount);
-    const vendorId = nonEmptyString(item.vendorId) ?? undefined;
-    const vendorName = nonEmptyString(item.vendorName) ?? undefined;
-    const productId = nonEmptyString(item.productId) ?? undefined;
-
-    totals.grossAmount = roundMoney(totals.grossAmount + grossAmount);
-    totals.commissionAmount = roundMoney(totals.commissionAmount + commissionAmount);
-    totals.netAmount = roundMoney(totals.netAmount + netAmount);
-
-    if (!vendorId) {
-      missingVendorItems.push({
-        lineIndex: index,
-        title: item.title,
-        ...(productId ? { productId } : {}),
-        ...(vendorName ? { vendorName } : {}),
-      });
-      return;
-    }
-
-    entries.push({
-      entryId: buildLedgerEntryId(orderId, index, vendorId, productId),
-      orderId,
-      lineIndex: index,
-      ...(productId ? { productId } : {}),
-      title: item.title,
-      qty,
-      unitPrice,
-      grossAmount,
-      commissionRate: PLATFORM_COMMISSION_RATE,
-      commissionAmount,
-      netAmount,
-      vendorId,
-      ...(vendorName ? { vendorName } : {}),
-      currency: snapshot.currency,
-      deliveredAt: snapshot.deliveredAt,
-    });
-  });
-
-  return {
-    eligible: true,
-    entries,
-    missingVendorItems,
-    totals,
-  };
 };
 
 const computeProductSales = (

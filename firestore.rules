@@ -5,6 +5,9 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // ATTENTION: cet UID doit rester synchronise manuellement avec
+    // src/config/adminConfig.js et functions/src/config.ts (le langage
+    // des regles Firestore ne permet pas d'importer une constante externe).
     function isSuperAdmin() {
       return isSignedIn() &&
         request.auth.uid == "rgFo1YPQNDdJxyfRCiWFXETpJHB2";

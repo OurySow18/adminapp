@@ -23,7 +23,6 @@ const Zone = ({ title }) => {
 
   //bekommt die Daten durch die Navigationsparameters
   const params = useParams();
-  console.log("Parametre: ", params.id);
   //ruft die Details eines Produktes von Firestore ab
   useEffect(() => {
     const unsub = onSnapshot(
@@ -59,7 +58,6 @@ const Zone = ({ title }) => {
     setData({ ...data, [id]: value });
   };
 
-  console.log("Data: ", data);
   return (
     <div className="Zone">
       <Sidebar />

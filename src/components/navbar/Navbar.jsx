@@ -27,6 +27,7 @@ import {
 } from "firebase/firestore";
 import { sendPasswordResetEmail, signOut } from "firebase/auth";
 import ConfirmModal from "../modal/ConfirmModal";
+import { SUPER_ADMIN_UID } from "../../config/adminConfig";
 
 import Bild from "../../images/Bild_Sow.jpeg";
 
@@ -42,8 +43,6 @@ import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined
 import VpnKeyOutlinedIcon from "@mui/icons-material/VpnKeyOutlined";
 import SupportAgentOutlinedIcon from "@mui/icons-material/SupportAgentOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
-
-const SUPER_ADMIN_UID = "rgFo1YPQNDdJxyfRCiWFXETpJHB2";
 
 const getTodayId = () => {
   const now = new Date();

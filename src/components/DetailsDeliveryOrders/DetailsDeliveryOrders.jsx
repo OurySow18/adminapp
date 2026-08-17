@@ -283,7 +283,6 @@ export default function DetailsDeliveryOrders({ title, btnValidation }) {
           html: emailHtml(orderDetails),
         },
       });
-      console.log("Email queued:", to);
     } catch (e) {
       console.warn("Email non envoyé (non bloquant):", e);
     }

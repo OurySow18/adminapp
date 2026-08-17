@@ -3,13 +3,13 @@ import * as crypto from "crypto";
 import * as logger from "firebase-functions/logger";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import sharp from "sharp";
+import { SUPER_ADMIN_UID } from "./config";
 
 const REGION = "europe-west1";
 const VERSION = 1;
 const DEFAULT_BATCH_SIZE = 15;
 const MAX_BATCH_SIZE = 20;
 const TEST_LIMIT = 5;
-const SUPER_ADMIN_UID = "rgFo1YPQNDdJxyfRCiWFXETpJHB2";
 const PRODUCT_COLLECTIONS = ["vendor_products", "products_public"] as const;
 
 type ProductCollection = (typeof PRODUCT_COLLECTIONS)[number];
