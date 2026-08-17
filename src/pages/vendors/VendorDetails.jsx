@@ -1,6 +1,6 @@
 import "./vendorDetails.scss";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import ConfirmModal from "../../components/modal/ConfirmModal";
@@ -16,7 +16,6 @@ import {
   PROTECTED_VENDOR_EMAIL,
   formatDateTime,
   toNumberOrZero,
-  toStatusFlag,
   getPartnerFlag,
   getProductLabel,
   formatOpsLabel,
@@ -26,6 +25,10 @@ import {
 } from "./vendorDetailsHelpers";
 import { useVendorProducts } from "./useVendorProducts";
 import { useVendorActions } from "./useVendorActions";
+import VendorActionsPanel from "./VendorActionsPanel";
+import VendorProfileSections from "./VendorProfileSections";
+import VendorProductsSection from "./VendorProductsSection";
+import VendorConfirmDialog from "./VendorConfirmDialog";
 
 const VendorDetails = () => {
   const { id } = useParams();
@@ -75,30 +78,6 @@ const VendorDetails = () => {
     const docs = profile?.requiredDocs ?? vendor?.requiredDocs ?? [];
     return Array.isArray(docs) ? docs : [];
   }, [profile, vendor]);
-
-  const REQUIRED_DOC_LABELS = {
-    repId: "Pièce d'identité du représentant",
-    gewerbe: "Enregistrement commerce",
-    handelsregister: "Extrait registre de commerce",
-    ifsg: "Certificat IFSG",
-    haccp: "Plan HACCP",
-    liability: "Assurance responsabilité civile",
-    foodRegistration: "Enregistrement établissement alimentaire",
-  };
-  const CONSENT_LABELS = {
-    acceptPrivacy: "Politique de confidentialité",
-    contactConsent: "Consentement de contact",
-    attestTrue: "Déclaration sur l'honneur",
-    acceptTos: "Conditions d'utilisation",
-  };
-  const formatConsentLabel = (key) =>
-    CONSENT_LABELS[key] ||
-    String(key || "")
-      .replace(/[_-]+/g, " ")
-      .replace(/([a-z])([A-Z])/g, "$1 $2")
-      .replace(/\s+/g, " ")
-      .trim() ||
-    "-";
 
   const normalizedStatus = useMemo(
     () => (vendor ? resolveVendorStatus(vendor, "draft") : "draft"),
@@ -583,763 +562,74 @@ const VendorDetails = () => {
             </div>
           </div>
 
-          <section>
-            <h2>Gestion du vendeur</h2>
-            <div className="vendorDetails__actions">
-              <div className="vendorDetails__actionGroup vendorDetails__actionGroup--primary">
-                <button
-                  type="button"
-                  className="vendorDetails__actionButton vendorDetails__actionButton--ghost"
-                  disabled={fetchingLocation}
-                  onClick={handleCaptureLocation}
-                >
-                  {fetchingLocation
-                    ? "Recuperation en cours..."
-                    : "Recuperer ma position"}
-                </button>
-                <div className="vendorDetails__locationAlt">
-                  <button
-                    type="button"
-                    className="vendorDetails__actionButton vendorDetails__actionButton--ghost"
-                    onClick={() => {
-                      setApprovalLocation(null);
-                      setLocationFallback("Client hors de Conakry");
-                      setLocationMessage("Marqué hors de Conakry.");
-                      setLocationError(null);
-                    }}
-                  >
-                    Client hors de Conakry
-                  </button>
-                  <button
-                    type="button"
-                    className="vendorDetails__actionButton vendorDetails__actionButton--ghost"
-                    onClick={() => {
-                      setApprovalLocation(null);
-                      setLocationFallback("Pas de localisation fournie");
-                      setLocationMessage("Marqué sans localisation fournie.");
-                      setLocationError(null);
-                    }}
-                  >
-                    Pas de localisation disponible
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  className="vendorDetails__actionButton vendorDetails__actionButton--primary"
-                  disabled={actionBusy || isApproved || !approvalLocation}
-                  onClick={() => openDialog({ type: "approveVendor" })}
-                >
-                  Valider le vendeur
-                </button>
-                {isBlocked ? (
-                  <button
-                    type="button"
-                    className="vendorDetails__actionButton vendorDetails__actionButton--success"
-                    disabled={actionBusy}
-                    onClick={() => openDialog({ type: "unblockVendor" })}
-                  >
-                    Debloquer le vendeur
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="vendorDetails__actionButton vendorDetails__actionButton--danger"
-                    disabled={
-                      actionBusy ||
-                      (!isApproved && !isPaused) ||
-                      isProtectedVendor
-                    }
-                    onClick={() => openDialog({ type: "blockVendor" })}
-                  >
-                    Bloquer le vendeur
-                  </button>
-                )}
-                {isPaused ? (
-                  <button
-                    type="button"
-                    className="vendorDetails__actionButton vendorDetails__actionButton--success"
-                    disabled={actionBusy || isBlocked}
-                    onClick={() => openDialog({ type: "resumeVendor" })}
-                  >
-                    Lever la pause
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="vendorDetails__actionButton vendorDetails__actionButton--ghost"
-                    disabled={
-                      actionBusy ||
-                      isBlocked ||
-                      isProtectedVendor ||
-                      (!isPauseRequested && !isApproved)
-                    }
-                    onClick={() =>
-                      openDialog({
-                        type: "pauseVendor",
-                        fromRequest: isPauseRequested,
-                      })
-                    }
-                  >
-                    {isPauseRequested ? "Valider la pause" : "Mettre en pause"}
-                  </button>
-                )}
-                {isPartner ? (
-                  <button
-                    type="button"
-                    className="vendorDetails__actionButton vendorDetails__actionButton--danger"
-                    disabled={actionBusy}
-                    onClick={() => openPartnerConfirm(false)}
-                  >
-                    Retirer partenaire
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="vendorDetails__actionButton vendorDetails__actionButton--success"
-                    disabled={actionBusy}
-                    onClick={() => openPartnerConfirm(true)}
-                  >
-                    Marquer partenaire
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="vendorDetails__actionButton vendorDetails__actionButton--danger"
-                  disabled={actionBusy || !isBlocked || isProtectedVendor}
-                  onClick={() => openDialog({ type: "deleteVendor" })}
-                >
-                  Supprimer le vendeur
-                </button>
-              </div>
-              {isProtectedVendor && (
-                <p className="vendorDetails__actionsMeta">
-                  Ce compte Monmarche est protege et ne peut pas etre bloque, mis en pause ou supprime.
-                </p>
-              )}
-              {isPauseRequested && !isPaused && (
-                <p className="vendorDetails__actionsMeta">
-                  Demande de pause recue le{" "}
-                  {formatDateTime(
-                    vendor?.pause?.requestedAt ??
-                      vendor?.profile?.pause?.requestedAt ??
-                      vendor?.pauseRequestedAt
-                  )}
-                  . Cliquez sur "Valider la pause" pour appliquer le blocage des produits.
-                </p>
-              )}
+          <VendorActionsPanel
+            fetchingLocation={fetchingLocation}
+            handleCaptureLocation={handleCaptureLocation}
+            setApprovalLocation={setApprovalLocation}
+            setLocationFallback={setLocationFallback}
+            setLocationMessage={setLocationMessage}
+            setLocationError={setLocationError}
+            actionBusy={actionBusy}
+            isApproved={isApproved}
+            approvalLocation={approvalLocation}
+            openDialog={openDialog}
+            isBlocked={isBlocked}
+            isProtectedVendor={isProtectedVendor}
+            isPaused={isPaused}
+            isPauseRequested={isPauseRequested}
+            isPartner={isPartner}
+            openPartnerConfirm={openPartnerConfirm}
+            canModerateProducts={canModerateProducts}
+            hasProducts={hasProducts}
+            hasBlockedProducts={hasBlockedProducts}
+            locationMessage={locationMessage}
+            locationError={locationError}
+            vendor={vendor}
+            actionError={actionError}
+            actionMessage={actionMessage}
+            formatDateTime={formatDateTime}
+          />
 
-              <div className="vendorDetails__actionGroup vendorDetails__actionGroup--secondary">
-                <button
-                  type="button"
-                  className="vendorDetails__actionButton vendorDetails__actionButton--ghost"
-                  disabled={
-                    actionBusy || !canModerateProducts || !hasProducts || !isApproved
-                  }
-                  onClick={() => openDialog({ type: "blockAllProducts" })}
-                >
-                  Bloquer tous les produits
-                </button>
-                <button
-                  type="button"
-                  className="vendorDetails__actionButton vendorDetails__actionButton--ghost"
-                  disabled={
-                    actionBusy || !canModerateProducts || !hasBlockedProducts || isBlocked
-                  }
-                  onClick={() =>
-                    openDialog({ type: "reactivateAllProducts" })
-                  }
-                >
-                  Reactiver tous les produits
-                </button>
-              </div>
+          <VendorProfileSections
+            company={company}
+            profile={profile}
+            vendor={vendor}
+            statusHistory={statusHistory}
+            stats={stats}
+            legal={legal}
+            bank={bank}
+            opsDetails={opsDetails}
+            food={food}
+            consent={consent}
+            requiredDocs={requiredDocs}
+            vendorStatus={vendorStatus}
+          />
 
-              {actionBusy && (
-                <p className="vendorDetails__actionsMeta">Action en cours...</p>
-              )}
-              {approvalLocation && (
-                <p className="vendorDetails__actionsMeta">
-                  Coordonnees enregistrees :{" "}
-                  {approvalLocation.latitude.toFixed(5)},{" "}
-                  {approvalLocation.longitude.toFixed(5)}
-                  {typeof approvalLocation.accuracy === "number"
-                    ? ` (±${Math.round(approvalLocation.accuracy)} m)`
-                    : ""}
-                </p>
-              )}
-              {locationMessage && (
-                <p className="vendorDetails__actionsFeedback vendorDetails__actionsFeedback--success">
-                  {locationMessage}
-                </p>
-              )}
-              {locationError && (
-                <p className="vendorDetails__actionsFeedback vendorDetails__actionsFeedback--error">
-                  {locationError}
-                </p>
-              )}
-              {(vendor?.approvedCoordinates || vendor?.approvedCoordinatesNote) && (
-                <p className="vendorDetails__actionsMeta">
-                  Coordonnées validées :{" "}
-                  {vendor?.approvedCoordinates
-                    ? `${vendor.approvedCoordinates.latitude}, ${vendor.approvedCoordinates.longitude}${
-                        vendor.approvedCoordinates.accuracy
-                          ? ` (±${Math.round(vendor.approvedCoordinates.accuracy)} m)`
-                          : ""
-                      }`
-                    : vendor?.approvedCoordinatesNote}
-                </p>
-              )}
-              {actionError && (
-                <p className="vendorDetails__actionsFeedback vendorDetails__actionsFeedback--error">
-                  {actionError}
-                </p>
-              )}
-              {actionMessage && (
-                <p className="vendorDetails__actionsFeedback vendorDetails__actionsFeedback--success">
-                  {actionMessage}
-                </p>
-              )}
-            </div>
-          </section>
-
-          <section>
-            <h2>Informations générales</h2>
-            <div className="vendorDetails__grid vendorDetails__grid--two">
-              <div>
-                <h3>Entreprise</h3>
-                <ul>
-                  <li>
-                    <strong>Nom :</strong> {company?.name ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Forme juridique :</strong>{" "}
-                    {company?.legalForm ?? profile?.legalForm ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Adresse :</strong> {company?.address ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Code postal :</strong> {company?.zip ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Ville :</strong> {company?.city ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Pays :</strong> {company?.country ?? "-"}
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <h3>Contact</h3>
-                <ul>
-                  <li>
-                    <strong>Représentant :</strong>{" "}
-                    {company?.representative ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Email :</strong> {company?.email ?? vendor?.email ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Téléphone :</strong> {company?.phone ?? vendor?.phone ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Site web :</strong>{" "}
-                    {company?.website ? (
-                      <a
-                        href={company.website}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {company.website}
-                      </a>
-                    ) : (
-                      "-"
-                    )}
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <h2>Statut du dossier</h2>
-            <div className="vendorDetails__grid vendorDetails__grid--four">
-              {statusHistory.map((item) => (
-                <div key={item.label} className="vendorDetails__stat">
-                  <span className="vendorDetails__statLabel">{item.label}</span>
-                  <span className="vendorDetails__statValue">{item.value}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <h2>Résumé</h2>
-            <div className="vendorDetails__grid vendorDetails__grid--four">
-              {stats.map((item) => (
-                <div key={item.label} className="vendorDetails__stat">
-                  <span className="vendorDetails__statLabel">{item.label}</span>
-                  <span className="vendorDetails__statValue">{item.value}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <h2>Informations légales</h2>
-            <div className="vendorDetails__grid vendorDetails__grid--three">
-              <div className="vendorDetails__card">
-                <h3>Immatriculation</h3>
-                <ul>
-                  <li>
-                    <strong>Numéro fiscal :</strong>{" "}
-                    {legal?.steuernummer ?? vendor?.steuernummer ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Numéro TVA :</strong> {legal?.ustIdNr ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Micro-entreprise :</strong>{" "}
-                    {legal?.kleinunternehmer ? "Oui" : "Non"}
-                  </li>
-                </ul>
-              </div>
-              <div className="vendorDetails__card">
-                <h3>Documents légaux</h3>
-                <ul>
-                  <li>
-                    <strong>Mentions légales :</strong>{" "}
-                    {legal?.impressumUrl ? (
-                      <a
-                        href={legal.impressumUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Consulter
-                      </a>
-                    ) : (
-                      "-"
-                    )}
-                  </li>
-                  <li>
-                    <strong>CGV :</strong>{" "}
-                    {legal?.cgvUrl ? (
-                      <a href={legal.cgvUrl} target="_blank" rel="noreferrer">
-                        Consulter
-                      </a>
-                    ) : (
-                      "-"
-                    )}
-                  </li>
-                  <li>
-                    <strong>Droit de rétractation :</strong>{" "}
-                    {legal?.widerrufUrl ? (
-                      <a
-                        href={legal.widerrufUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Consulter
-                      </a>
-                    ) : (
-                      "-"
-                    )}
-                  </li>
-                </ul>
-              </div>
-              <div className="vendorDetails__card">
-                <h3>Paiements</h3>
-                <ul>
-                  <li>
-                    <strong>IBAN :</strong> {bank?.iban ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Orange Money :</strong> {bank?.orangeMoney ?? "-"}
-                  </li>
-                  <li>
-                    <strong>Code marchand :</strong> {bank?.merchantCode ?? "-"}
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <h2>Activité & opérations</h2>
-            <div className="vendorDetails__grid vendorDetails__grid--two">
-              <div className="vendorDetails__card">
-                <h3>Ops, livraison & retrait</h3>
-                {opsDetails.length > 0 ? (
-                  <ul>
-                    {opsDetails.map((item) => (
-                      <li key={item.key}>
-                        <strong>{item.label} :</strong>{" "}
-                        <span style={{ whiteSpace: "pre-line" }}>{item.value}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>Aucune donnée ops enregistrée.</p>
-                )}
-              </div>
-              <div className="vendorDetails__card">
-                <h3>Food & conformité</h3>
-                <ul>
-                  <li>
-                    <strong>Activité alimentaire :</strong>{" "}
-                    {food?.isFoodBusiness ? "Oui" : "Non"}
-                  </li>
-                  <li>
-                    <strong>Chaîne du froid :</strong>{" "}
-                    {food?.coldChain ? "Oui" : "Non"}
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <h2>Consentements</h2>
-            <div className="vendorDetails__card">
-              {consent && Object.keys(consent).length > 0 ? (
-                <ul>
-                  {Object.entries(consent).map(([key, value]) => (
-                    <li key={key}>
-                      <strong>{formatConsentLabel(key)} :</strong>{" "}
-                      {value ? "Oui" : "Non"}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>Aucun consentement enregistré.</p>
-              )}
-            </div>
-          </section>
-
-          <section>
-            <h2>Documents requis</h2>
-            <div className="vendorDetails__card">
-              {requiredDocs.length > 0 ? (
-                <div className="vendorDetails__docsGrid">
-                  {requiredDocs.map((docKey) => {
-                    const label = REQUIRED_DOC_LABELS[docKey] || docKey;
-                    const delivered = Boolean(
-                      profile?.deliveredDocs?.[docKey] ?? vendor?.deliveredDocs?.[docKey]
-                    );
-                    return (
-                      <label
-                        key={docKey}
-                        className={`vendorDetails__docItem ${
-                          delivered ? "vendorDetails__docItem--delivered" : ""
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={delivered}
-                          readOnly
-                          disabled
-                        />
-                        <span className="vendorDetails__docLabel">{label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p>Aucun document supplémentaire requis.</p>
-              )}
-            </div>
-          </section>
-
-          <section>
-            <h2>Informations générales</h2>
-            <div className="vendorDetails__infoGrid--highlight">
-              <div className="vendorDetails__infoChip">
-                <span>Statut vendeur</span>
-                <span>{vendorStatus}</span>
-              </div>
-              <div className="vendorDetails__infoChip">
-                <span>Email</span>
-                <span>{company?.email ?? vendor?.email ?? "-"}</span>
-              </div>
-              <div className="vendorDetails__infoChip">
-                <span>Téléphone</span>
-                <span>{company?.phone ?? vendor?.phone ?? "-"}</span>
-              </div>
-              <div className="vendorDetails__infoChip">
-                <span>Ville</span>
-                <span>{company?.city ?? vendor?.city ?? "-"}</span>
-              </div>
-              <div className="vendorDetails__infoChip">
-                <span>Pays</span>
-                <span>{company?.country ?? vendor?.country ?? "-"}</span>
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <h2>Produits du vendeur</h2>
-            <div className="vendorDetails__card vendorDetails__products">
-              {productsLoading ? (
-                <p>Chargement des produits...</p>
-              ) : productsError ? (
-                <p className="vendorDetails__productsMessage vendorDetails__productsMessage--error">
-                  {productsError}
-                </p>
-              ) : !canModerateProducts ? (
-                <p className="vendorDetails__productsMessage">
-                  Aucun identifiant vendeur n'a ete trouve pour rattacher des produits.
-                </p>
-              ) : products.length === 0 ? (
-                <p className="vendorDetails__productsMessage">
-                  Aucun produit associé à ce vendeur pour le moment.
-                </p>
-              ) : (
-                <div className="vendorDetails__productsTableWrapper">
-                  <table className="vendorDetails__productsTable">
-                    <thead>
-                      <tr>
-                        <th>Produit</th>
-                        <th>Statut</th>
-                        <th>Prix</th>
-                        <th>Stock</th>
-                        <th>Dernière mise à jour</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {products.map((product) => {
-                        const productLabel = getProductLabel(product);
-                        const productStatus =
-                          product?.status ??
-                          product?.core?.status ??
-                          product?.draft?.core?.status ??
-                          null;
-                        const productActive =
-                          product?.active ??
-                          product?.isActive ??
-                          product?.core?.active ??
-                          product?.core?.isActive ??
-                          product?.draft?.core?.active ??
-                          product?.draft?.core?.isActive;
-                        const isProductBlocked =
-                          product?.blocked === true ||
-                          productStatus === "archived" ||
-                          productActive === false;
-                        let vendorStatusLabel = "Actif vendeur";
-                        if (isProductBlocked) {
-                          vendorStatusLabel = "Inactif vendeur";
-                        } else if (productStatus === "draft") {
-                          vendorStatusLabel = "Brouillon vendeur";
-                        } else if (productStatus === "pending") {
-                          vendorStatusLabel = "En attente vendeur";
-                        } else if (
-                          productStatus &&
-                          !["active", "published"].includes(productStatus)
-                        ) {
-                          vendorStatusLabel = `${String(productStatus)} vendeur`;
-                        }
-                        const vendorStatusClass = isProductBlocked
-                          ? "vendorDetails__statusChip--blocked"
-                          : "vendorDetails__statusChip--active";
-                        const adminStatusFlag = toStatusFlag(
-                          product?.mm_status ??
-                            product?.core?.mm_status ??
-                            product?.draft?.core?.mm_status
-                        );
-                        const adminStatusLabel = adminStatusFlag
-                          ? "Actif admin"
-                          : "Inactif admin";
-                        const adminStatusClass = adminStatusFlag
-                          ? "vendorDetails__statusChip--active"
-                          : "vendorDetails__statusChip--blocked";
-                        const blockedReason =
-                          product?.blockedReason ??
-                          product?.core?.blockedReason ??
-                          product?.draft?.core?.blockedReason ??
-                          null;
-                        const priceValue =
-                          product?.price ??
-                          product?.pricing?.basePrice ??
-                          product?.core?.pricing?.basePrice ??
-                          product?.draft?.core?.pricing?.basePrice;
-                        const currencyValue =
-                          product?.pricing?.currency ??
-                          product?.core?.pricing?.currency ??
-                          product?.draft?.core?.pricing?.currency ??
-                          "";
-                        const priceDisplay =
-                          priceValue === undefined || priceValue === null
-                            ? "-"
-                            : `${priceValue}${currencyValue ? ` ${currencyValue}` : ""}`;
-                        const stockValue =
-                          product?.stock ??
-                          product?.inventory?.stock ??
-                          product?.core?.inventory?.stock ??
-                          product?.draft?.core?.inventory?.stock ??
-                          "-";
-                        const lastUpdated =
-                          product?.updatedAt ??
-                          product?.core?.updatedAt ??
-                          product?.draft?.core?.updatedAt ??
-                          product?.timeStamp ??
-                          product?.createdAt ??
-                          product?.created_at ??
-                          product?.draft?.updatedAt;
-                        return (
-                          <tr
-                            key={product.id}
-                            className={
-                              isProductBlocked
-                                ? "vendorDetails__productRow vendorDetails__productRow--blocked"
-                                : "vendorDetails__productRow"
-                            }
-                          >
-                            <td>
-                              <div className="vendorDetails__productMain">
-                                <span className="vendorDetails__productName">
-                                  {productLabel || "Produit"}
-                                </span>
-                                {product?.product_id && (
-                                  <span className="vendorDetails__productMeta">
-                                    #{product.product_id}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td>
-                              <div className="vendorDetails__statusColumn">
-                                <span
-                                  className={`vendorDetails__statusChip ${vendorStatusClass}`}
-                                >
-                                  {vendorStatusLabel}
-                                </span>
-                                <span
-                                  className={`vendorDetails__statusChip ${adminStatusClass}`}
-                                >
-                                  {adminStatusLabel}
-                                </span>
-                              </div>
-                              {blockedReason && (
-                                <span className="vendorDetails__productReason">
-                                  {blockedReason}
-                                </span>
-                              )}
-                            </td>
-                            <td>{priceDisplay}</td>
-                            <td>{stockValue}</td>
-                            <td>{formatDateTime(lastUpdated)}</td>
-                            <td>
-                              <div className="vendorDetails__productActions">
-                                <Link
-                                  to={`/VendorProductsList/${product.id}`}
-                                  className="vendorDetails__tableButton vendorDetails__tableButton--link"
-                                >
-                                  Voir
-                                </Link>
-                                {isProductBlocked ? (
-                                  <button
-                                    type="button"
-                                    className="vendorDetails__tableButton vendorDetails__tableButton--success"
-                                    disabled={actionBusy}
-                                    onClick={() =>
-                                      openDialog({
-                                        type: "reactivateProduct",
-                                        product,
-                                      })
-                                    }
-                                  >
-                                    Activer
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    className="vendorDetails__tableButton vendorDetails__tableButton--danger"
-                                    disabled={actionBusy}
-                                    onClick={() =>
-                                      openDialog({ type: "blockProduct", product })
-                                    }
-                                  >
-                                    Bloquer
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </section>
+          <VendorProductsSection
+            productsLoading={productsLoading}
+            productsError={productsError}
+            canModerateProducts={canModerateProducts}
+            products={products}
+            actionBusy={actionBusy}
+            openDialog={openDialog}
+          />
         </div>
       </div>
-      {dialog && (
-        <div className="vendorDetails__dialogOverlay">
-          <div className="vendorDetails__dialog">
-            <h3>{dialogTitle}</h3>
-            {dialogDescription && (
-              <p className="vendorDetails__dialogDescription">
-                {dialogDescription}
-              </p>
-            )}
-            {dialog?.type === "deleteVendor" && (
-              <p className="vendorDetails__dialogWarning">
-                Attention: la suppression est definitive. Assurez-vous d'avoir
-                verifie les informations avant de confirmer.
-              </p>
-            )}
-            {dialogRequiresReason && (
-              <div className="vendorDetails__dialogField">
-                <label htmlFor="vendor-dialog-reason">
-                  {dialogReasonRequired
-                    ? "Motif de suppression (obligatoire)"
-                    : "Motif (optionnel)"}
-                </label>
-                <textarea
-                  id="vendor-dialog-reason"
-                  rows={4}
-                  value={dialogReason}
-                  onChange={(event) => {
-                    setDialogReason(event.target.value);
-                    if (dialogValidationError) {
-                      setDialogValidationError("");
-                    }
-                  }}
-                  placeholder="Expliquez la raison de cette action"
-                  required={dialogReasonRequired}
-                />
-                {dialogValidationError && (
-                  <p className="vendorDetails__dialogError">
-                    {dialogValidationError}
-                  </p>
-                )}
-              </div>
-            )}
-            <div className="vendorDetails__dialogActions">
-              <button
-                type="button"
-                className="vendorDetails__dialogButton"
-                onClick={closeDialog}
-                disabled={actionBusy}
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                className="vendorDetails__dialogButton vendorDetails__dialogButton--confirm"
-                onClick={handleDialogConfirm}
-                disabled={
-                  actionBusy ||
-                  (dialogReasonRequired && !dialogReason.trim())
-                }
-              >
-                {dialogConfirmLabel}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <VendorConfirmDialog
+        dialog={dialog}
+        dialogTitle={dialogTitle}
+        dialogDescription={dialogDescription}
+        dialogRequiresReason={dialogRequiresReason}
+        dialogReasonRequired={dialogReasonRequired}
+        dialogReason={dialogReason}
+        setDialogReason={setDialogReason}
+        dialogValidationError={dialogValidationError}
+        setDialogValidationError={setDialogValidationError}
+        closeDialog={closeDialog}
+        handleDialogConfirm={handleDialogConfirm}
+        actionBusy={actionBusy}
+        dialogConfirmLabel={dialogConfirmLabel}
+      />
       <ConfirmModal
         open={partnerConfirm.open}
         title={
