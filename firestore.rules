@@ -76,5 +76,16 @@ service cloud.firestore {
         !isProtectedPayoutCollection(collectionId) &&
         !isServerOnlyProductDeletionCollection(collectionId);
     }
+
+    // Requete "collection group" (collectionGroup(db, "products")) sur les
+    // sous-collections vendor_products/{vendorId}/products/{productId}.
+    // Le joker recursif ci-dessus (/{collectionId}/{docId}/{document=**})
+    // couvre les lectures directes mais PAS les requetes collection group :
+    // Firestore exige que le joker recursif precede le nom de la
+    // sous-collection (/{path=**}/products/{doc}) pour qu'une regle
+    // s'applique a ce type de requete.
+    match /{path=**}/products/{productId} {
+      allow read: if isAdmin();
+    }
   }
 }
