@@ -5,17 +5,8 @@
  *
  * App Einstellung
  */
-import Home from "./pages/home/Home";
-import Login from "./pages/login/Login";
-import List from "./pages/list/List"; 
-import Single from "./pages/single/Single";
-import New from "./pages/new/New";
-import NewProduct from "./pages/newProduct/NewProduct";
-import Order from "./pages/Order/Order";
-import Delivery from "./pages/Delivery/Delivery";
-import DetailsOrder from "./components/detailsOrder/DetailsOrder";
+import { lazy, Suspense, useContext } from "react";
 import "./style/dark.scss";
-import { useContext } from "react";
 import { DarkModeContext } from "./context/darkModeContext";
 import { AuthContext } from "./context/AuthContext";
 import { productInputs, userInputs, zonesInputs } from "./formSource";
@@ -28,35 +19,60 @@ import {
   zonesColumns,
 } from "./datatablesource";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Details from "./pages/productDetails/Details";
-import DeliveredOrders from "./components/deliveredOrders/DeliveredOrdersInfos";
-import Zone from "./pages/zones/Zone"; 
-import VendorsList from "./pages/vendors/VendorsList";
-import VendorDetails from "./pages/vendors/VendorDetails";
-import VendorProductsList from "./pages/vendorProducts/VendorProductsList";
-import VendorProductDetails from "./pages/vendorProducts/VendorProductDetails";
-import PublicCatalogList from "./pages/publicCatalog/PublicCatalogList";
 import { SidebarProvider } from "./context/sidebarContext";
-import MarketingOverview from "./pages/marketing/MarketingOverview";
-import BannerList from "./pages/marketing/BannerList";
-import BannerEditor from "./pages/marketing/BannerEditor";
-import SponsorList from "./pages/marketing/SponsorList";
-import SponsorEditor from "./pages/marketing/SponsorEditor";
-import BestsellerList from "./pages/marketing/BestsellerList";
-import BestsellerEditor from "./pages/marketing/BestsellerEditor";
-import MarketingCategories from "./pages/marketing/MarketingCategories";
-import MarketingCategoryCoverEditor from "./pages/marketing/MarketingCategoryCoverEditor";
-import VendorPayoutsList from "./pages/vendorPayouts/VendorPayoutsList";
-import VendorPayoutDetails from "./pages/vendorPayouts/VendorPayoutDetails";
-import GuineaCitiesList from "./pages/cities/GuineaCitiesList";
-import CityEditor from "./pages/cities/CityEditor";
-import StatisticsOverview from "./pages/statistics/StatisticsOverview";
-import StatisticsSales from "./pages/statistics/StatisticsSales";
-import StatisticsVendors from "./pages/statistics/StatisticsVendors";
-import StatisticsPayouts from "./pages/statistics/StatisticsPayouts";
-import StatisticsCatalog from "./pages/statistics/StatisticsCatalog";
-import ProductDeletionsList from "./pages/productDeletions/ProductDeletionsList";
-import ImageOptimization from "./pages/imageOptimization/ImageOptimization";
+
+// Chaque page est chargee a la demande (code-splitting par route) plutot que
+// regroupee dans un seul bundle : l'admin ne telecharge que le code des
+// pages qu'il visite reellement au lieu de tout charger au premier lancement.
+const Home = lazy(() => import("./pages/home/Home"));
+const Login = lazy(() => import("./pages/login/Login"));
+const List = lazy(() => import("./pages/list/List"));
+const Single = lazy(() => import("./pages/single/Single"));
+const New = lazy(() => import("./pages/new/New"));
+const NewProduct = lazy(() => import("./pages/newProduct/NewProduct"));
+const Order = lazy(() => import("./pages/Order/Order"));
+const Delivery = lazy(() => import("./pages/Delivery/Delivery"));
+const DetailsOrder = lazy(() => import("./components/detailsOrder/DetailsOrder"));
+const Details = lazy(() => import("./pages/productDetails/Details"));
+const DeliveredOrders = lazy(() =>
+  import("./components/deliveredOrders/DeliveredOrdersInfos")
+);
+const Zone = lazy(() => import("./pages/zones/Zone"));
+const VendorsList = lazy(() => import("./pages/vendors/VendorsList"));
+const VendorDetails = lazy(() => import("./pages/vendors/VendorDetails"));
+const VendorProductsList = lazy(() =>
+  import("./pages/vendorProducts/VendorProductsList")
+);
+const VendorProductDetails = lazy(() =>
+  import("./pages/vendorProducts/VendorProductDetails")
+);
+const PublicCatalogList = lazy(() => import("./pages/publicCatalog/PublicCatalogList"));
+const MarketingOverview = lazy(() => import("./pages/marketing/MarketingOverview"));
+const BannerList = lazy(() => import("./pages/marketing/BannerList"));
+const BannerEditor = lazy(() => import("./pages/marketing/BannerEditor"));
+const SponsorList = lazy(() => import("./pages/marketing/SponsorList"));
+const SponsorEditor = lazy(() => import("./pages/marketing/SponsorEditor"));
+const BestsellerList = lazy(() => import("./pages/marketing/BestsellerList"));
+const BestsellerEditor = lazy(() => import("./pages/marketing/BestsellerEditor"));
+const MarketingCategories = lazy(() => import("./pages/marketing/MarketingCategories"));
+const MarketingCategoryCoverEditor = lazy(() =>
+  import("./pages/marketing/MarketingCategoryCoverEditor")
+);
+const VendorPayoutsList = lazy(() => import("./pages/vendorPayouts/VendorPayoutsList"));
+const VendorPayoutDetails = lazy(() =>
+  import("./pages/vendorPayouts/VendorPayoutDetails")
+);
+const GuineaCitiesList = lazy(() => import("./pages/cities/GuineaCitiesList"));
+const CityEditor = lazy(() => import("./pages/cities/CityEditor"));
+const StatisticsOverview = lazy(() => import("./pages/statistics/StatisticsOverview"));
+const StatisticsSales = lazy(() => import("./pages/statistics/StatisticsSales"));
+const StatisticsVendors = lazy(() => import("./pages/statistics/StatisticsVendors"));
+const StatisticsPayouts = lazy(() => import("./pages/statistics/StatisticsPayouts"));
+const StatisticsCatalog = lazy(() => import("./pages/statistics/StatisticsCatalog"));
+const ProductDeletionsList = lazy(() =>
+  import("./pages/productDeletions/ProductDeletionsList")
+);
+const ImageOptimization = lazy(() => import("./pages/imageOptimization/ImageOptimization"));
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -78,6 +94,7 @@ function App() {
     <div className={darkMode ? "app dark " : "app"}>
       <SidebarProvider>
         <BrowserRouter>
+          <Suspense fallback={null}>
           <Routes>
           <Route path="/">
             <Route path="login" element={<Login />} />
@@ -586,7 +603,7 @@ function App() {
                   </RequireAuth>
                 }
               />
-            </Route> 
+            </Route>
 
             {/*Vendor Payouts*/}
             <Route path="vendor-payouts">
@@ -651,6 +668,7 @@ function App() {
             />
           </Route>
         </Routes>
+        </Suspense>
       </BrowserRouter>
       </SidebarProvider>
     </div>
