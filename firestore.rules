@@ -1,91 +1,262 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() {
+
+    /* Helpers */
+    function isAuthed() {
       return request.auth != null;
     }
 
-    // ATTENTION: cet UID doit rester synchronise manuellement avec
-    // src/config/adminConfig.js et functions/src/config.ts (le langage
-    // des regles Firestore ne permet pas d'importer une constante externe).
+    function isSelf(uid) {
+      return isAuthed() && request.auth.uid == uid;
+    }
+
+    // superAdmin = ton compte actuel
     function isSuperAdmin() {
-      return isSignedIn() &&
-        request.auth.uid == "rgFo1YPQNDdJxyfRCiWFXETpJHB2";
+      return isAuthed() &&
+             request.auth.uid == "rgFo1YPQNDdJxyfRCiWFXETpJHB2";
     }
 
+    // admin = superAdmin OU utilisateur ayant un doc dans /admin/{uid}
     function isAdmin() {
-      return isSignedIn() && (
-        isSuperAdmin() ||
-        exists(/databases/$(database)/documents/admin/$(request.auth.uid))
-      );
+      return isSuperAdmin()
+        || (isAuthed()
+            && exists(/databases/$(database)/documents/admin/$(request.auth.uid)));
     }
 
-    function isProtectedPayoutCollection(collectionId) {
-      return collectionId == "vendor_ledger" ||
-        collectionId == "vendor_balances" ||
-        collectionId == "vendor_payout_batches";
+    function isStockDecrementOnly() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(['stock']) &&
+             resource.data.stock is number &&
+             request.resource.data.stock is number &&
+             request.resource.data.stock >= 0 &&
+             request.resource.data.stock <= resource.data.stock;
     }
 
-    function isServerOnlyProductDeletionCollection(collectionId) {
-      return collectionId == "archived_vendor_products" ||
-        collectionId == "product_change_requests" ||
-        collectionId == "image_optimization_jobs" ||
-        collectionId == "image_optimization_config";
+    function isVariantsStockUpdateOnly() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(['variants']) &&
+             request.resource.data.variants is map;
     }
 
-    // Gestion du profil admin
-    match /admin/{userId} {
+    function isCatalogLockedFor(uid) {
+      return exists(/databases/$(database)/documents/vendors/$(uid)) &&
+             get(/databases/$(database)/documents/vendors/$(uid)).data.lockCatalog == true;
+    }
+
+    /* users */
+    match /users/{document=**} {
+      allow create: if true;
+      allow read, write: if true;
+    }
+    /* admins */
+    match /admin/{uid} {
+
+      // Tous les admins peuvent voir la liste des admins
       allow read: if isAdmin();
-      allow create, update, delete: if isSuperAdmin() || (isAdmin() && request.auth.uid == userId);
+      allow create, update, delete: if isSuperAdmin() || (isAdmin() && request.auth.uid == uid);
 
+      // Seul le superAdmin peut créer de nouveaux admins
+      allow create: if isSuperAdmin();
+
+      // Mise à jour : superAdmin peut tout, un admin peut modifier son propre profil
+      allow update: if isSuperAdmin() || (isAdmin() && isSelf(uid));
+
+      // Suppression : uniquement superAdmin
+      allow delete: if isSuperAdmin();
+    }
+    match /admin/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
       match /workSessions/{sessionId} {
-        allow read, write: if isSuperAdmin() || (isAdmin() && request.auth.uid == userId);
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
 
-    // Collections de paiement vendeur: lecture admin uniquement.
-    // Les écritures passent par Cloud Functions/Admin SDK, qui bypass les règles Firestore.
-    match /vendor_ledger/{docId} {
+    /* drivers : CRUD limité aux admins, lecture par le driver lui-même possible */
+    match /drivers/{uid} {
+      // Un driver peut lire ses propres infos
+      allow read: if isAdmin() || isSelf(uid);
+
+      // Création / modification / suppression uniquement par un admin
+      allow create, update, delete: if isAdmin();
+    }
+
+     /* Suppression du vendeur : limité aux admins */
+    match /deletedVendors/{vendorId} {
+      allow read, create, update, delete: if isAdmin();
+
+      match /{document=**} {
+        allow read, create, update, delete: if isAdmin();
+      }
+    }
+
+    // Bannières marketing categories (admin UI)
+    match /categories/{categoryId} {
+      allow read: if true; // ou isAuthed() si tu veux restreindre
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Bannières marketing (admin UI)
+    match /banners/{bannerId} {
+      // Un driver peut lire ses propres infos
+      allow read: if isAdmin() || isSelf(uid);
+
+      // Création / modification / suppression uniquement par un admin
+      allow create, update, delete: if isAdmin();
+    }
+
+		// Bannières marketing (admin UI)
+    match /sponsors/{sponsorId} {
+      // Un driver peut lire ses propres infos
+      allow read: if isAdmin() || isSelf(uid);
+
+      // Création / modification / suppression uniquement par un admin
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Bestseller marketing (admin UI)
+    match /bestseller/{document=**} {
+      // Un driver peut lire ses propres infos
+      allow read: if isAdmin() || isSelf(uid);
+
+      // Création / modification / suppression uniquement par un admin
+      allow create, update, delete: if isAdmin();
+    }
+
+    /* vendors (général) */
+    match /vendors/{document=**} {
+      allow create: if true;
+      allow read, write: if true;
+    }
+
+    /* vendors : create libre pour soi, update/delete bloqués si lockEdits=true */
+    match /vendors/{userId} {
+      allow create: if isSelf(userId);
+      allow read:   if isSelf(userId);
+      allow update, delete: if isSelf(userId) && !(resource.data.lockEdits == true);
+    }
+
+    /* orders & archivedOrders (inchangé) */
+    match /orders/{document=**}         { allow read, write: if true; }
+    match /archivedOrders/{document=**} { allow read, write: if true; }
+
+    /* mail (inchangé) */
+    match /mail/{document=**} { allow write: if true; }
+
+    /* game / gameTest (inchangé) */
+    match /game/{codeId} {
+      allow create: if request.auth != null;
+      allow read, update: if request.auth != null;
+      allow delete: if (request.auth != null && resource.data.createdBy == request.auth.uid)
+                    || request.auth.uid == 'rgFo1YPQNDdJxyfRCiWFXETpJHB2';
+    }
+
+    match /gameTest/{document=**} { allow read, write: if true; }
+
+    /* zones (inchangé) */
+    match /zones/{zoneId} { allow read, write: if isAuthed(); }
+
+    /* products : vos produits internes (lecture publique, writes via backend/admin si besoin) */
+    match /products/{productId} {
+      // lecture publique comme avant
+      allow read: if true;
+
+      allow create, read, write:
+        if isAdmin();
+    }
+
+    /* ---------- vendor_products : produits des vendeurs ---------- */
+
+    /* Modèle plat : /vendor_products/{productId} (avec champ vendorId) */
+      match /vendor_products/{productId} {
+      function isOwnerFromPayload() {
+        return isAuthed() &&
+               request.resource.data.vendorId is string &&
+               request.resource.data.vendorId == request.auth.uid;
+      }
+
+      function isOwnerExisting() {
+        return isAuthed() &&
+               resource.data.vendorId is string &&
+               resource.data.vendorId == request.auth.uid;
+      }
+
+      allow read: if isAuthed() || isAdmin();
+
+      allow create: if (isOwnerFromPayload() && !isCatalogLockedFor(request.auth.uid)) || isAdmin();
+
+      allow update: if
+        (isOwnerExisting() && !isCatalogLockedFor(request.auth.uid)) ||
+        isAdmin() ||
+        (isAuthed() && isStockDecrementOnly());
+
+      allow delete: if (isOwnerExisting() && !isCatalogLockedFor(request.auth.uid)) || isAdmin();
+    }
+
+    /* catalog_public : publié uniquement par Cloud Functions */
+    match /catalog_public/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /products_public/{productId} {
+      function isOwnerFromPayload() {
+        return isAuthed() &&
+               request.resource.data.vendorId is string &&
+               request.resource.data.vendorId == request.auth.uid;
+    }
+
+      function isOwnerExisting() {
+        return isAuthed() &&
+               resource.data.vendorId is string &&
+               resource.data.vendorId == request.auth.uid;
+      }
+
+      allow read: if true;
+
+      allow create: if isOwnerFromPayload() || isAdmin();
+
+      allow update: if
+        isOwnerExisting() ||
+        isAdmin() ||
+        (isAuthed() && isStockDecrementOnly());
+
+      allow delete: if isOwnerExisting() || isAdmin();
+    }
+
+    match /cities/{cityId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+		match /app_config/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    match /admin/{uid}/notifications/{id} {
+      allow read, update, delete: if isAdmin();
+      allow create: if false; // créé uniquement par Cloud Functions
+    }
+    match /product_sales_ledger/{entryId} {
       allow read: if isAdmin();
       allow write: if false;
     }
 
-    match /vendor_balances/{docId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
+    match /image_optimization_jobs/{jobId} {
+  allow read: if isAdmin();
+  allow write: if false;
 
-    match /vendor_payout_batches/{docId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
+  match /{document=**} {
+    allow read: if isAdmin();
+    allow write: if false;
+  }
+}
 
-    // Toutes les collections metier (hors /admin) accessibles aux admins connectes.
-    match /{collectionId}/{docId} {
-      allow read: if isAdmin() && collectionId != "admin";
-      allow write: if isAdmin() &&
-        collectionId != "admin" &&
-        !isProtectedPayoutCollection(collectionId) &&
-        !isServerOnlyProductDeletionCollection(collectionId);
-    }
+match /image_optimization_config/{documentId} {
+  allow read: if isAdmin();
+  allow write: if false;
+}
 
-    match /{collectionId}/{docId}/{document=**} {
-      allow read: if isAdmin() && collectionId != "admin";
-      allow write: if isAdmin() &&
-        collectionId != "admin" &&
-        !isProtectedPayoutCollection(collectionId) &&
-        !isServerOnlyProductDeletionCollection(collectionId);
-    }
-
-    // Requete "collection group" (collectionGroup(db, "products")) sur les
-    // sous-collections vendor_products/{vendorId}/products/{productId}.
-    // Le joker recursif ci-dessus (/{collectionId}/{docId}/{document=**})
-    // couvre les lectures directes mais PAS les requetes collection group :
-    // Firestore exige que le joker recursif precede le nom de la
-    // sous-collection (/{path=**}/products/{doc}) pour qu'une regle
-    // s'applique a ce type de requete.
-    match /{path=**}/products/{productId} {
-      allow read: if isAdmin();
+    /* catch-all read (inchangé) */
+    match /{document=**} {
+      allow read: if true;
     }
   }
 }
