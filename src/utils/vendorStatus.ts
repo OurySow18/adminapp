@@ -7,9 +7,11 @@ export const VENDOR_STATUS_VALUES = [
   "approved",
   "rejected",
   "blocked",
-];
+] as const;
 
-const STATUS_ALIASES = {
+export type VendorStatus = (typeof VENDOR_STATUS_VALUES)[number];
+
+const STATUS_ALIASES: Record<string, VendorStatus> = {
   pending: "submitted",
   pause: "paused",
   en_pause: "paused",
@@ -30,7 +32,7 @@ const STATUS_ALIASES = {
   inactive: "blocked",
 };
 
-export const VENDOR_STATUS_LABELS = {
+export const VENDOR_STATUS_LABELS: Record<VendorStatus, string> = {
   draft: "Brouillon",
   submitted: "Soumis",
   paused: "En pause",
@@ -41,7 +43,20 @@ export const VENDOR_STATUS_LABELS = {
   blocked: "Bloqué",
 };
 
-const toBooleanFlag = (value) => {
+// Les documents Firestore vendeur n'ont pas de schema formel garanti ; on les
+// traite comme des sacs de champs potentiellement absents/mal types.
+type VendorData = Record<string, any>;
+
+interface AccountState {
+  key: string;
+  label: string;
+  description: string;
+  reason: string;
+  deletedAt: unknown;
+  requiresPayoutReview: boolean;
+}
+
+const toBooleanFlag = (value: unknown): boolean | undefined => {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value !== 0;
   if (typeof value === "string") {
@@ -57,28 +72,28 @@ const toBooleanFlag = (value) => {
   return undefined;
 };
 
-const hasTimestampValue = (value) => {
+const hasTimestampValue = (value: unknown): boolean => {
   if (value === undefined || value === null || value === "") return false;
-  if (typeof value?.toDate === "function") return true;
+  if (typeof (value as any)?.toDate === "function") return true;
   if (value instanceof Date) return !Number.isNaN(value.getTime());
   if (typeof value === "number") return Number.isFinite(value);
   if (typeof value === "string") {
     const parsed = new Date(value);
     return !Number.isNaN(parsed.getTime());
   }
-  if (typeof value === "object" && typeof value.seconds === "number") {
+  if (typeof value === "object" && typeof (value as any).seconds === "number") {
     return true;
   }
   return false;
 };
 
-const hasNonEmptyValue = (value) => {
+const hasNonEmptyValue = (value: unknown): boolean => {
   if (value === undefined || value === null) return false;
   if (typeof value === "string") return value.trim().length > 0;
   return true;
 };
 
-const getPauseMeta = (data) => {
+const getPauseMeta = (data: VendorData) => {
   const pause = data?.pause ?? data?.profile?.pause ?? {};
   const explicitPauseCandidates = [
     data?.isPaused,
@@ -89,7 +104,7 @@ const getPauseMeta = (data) => {
     pause?.paused,
   ];
 
-  let explicitPaused;
+  let explicitPaused: boolean | undefined;
   for (const candidate of explicitPauseCandidates) {
     const normalized = toBooleanFlag(candidate);
     if (normalized !== undefined) {
@@ -129,7 +144,7 @@ const getPauseMeta = (data) => {
   };
 };
 
-export const isVendorPauseRequested = (data) => {
+export const isVendorPauseRequested = (data: VendorData): boolean => {
   if (!data || typeof data !== "object") return false;
   const meta = getPauseMeta(data);
   if (meta.hasResumedMarker) return false;
@@ -137,7 +152,7 @@ export const isVendorPauseRequested = (data) => {
   return meta.requestedActive === true;
 };
 
-export const isVendorPaused = (data) => {
+export const isVendorPaused = (data: VendorData): boolean => {
   if (!data || typeof data !== "object") return false;
   const meta = getPauseMeta(data);
   if (meta.hasResumedMarker) return false;
@@ -146,10 +161,11 @@ export const isVendorPaused = (data) => {
   return false;
 };
 
-export const isVendorStatus = (value) =>
-  typeof value === "string" && VENDOR_STATUS_VALUES.includes(value);
+export const isVendorStatus = (value: unknown): value is VendorStatus =>
+  typeof value === "string" &&
+  (VENDOR_STATUS_VALUES as readonly string[]).includes(value);
 
-export const normalizeVendorStatus = (value) => {
+export const normalizeVendorStatus = (value: unknown): VendorStatus | undefined => {
   if (typeof value !== "string") return undefined;
   const normalized = value.replace(/\s+/g, "_").toLowerCase();
   if (isVendorStatus(normalized)) return normalized;
@@ -158,7 +174,10 @@ export const normalizeVendorStatus = (value) => {
   return undefined;
 };
 
-export const resolveVendorStatus = (data, fallback = "draft") => {
+export const resolveVendorStatus = (
+  data: VendorData,
+  fallback: VendorStatus | string = "draft"
+): VendorStatus | string => {
   if (!data || typeof data !== "object") return fallback;
   const effectivePause = isVendorPaused(data);
   if (effectivePause) return "paused";
@@ -179,24 +198,24 @@ export const resolveVendorStatus = (data, fallback = "draft") => {
   return fallback;
 };
 
-export const getVendorStatusLabel = (status) =>
-  VENDOR_STATUS_LABELS[status] ?? status ?? "";
+export const getVendorStatusLabel = (status: VendorStatus | string): string =>
+  VENDOR_STATUS_LABELS[status as VendorStatus] ?? status ?? "";
 
-const firstNonEmptyString = (...values) => {
+const firstNonEmptyString = (...values: unknown[]): string => {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) return value.trim();
   }
   return "";
 };
 
-const firstBoolean = (...values) => {
+const firstBoolean = (...values: unknown[]): boolean | undefined => {
   for (const value of values) {
     if (typeof value === "boolean") return value;
   }
   return undefined;
 };
 
-const hasDeletedMarker = (data) =>
+const hasDeletedMarker = (data: VendorData): boolean =>
   Boolean(
     data?.deletedAt ||
       data?.archivedAt ||
@@ -205,7 +224,7 @@ const hasDeletedMarker = (data) =>
       data?.deletedByEmail
   );
 
-export const getVendorBlockedReason = (data) =>
+export const getVendorBlockedReason = (data: VendorData): string =>
   firstNonEmptyString(
     data?.blockedReason,
     data?.profile?.blockedReason,
@@ -213,10 +232,13 @@ export const getVendorBlockedReason = (data) =>
     data?.vendor?.blockedReason
   );
 
-export const getVendorDeletedReason = (data) =>
+export const getVendorDeletedReason = (data: VendorData): string =>
   firstNonEmptyString(data?.deleteReason, data?.deletedReason, data?.reason);
 
-export const resolveVendorAccountState = (vendorData, deletedVendorData) => {
+export const resolveVendorAccountState = (
+  vendorData: VendorData,
+  deletedVendorData: VendorData
+): AccountState => {
   if (deletedVendorData && typeof deletedVendorData === "object") {
     return {
       key: "deleted",
