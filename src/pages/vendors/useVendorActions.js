@@ -20,6 +20,7 @@ import { ensureUniqueVendorSlug } from "../../utils/slugUtils";
 import {
   BLOCKED_VENDOR_NOTIFY_EMAIL,
   buildArchivedDocId,
+  escapeHtml,
   getPrimaryProductDocRef,
   getProductLabel,
   sanitizeForFirestore,
@@ -410,6 +411,9 @@ export const useVendorActions = ({
           vendor?.id ||
           "Boutique";
         const reasonText = normalizedReason || "Aucun motif renseigné";
+        const vendorNameSafe = escapeHtml(vendorName);
+        const reasonTextSafe = escapeHtml(reasonText);
+        const vendorEmailSafe = escapeHtml(vendorEmail || "-");
 
         const vendorHtml = `
           <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -421,8 +425,8 @@ export const useVendorActions = ({
               </div>
               <div style="padding:20px">
                 <p>Bonjour,</p>
-                <p>Votre boutique <strong>${vendorName}</strong> a été bloquée le ${blockedAtText}.</p>
-                <p><strong>Motif :</strong> ${reasonText}</p>
+                <p>Votre boutique <strong>${vendorNameSafe}</strong> a été bloquée le ${blockedAtText}.</p>
+                <p><strong>Motif :</strong> ${reasonTextSafe}</p>
                 <p>Si vous pensez qu'il s'agit d'une erreur, contactez le support Monmarché.</p>
                 <p>Merci,</p>
                 <p>Service Client Monmarché</p>
@@ -442,12 +446,12 @@ export const useVendorActions = ({
                 <h1 style="margin:0;font-size:18px">Boutique bloquée (admin)</h1>
               </div>
               <div style="padding:20px">
-                <p><strong>Boutique :</strong> ${vendorName}</p>
-                <p><strong>Vendor ID :</strong> ${vendor?.id ?? "-"}</p>
-                <p><strong>Email :</strong> ${vendorEmail || "-"}</p>
+                <p><strong>Boutique :</strong> ${vendorNameSafe}</p>
+                <p><strong>Vendor ID :</strong> ${escapeHtml(vendor?.id ?? "-")}</p>
+                <p><strong>Email :</strong> ${vendorEmailSafe}</p>
                 <p><strong>Bloquée le :</strong> ${blockedAtText}</p>
-                <p><strong>Motif :</strong> ${reasonText}</p>
-                <p><strong>Admin :</strong> ${adminEmail || "admin"} (${adminUid || "-"})</p>
+                <p><strong>Motif :</strong> ${reasonTextSafe}</p>
+                <p><strong>Admin :</strong> ${escapeHtml(adminEmail || "admin")} (${escapeHtml(adminUid || "-")})</p>
               </div>
             </div>
           </body></html>`;
@@ -564,6 +568,8 @@ export const useVendorActions = ({
         vendor?.profile?.name ||
         vendor?.id ||
         "Boutique";
+      const vendorNameSafe = escapeHtml(vendorName);
+      const vendorEmailSafe = escapeHtml(vendorEmail || "-");
 
       const vendorHtml = `
         <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -575,7 +581,7 @@ export const useVendorActions = ({
             </div>
             <div style="padding:20px">
               <p>Bonjour,</p>
-              <p>Votre boutique <strong>${vendorName}</strong> a été débloquée le ${unblockedAtText}.</p>
+              <p>Votre boutique <strong>${vendorNameSafe}</strong> a été débloquée le ${unblockedAtText}.</p>
               <p>Vous pouvez reprendre votre activité sur Monmarché.</p>
               <p>Merci,</p>
               <p>Service Client Monmarché</p>
@@ -595,11 +601,11 @@ export const useVendorActions = ({
               <h1 style="margin:0;font-size:18px">Boutique débloquée (admin)</h1>
             </div>
             <div style="padding:20px">
-              <p><strong>Boutique :</strong> ${vendorName}</p>
-              <p><strong>Vendor ID :</strong> ${vendor?.id ?? "-"}</p>
-              <p><strong>Email :</strong> ${vendorEmail || "-"}</p>
+              <p><strong>Boutique :</strong> ${vendorNameSafe}</p>
+              <p><strong>Vendor ID :</strong> ${escapeHtml(vendor?.id ?? "-")}</p>
+              <p><strong>Email :</strong> ${vendorEmailSafe}</p>
               <p><strong>Débloquée le :</strong> ${unblockedAtText}</p>
-              <p><strong>Admin :</strong> ${adminEmail || "admin"} (${adminUid || "-"})</p>
+              <p><strong>Admin :</strong> ${escapeHtml(adminEmail || "admin")} (${escapeHtml(adminUid || "-")})</p>
             </div>
           </div>
         </body></html>`;
@@ -809,6 +815,9 @@ export const useVendorActions = ({
           const titleText = isValidationFlow
             ? "Votre pause a été validée"
             : "Votre boutique est en pause";
+          const vendorNameSafe = escapeHtml(vendorName);
+          const reasonTextSafe = escapeHtml(reasonText);
+          const vendorEmailSafe = escapeHtml(vendorEmail || "-");
 
           const vendorHtml = `
             <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -820,8 +829,8 @@ export const useVendorActions = ({
                 </div>
                 <div style="padding:20px">
                   <p>Bonjour,</p>
-                  <p>Votre boutique <strong>${vendorName}</strong> est en pause depuis le ${pausedAtText}.</p>
-                  <p><strong>Motif :</strong> ${reasonText}</p>
+                  <p>Votre boutique <strong>${vendorNameSafe}</strong> est en pause depuis le ${pausedAtText}.</p>
+                  <p><strong>Motif :</strong> ${reasonTextSafe}</p>
                   <p>Si vous pensez qu'il s'agit d'une erreur, contactez le support Monmarché.</p>
                   <p>Merci,</p>
                   <p>Service Client Monmarché</p>
@@ -841,12 +850,12 @@ export const useVendorActions = ({
                   <h1 style="margin:0;font-size:18px">Boutique en pause (admin)</h1>
                 </div>
                 <div style="padding:20px">
-                  <p><strong>Boutique :</strong> ${vendorName}</p>
-                  <p><strong>Vendor ID :</strong> ${vendor?.id ?? "-"}</p>
-                  <p><strong>Email :</strong> ${vendorEmail || "-"}</p>
+                  <p><strong>Boutique :</strong> ${vendorNameSafe}</p>
+                  <p><strong>Vendor ID :</strong> ${escapeHtml(vendor?.id ?? "-")}</p>
+                  <p><strong>Email :</strong> ${vendorEmailSafe}</p>
                   <p><strong>Pause le :</strong> ${pausedAtText}</p>
-                  <p><strong>Motif :</strong> ${reasonText}</p>
-                  <p><strong>Admin :</strong> ${adminEmail || "admin"} (${adminUid || "-"})</p>
+                  <p><strong>Motif :</strong> ${reasonTextSafe}</p>
+                  <p><strong>Admin :</strong> ${escapeHtml(adminEmail || "admin")} (${escapeHtml(adminUid || "-")})</p>
                 </div>
               </div>
             </body></html>`;
@@ -1139,6 +1148,9 @@ export const useVendorActions = ({
             vendor?.id ||
             "Boutique";
           const reasonText = normalizedReason || "Aucun motif renseigné";
+          const vendorNameSafe = escapeHtml(vendorName);
+          const reasonTextSafe = escapeHtml(reasonText);
+          const vendorEmailSafe = escapeHtml(vendorEmail || "-");
 
           const vendorHtml = `
             <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -1150,8 +1162,8 @@ export const useVendorActions = ({
                 </div>
                 <div style="padding:20px">
                   <p>Bonjour,</p>
-                  <p>Votre boutique <strong>${vendorName}</strong> a été supprimée le ${deletedAtText}.</p>
-                  <p><strong>Motif :</strong> ${reasonText}</p>
+                  <p>Votre boutique <strong>${vendorNameSafe}</strong> a été supprimée le ${deletedAtText}.</p>
+                  <p><strong>Motif :</strong> ${reasonTextSafe}</p>
                   <p>Si vous pensez qu'il s'agit d'une erreur, contactez le support Monmarché.</p>
                   <p>Merci,</p>
                   <p>Service Client Monmarché</p>
@@ -1171,12 +1183,12 @@ export const useVendorActions = ({
                   <h1 style="margin:0;font-size:18px">Boutique supprimée (admin)</h1>
                 </div>
                 <div style="padding:20px">
-                  <p><strong>Boutique :</strong> ${vendorName}</p>
-                  <p><strong>Vendor ID :</strong> ${vendor?.id ?? "-"}</p>
-                  <p><strong>Email :</strong> ${vendorEmail || "-"}</p>
+                  <p><strong>Boutique :</strong> ${vendorNameSafe}</p>
+                  <p><strong>Vendor ID :</strong> ${escapeHtml(vendor?.id ?? "-")}</p>
+                  <p><strong>Email :</strong> ${vendorEmailSafe}</p>
                   <p><strong>Supprimée le :</strong> ${deletedAtText}</p>
-                  <p><strong>Motif :</strong> ${reasonText}</p>
-                  <p><strong>Admin :</strong> ${actorEmail || actor} (${actorUid || "-"})</p>
+                  <p><strong>Motif :</strong> ${reasonTextSafe}</p>
+                  <p><strong>Admin :</strong> ${escapeHtml(actorEmail || actor)} (${escapeHtml(actorUid || "-")})</p>
                 </div>
               </div>
             </body></html>`;

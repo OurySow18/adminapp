@@ -9,6 +9,28 @@ import { format } from "date-fns";
 export const PROTECTED_VENDOR_EMAIL = "monmarchegn@gmail.com";
 export const BLOCKED_VENDOR_NOTIFY_EMAIL = "infos@monmarchegn.com";
 
+// Echappe les valeurs injectees dans les templates HTML d'email (nom
+// boutique, motif...) qui peuvent contenir du texte fourni par le vendeur.
+// Sans ca, un vendeur pourrait injecter du HTML/liens dans les emails
+// envoyes en son nom et a l'equipe admin.
+export const escapeHtml = (value) =>
+  String(value ?? "").replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return char;
+    }
+  });
+
 export const formatDateTime = (value) => {
   if (!value) return "-";
 
