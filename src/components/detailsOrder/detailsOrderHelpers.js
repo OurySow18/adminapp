@@ -4,6 +4,28 @@
 import { format } from "date-fns";
 import { resolveOrderDate } from "../../utils/orderDate";
 
+// Echappe les valeurs injectees dans les templates HTML d'email (nom,
+// adresse, message...) qui peuvent contenir du texte fourni par le client.
+// Sans ca, un client pourrait injecter du HTML/liens dans les emails
+// envoyes en son nom (meme correctif que vendorDetailsHelpers.js).
+export const escapeHtml = (value) =>
+  String(value ?? "").replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return char;
+    }
+  });
+
 export const formatPrice = (price) => {
   const safe = Number(price);
   return (Number.isFinite(safe) ? safe : 0).toLocaleString("fr-FR", {
@@ -224,19 +246,19 @@ export const buildPaymentEmailHtml = (details) => `
       <table class="responsive-table">
         <tr>
           <td>
-            <p><strong>No Facture:</strong> ${details?.orderId || ""}</p>
-            <p><strong>Nom:</strong> ${details?.deliverInfos?.name || ""} </p>
+            <p><strong>No Facture:</strong> ${escapeHtml(details?.orderId || "")}</p>
+            <p><strong>Nom:</strong> ${escapeHtml(details?.deliverInfos?.name || "")} </p>
             <p><strong>Adresse:</strong> ${
-              details?.deliverInfos?.address || ""
+              escapeHtml(details?.deliverInfos?.address || "")
             }</p>
             <p><strong>Téléphone:</strong> ${
-              details?.deliverInfos?.phone || ""
+              escapeHtml(details?.deliverInfos?.phone || "")
             }</p>
             <p><strong>Informations supplémentaires:</strong> ${
-              details?.deliverInfos?.additionalInfo || ""
+              escapeHtml(details?.deliverInfos?.additionalInfo || "")
             }</p>
             <p><strong>Type de paiement:</strong> ${
-              details?.paymentType || ""
+              escapeHtml(details?.paymentType || "")
             }</p>
             <p><strong>Montant Total de la Facture:</strong> ${
               details?.total || 0
@@ -249,7 +271,7 @@ export const buildPaymentEmailHtml = (details) => `
           <td>
             <h2>Infos sur le paiement</h2>
             <p>Votre paiement a été accepté. Vous recevrez votre commande sous 48 heures. Un de nos livreurs vous contactera à ce numéro de téléphone : ${
-              details?.deliverInfos?.phone || ""
+              escapeHtml(details?.deliverInfos?.phone || "")
             }</p>
             <p>Veuillez vous assurer que ce numéro soit joignable entre 8h et 17h.</p>
           </td>
@@ -261,7 +283,7 @@ export const buildPaymentEmailHtml = (details) => `
             <h2>Code de Scan</h2>
             <div style="text-align: center;">
               <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${
-                details?.scanNum || ""
+                escapeHtml(details?.scanNum || "")
               }" alt="QR Code pour la commande">
             </div>
           </td>
@@ -296,8 +318,8 @@ export const buildDeliveryEmailHtml = (details) => `
           <h1 style="margin:0;font-size:22px">Commande Livrée avec Succès !</h1>
         </div>
         <div style="padding:20px;text-align:center">
-          <p>Votre commande <strong>${details?.orderId ?? ""}</strong> a été livrée.</p>
-          <p>Adresse : <strong>${details?.deliverInfos?.address ?? ""}</strong></p>
+          <p>Votre commande <strong>${escapeHtml(details?.orderId ?? "")}</strong> a été livrée.</p>
+          <p>Adresse : <strong>${escapeHtml(details?.deliverInfos?.address ?? "")}</strong></p>
           <p>Merci pour votre achat.</p>
         </div>
         <div style="background:#ff6f00;color:#fff;padding:10px;text-align:center;font-size:12px">
@@ -316,7 +338,7 @@ export const fakeOrderEmailHtml = (message) => `
         </div>
         <div style="padding:20px">
           <p>Bonjour,</p>
-          <p>${message}</p>
+          <p>${escapeHtml(message)}</p>
           <p>Merci,</p>
           <p>Service Client MonMarché</p>
         </div>
@@ -333,13 +355,6 @@ export const generateCompactPrintContent = (orderDetails, orderId) => {
   const details = orderDetails || {};
   const delivery = details.deliverInfos || {};
   const cart = Array.isArray(details.cart) ? details.cart : [];
-  const escapeHtml = (value) =>
-    String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
   const money = (value) =>
     `${toNumber(value, 0).toLocaleString("fr-FR")} GNF`;
   const invoiceLines = cart.flatMap((product) => {
