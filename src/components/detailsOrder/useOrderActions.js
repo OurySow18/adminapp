@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   collection,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -439,6 +440,39 @@ export const useOrderActions = ({ title, orderId, orderDetails, navigate }) => {
     }
   }, [isProcessing, orderDetails, orderId, fakeOrderMessage, notifyFakeOrder]);
 
+  const revertFakeOrder = useCallback(async () => {
+    if (isProcessing || !orderDetails?.fakeOrder) return;
+    const ok = window.confirm(
+      'Annuler le marquage "fausse commande" ?\nLe compteur de fausses commandes du client sera décrémenté.'
+    );
+    if (!ok) return;
+
+    setIsProcessing(true);
+    setActionError(null);
+    try {
+      const orderRef = doc(db, "orders", orderId);
+      await updateDoc(orderRef, {
+        fakeOrder: false,
+        fakeOrderMessage: deleteField(),
+        fakeOrderAt: deleteField(),
+      });
+
+      const userId = orderDetails?.userId;
+      if (userId) {
+        await updateDoc(doc(db, "users", userId), {
+          fakeOrdersCount: increment(-1),
+        });
+      }
+
+      setActionFeedback('Marquage "fausse commande" annulé.');
+    } catch (e) {
+      console.error("Erreur annulation fausse commande:", e);
+      setActionError("Impossible d'annuler le marquage.");
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [isProcessing, orderDetails, orderId]);
+
   return {
     isProcessing,
     actionFeedback,
@@ -462,5 +496,6 @@ export const useOrderActions = ({ title, orderId, orderDetails, navigate }) => {
     openFakeOrderModal,
     closeFakeOrderModal,
     markAsFakeOrder,
+    revertFakeOrder,
   };
 };
