@@ -161,6 +161,13 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    /* archivedFakeOrders : fausses commandes archivees, collection separee de
+       archivedOrders pour ne jamais declencher le calcul des commissions
+       vendeur ni polluer les stats de ventes/livraison. Admin uniquement. */
+    match /archivedFakeOrders/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
     /* mail : ecriture reservee aux comptes authentifies (client/vendeur/livreur/admin) */
     match /mail/{document=**} { allow write: if isAuthed(); }
 

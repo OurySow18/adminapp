@@ -485,7 +485,7 @@ export const useOrderActions = ({ title, orderId, orderDetails, navigate }) => {
     setActionError(null);
     setIsProcessing(true);
     try {
-      const archivedRef = doc(db, "archivedOrders", orderId);
+      const archivedRef = doc(db, "archivedFakeOrders", orderId);
       const alreadyArchived = await getDoc(archivedRef);
       if (alreadyArchived.exists()) {
         setActionError("Cette commande est déjà archivée.");
