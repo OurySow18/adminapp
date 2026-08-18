@@ -24,6 +24,12 @@ service cloud.firestore {
             && exists(/databases/$(database)/documents/admin/$(request.auth.uid)));
     }
 
+    // livreur = utilisateur ayant un doc dans /drivers/{uid}
+    function isDriver() {
+      return isAuthed()
+        && exists(/databases/$(database)/documents/drivers/$(request.auth.uid));
+    }
+
     function isStockDecrementOnly() {
       return request.resource.data.diff(resource.data).changedKeys().hasOnly(['stock']) &&
              resource.data.stock is number &&
@@ -128,9 +134,27 @@ service cloud.firestore {
       allow update, delete: if isSelf(userId) && !(resource.data.lockEdits == true);
     }
 
-    /* orders & archivedOrders (inchangé) */
-    match /orders/{document=**}         { allow read, write: if true; }
-    match /archivedOrders/{document=**} { allow read, write: if true; }
+    /* orders : creation par le client proprietaire, lecture/ecriture admin+livreur,
+       le client peut modifier/annuler sa commande tant qu'elle n'est pas validee (payed) */
+    match /orders/{orderId} {
+      allow create: if isAuthed() && request.resource.data.userId == request.auth.uid;
+
+      allow read: if isAdmin() || isDriver() ||
+        (isAuthed() && resource.data.userId == request.auth.uid);
+
+      allow update: if isAdmin() || isDriver() ||
+        (isAuthed() && resource.data.userId == request.auth.uid && resource.data.payed != true);
+
+      // Suppression uniquement par l'admin (etape d'archivage vers archivedOrders)
+      allow delete: if isAdmin();
+    }
+
+    /* archivedOrders : reserve a l'admin. La creation ici declenche le calcul des
+       commissions vendeur (Cloud Function) ; ne doit jamais etre accessible en
+       ecriture a un client/livreur pour eviter des lignes de paiement forgees. */
+    match /archivedOrders/{document=**} {
+      allow read, write: if isAdmin();
+    }
 
     /* mail (inchangé) */
     match /mail/{document=**} { allow write: if true; }
