@@ -1566,7 +1566,8 @@ export const onArchivedOrderCreated = onDocumentCreated(
 
     const userId = pickUserId(archivedOrder) ?? "";
     const to = pickEmail(archivedOrder) ?? "";
-    const canSchedule = Boolean(userId && to);
+    const isFakeOrder = archivedOrder.fakeOrder === true;
+    const canSchedule = Boolean(userId && to) && !isFakeOrder;
 
     await db.runTransaction(async (tx) => {
       const existing = await tx.get(jobRef);
@@ -1582,7 +1583,13 @@ export const onArchivedOrderCreated = onDocumentCreated(
         deliveredAt: orderSnapshot.deliveredAt,
         sendAt: admin.firestore.Timestamp.fromDate(sendAt),
         expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
-        ...(canSchedule ? {} : { lastError: "Missing userId or email in archived order" }),
+        ...(canSchedule
+          ? {}
+          : {
+              lastError: isFakeOrder
+                ? "Order marked as fake, review request skipped"
+                : "Missing userId or email in archived order",
+            }),
       };
 
       tx.set(jobRef, job);

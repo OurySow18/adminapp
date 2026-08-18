@@ -52,6 +52,7 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
     closeFakeOrderModal,
     markAsFakeOrder,
     revertFakeOrder,
+    archiveFakeOrder,
   } = useOrderActions({ title, orderId: params.id, orderDetails, navigate });
 
   useEffect(() => {
@@ -583,6 +584,15 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
               disabled={isProcessing}
             >
               Annuler le marquage "fausse commande"
+            </button>
+          ) : null}
+          {!isArchivedMode && orderDetails?.fakeOrder ? (
+            <button
+              className="btnDanger"
+              onClick={archiveFakeOrder}
+              disabled={isProcessing}
+            >
+              Archiver la fausse commande
             </button>
           ) : null}
           {!isArchivedMode && !orderDetails?.fakeOrder ? (

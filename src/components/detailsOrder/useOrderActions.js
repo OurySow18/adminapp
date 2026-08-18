@@ -473,6 +473,57 @@ export const useOrderActions = ({ title, orderId, orderDetails, navigate }) => {
     }
   }, [isProcessing, orderDetails, orderId]);
 
+  const archiveFakeOrder = useCallback(async () => {
+    if (isProcessing || !orderDetails?.fakeOrder) return;
+
+    const ok = window.confirm(
+      "Archiver cette fausse commande ?\nElle sera retirée de la liste des fausses commandes actives."
+    );
+    if (!ok) return;
+
+    setActionFeedback(null);
+    setActionError(null);
+    setIsProcessing(true);
+    try {
+      const archivedRef = doc(db, "archivedOrders", orderId);
+      const alreadyArchived = await getDoc(archivedRef);
+      if (alreadyArchived.exists()) {
+        setActionError("Cette commande est déjà archivée.");
+        return;
+      }
+
+      const orderRef = doc(db, "orders", orderId);
+      const orderSnap = await getDoc(orderRef);
+      if (!orderSnap.exists()) {
+        setActionError("Commande introuvable.");
+        return;
+      }
+
+      const data = orderSnap.data() || {};
+      const archivedAtField = serverTimestamp();
+      const archivedSnapshot = buildArchivedOrderSnapshot(data, archivedAtField);
+
+      const batch = writeBatch(db);
+      batch.set(archivedRef, {
+        ...data,
+        archived: true,
+        archivedAt: archivedAtField,
+        orderSnapshot: archivedSnapshot,
+        timeStamp: serverTimestamp(),
+      });
+      batch.delete(orderRef);
+      await batch.commit();
+
+      setActionFeedback("Fausse commande archivée.");
+      navigate("/fake-orders");
+    } catch (error) {
+      console.error("Erreur archivage fausse commande:", error);
+      setActionError("Impossible d'archiver cette fausse commande.");
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [isProcessing, orderDetails, orderId, navigate]);
+
   return {
     isProcessing,
     actionFeedback,
@@ -497,5 +548,6 @@ export const useOrderActions = ({ title, orderId, orderDetails, navigate }) => {
     closeFakeOrderModal,
     markAsFakeOrder,
     revertFakeOrder,
+    archiveFakeOrder,
   };
 };
