@@ -257,6 +257,11 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
       allow create: if false; // créé uniquement par Cloud Functions
     }
+    /* counters : compteurs internes (numero de facture sequentiel...), admin uniquement */
+    match /counters/{counterId} {
+      allow read, write: if isAdmin();
+    }
+
     match /product_sales_ledger/{entryId} {
       allow read: if isAdmin();
       allow write: if false;

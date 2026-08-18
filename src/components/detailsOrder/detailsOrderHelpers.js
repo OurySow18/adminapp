@@ -351,7 +351,7 @@ export const fakeOrderEmailHtml = (message) => `
 // orderDetails, orderId : passes explicitement plutot que captures par
 // fermeture, pour que cette fonction reste testable independamment du
 // composant.
-export const generateCompactPrintContent = (orderDetails, orderId) => {
+export const generateCompactPrintContent = (orderDetails, orderId, invoiceNumber) => {
   const details = orderDetails || {};
   const delivery = details.deliverInfos || {};
   const cart = Array.isArray(details.cart) ? details.cart : [];
@@ -406,7 +406,7 @@ export const generateCompactPrintContent = (orderDetails, orderId) => {
     details.total ?? details.totalAmount,
     productsSubtotal + deliveryFee
   );
-  const invoiceNumber = details.orderId || orderId || "—";
+  const displayedInvoiceNumber = invoiceNumber || details.invoiceNumber || details.orderId || orderId || "—";
   const formattedDate = format(resolveOrderDate(details), "dd/MM/yyyy à HH:mm");
   const optionalCustomerFields = [
     delivery.phone
@@ -424,7 +424,7 @@ export const generateCompactPrintContent = (orderDetails, orderId) => {
       <html lang="fr">
         <head>
           <meta charset="utf-8" />
-          <title>Facture ${escapeHtml(invoiceNumber)}</title>
+          <title>Facture ${escapeHtml(displayedInvoiceNumber)}</title>
           <style>
             @page { size: A4; margin: 14mm; }
             * { box-sizing: border-box; }
@@ -464,7 +464,7 @@ export const generateCompactPrintContent = (orderDetails, orderId) => {
           <main class="invoice">
             <header>
               <div class="brand"><h1>Monmarché</h1><p>+224 612 12 12 29 · infos@monmarchegn.com</p></div>
-              <div class="meta"><h2>Facture</h2><p>N° <strong>${escapeHtml(invoiceNumber)}</strong></p><p>${formattedDate}</p></div>
+              <div class="meta"><h2>Facture</h2><p>N° <strong>${escapeHtml(displayedInvoiceNumber)}</strong></p><p>${formattedDate}</p></div>
             </header>
             <section class="customer">
               <h3>Livraison</h3>

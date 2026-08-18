@@ -13,6 +13,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
+import { getOrCreateInvoiceNumber } from "../../utils/invoiceNumber";
 import {
   buildArchivedOrderSnapshot,
   buildDeliveryEmailHtml,
@@ -260,8 +261,17 @@ export const useOrderActions = ({ title, orderId, orderDetails, navigate }) => {
     await finalizeOrderValidation(selectedDriver);
   }, [isProcessing, activeDrivers, selectedDriverUid, finalizeOrderValidation]);
 
-  const printOrder = useCallback(() => {
-    const printContent = generateCompactPrintContent(orderDetails, orderId);
+  const printOrder = useCallback(async () => {
+    let invoiceNumber = orderDetails?.invoiceNumber || null;
+    if (!invoiceNumber) {
+      try {
+        invoiceNumber = await getOrCreateInvoiceNumber(title, orderId);
+      } catch (error) {
+        console.error("Erreur génération numéro de facture:", error);
+      }
+    }
+
+    const printContent = generateCompactPrintContent(orderDetails, orderId, invoiceNumber);
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
       setActionError("Impossible d'ouvrir la fenêtre d'impression.");
@@ -269,8 +279,9 @@ export const useOrderActions = ({ title, orderId, orderDetails, navigate }) => {
     }
     printWindow.document.write(printContent);
     printWindow.document.close();
+    printWindow.onafterprint = () => printWindow.close();
     printWindow.print();
-  }, [orderDetails, orderId]);
+  }, [orderDetails, orderId, title]);
 
   const sendDeliveryMail = useCallback(async () => {
     try {
