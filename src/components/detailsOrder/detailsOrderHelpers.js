@@ -484,7 +484,7 @@ export const generateCompactPrintContent = (orderDetails, orderId, invoiceNumber
             </table>
             <section class="summary">
               <div><span>Sous-total produits</span><strong>${money(productsSubtotal)}</strong></div>
-              <div><span>Livraison</span><strong>${deliveryFee > 0 ? money(deliveryFee) : "Offerte"}</strong></div>
+              <div><span>Livraison</span><strong>${money(deliveryFee)}</strong></div>
               <div class="total"><span>Total à payer</span><strong>${money(invoiceTotal)}</strong></div>
             </section>
             <p class="thanks">Merci pour votre commande.</p>
