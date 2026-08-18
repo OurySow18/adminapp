@@ -6,6 +6,29 @@ import { doc } from "firebase/firestore";
 import { db } from "../../firebase";
 import { format } from "date-fns";
 
+// Echappe les valeurs injectees dans les templates HTML d'email (titre du
+// produit...) qui peuvent contenir du texte fourni par le vendeur. Sans ca,
+// un vendeur pourrait injecter du HTML/liens dans l'email de validation
+// envoye en son nom (meme correctif que vendorDetailsHelpers.js et
+// detailsOrderHelpers.js).
+export const escapeHtml = (value) =>
+  String(value ?? "").replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return char;
+    }
+  });
+
 export const formatDateTime = (value) => {
   if (!value) return "-";
   if (typeof value?.toDate === "function") {

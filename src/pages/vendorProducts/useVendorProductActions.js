@@ -5,6 +5,7 @@ import {
   applyVendorProductDraftChanges,
   updateVendorProductAdminStatus,
 } from "../../utils/vendorProductsRepository";
+import { escapeHtml } from "./vendorProductDetailsHelpers";
 
 // Charge l'email de contact du vendeur, et expose les actions admin sur le
 // produit (activer/masquer, valider les modifications en attente). Extrait
@@ -121,7 +122,7 @@ export const useVendorProductActions = ({
               </div>
               <div style="padding:20px">
                 <p>Bonjour,</p>
-                <p>Vos dernières modifications sur le produit <strong>${product?.title || product?.name || "Produit"}</strong> ont été validées par Monmarché.</p>
+                <p>Vos dernières modifications sur le produit <strong>${escapeHtml(product?.title || product?.name || "Produit")}</strong> ont été validées par Monmarché.</p>
                 <p>Elles sont maintenant visibles dans l'application.</p>
                 <p>Merci,</p>
                 <p>Service Client Monmarché</p>
