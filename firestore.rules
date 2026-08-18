@@ -48,10 +48,15 @@ service cloud.firestore {
              get(/databases/$(database)/documents/vendors/$(uid)).data.lockCatalog == true;
     }
 
-    /* users */
-    match /users/{document=**} {
-      allow create: if true;
-      allow read, write: if true;
+    /* users : lecture/ecriture du proprietaire, admin, livreur en lecture (infos client livraison) */
+    match /users/{uid} {
+      allow read: if isAdmin() || isDriver() || isSelf(uid);
+      allow create: if isSelf(uid) || isAdmin();
+      allow update, delete: if isSelf(uid) || isAdmin();
+
+      match /{document=**} {
+        allow read, write: if isAdmin() || isSelf(uid);
+      }
     }
     /* admins */
     match /admin/{uid} {
@@ -121,17 +126,17 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    /* vendors (général) */
-    match /vendors/{document=**} {
-      allow create: if true;
-      allow read, write: if true;
-    }
-
-    /* vendors : create libre pour soi, update/delete bloqués si lockEdits=true */
+    /* vendors : create libre pour soi, lecture proprietaire + admin + livreur
+       (infos de retrait), update/delete bloqués si lockEdits=true (sauf admin) */
     match /vendors/{userId} {
       allow create: if isSelf(userId);
-      allow read:   if isSelf(userId);
-      allow update, delete: if isSelf(userId) && !(resource.data.lockEdits == true);
+      allow read: if isSelf(userId) || isAdmin() || isDriver();
+      allow update, delete: if (isSelf(userId) && !(resource.data.lockEdits == true)) || isAdmin();
+
+      match /{document=**} {
+        allow read: if isSelf(userId) || isAdmin() || isDriver();
+        allow write: if isAdmin();
+      }
     }
 
     /* orders : creation par le client proprietaire, lecture/ecriture admin+livreur,
@@ -156,8 +161,8 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    /* mail (inchangé) */
-    match /mail/{document=**} { allow write: if true; }
+    /* mail : ecriture reservee aux comptes authentifies (client/vendeur/livreur/admin) */
+    match /mail/{document=**} { allow write: if isAuthed(); }
 
     /* game / gameTest (inchangé) */
     match /game/{codeId} {
