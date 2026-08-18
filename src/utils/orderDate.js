@@ -38,3 +38,27 @@ export const resolveOrderDate = (details) => {
 
   return new Date();
 };
+
+// Convertit une valeur de type date/Timestamp Firestore en millisecondes,
+// pour trier des listes de commandes par date sans creer d'objet Date.
+export const toTimeNumber = (value) => {
+  if (!value) return 0;
+  if (typeof value === "number") return value;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value?.toDate === "function") {
+    const date = value.toDate();
+    return date instanceof Date ? date.getTime() : 0;
+  }
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+  }
+  if (typeof value === "object" && typeof value.seconds === "number") {
+    const millis = value.seconds * 1000;
+    if (typeof value.nanoseconds === "number") {
+      return millis + Math.floor(value.nanoseconds / 1e6);
+    }
+    return millis;
+  }
+  return 0;
+};

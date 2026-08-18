@@ -1,9 +1,10 @@
-import "./ListOrder.scss";
-import React, { useState, useEffect, useMemo } from "react";
-import { collection, onSnapshot } from "firebase/firestore";
+import "./OrderList.scss";
+import { useState, useEffect, useMemo } from "react";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../../firebase";
 import { Link } from "react-router-dom";
 import { DataGrid } from "@mui/x-data-grid";
+import { toTimeNumber } from "../../utils/orderDate";
 
 const formatDateTime = (value) => {
   if (!value) return "";
@@ -18,52 +19,43 @@ const formatDateTime = (value) => {
   return Number.isNaN(parsed.getTime()) ? "" : parsed.toLocaleString("fr-FR");
 };
 
-const toTimeNumber = (value) => {
-  if (!value) return 0;
-  if (typeof value === "number") return value;
-  if (value instanceof Date) return value.getTime();
-  if (typeof value?.toDate === "function") {
-    const date = value.toDate();
-    return date instanceof Date ? date.getTime() : 0;
-  }
-  if (typeof value === "string") {
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
-  }
-  if (typeof value === "object" && typeof value.seconds === "number") {
-    const millis = value.seconds * 1000;
-    if (typeof value.nanoseconds === "number") {
-      return millis + Math.floor(value.nanoseconds / 1e6);
-    }
-    return millis;
-  }
-  return 0;
-};
-
-const ListOrder = ({ typeColumns, showFakeOrders = false }) => {
+// Liste de commandes generique, parametree par collection/filtre. Remplace
+// les anciens ListOrder / ListDelivered / ListDeliveryOrder qui etaient
+// ~90% du meme code (meme colonne d'action, meme DataGrid, meme tri) et ne
+// differaient que par la collection Firestore et le filtre applique.
+const OrderList = ({
+  typeColumns,
+  collectionName = "orders",
+  whereFilters = [],
+  clientFilter,
+  renderCountLabel,
+  showSearch = false,
+}) => {
   const [data, setData] = useState([]);
   const [pageSize, setPageSize] = useState(9);
   const [searchQuery, setSearchQuery] = useState("");
 
+  const whereFiltersKey = JSON.stringify(whereFilters);
+
   useEffect(() => {
+    const constraints = whereFilters.map(([field, op, value]) =>
+      where(field, op, value)
+    );
+    const target = constraints.length
+      ? query(collection(db, collectionName), ...constraints)
+      : collection(db, collectionName);
+
     const unsubscribe = onSnapshot(
-      collection(db, "orders"),
+      target,
       (snapshot) => {
         const list = [];
-        snapshot.docs.forEach((doc) => {
-          const orderData = doc.data();
-
-          const isFakeOrder = orderData?.fakeOrder === true;
-          const shouldInclude = showFakeOrders ? isFakeOrder : !isFakeOrder;
-          if (!shouldInclude) return;
-
-          // Vue "Commandes" garde le comportement actuel (non payées).
-          if (!showFakeOrders && orderData?.payed) return;
-
+        snapshot.docs.forEach((docSnap) => {
+          const orderData = docSnap.data();
+          if (clientFilter && !clientFilter(orderData)) return;
           list.push({
             ...orderData,
-            id: doc.id,
-            __docId: doc.id,
+            id: docSnap.id,
+            __docId: docSnap.id,
           });
         });
         list.sort(
@@ -72,18 +64,17 @@ const ListOrder = ({ typeColumns, showFakeOrders = false }) => {
         setData(list);
       },
       (error) => {
-        console.log("Error fetching data: ", error);
+        console.error("Error fetching data: ", error);
       }
     );
-    return () => {
-      unsubscribe();
-    };
-  }, [showFakeOrders]);
+    return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectionName, whereFiltersKey]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
   const filteredRows = useMemo(() => {
-    if (!normalizedSearch) return data;
+    if (!showSearch || !normalizedSearch) return data;
     return data.filter((row) => {
       const receiver = row.deliverInfos ?? {};
       const candidates = [
@@ -101,7 +92,7 @@ const ListOrder = ({ typeColumns, showFakeOrders = false }) => {
         .filter((value) => typeof value === "string" && value.trim())
         .some((value) => value.toLowerCase().includes(normalizedSearch));
     });
-  }, [data, normalizedSearch]);
+  }, [data, normalizedSearch, showSearch]);
 
   const actionColumn = useMemo(
     () => [
@@ -136,19 +127,21 @@ const ListOrder = ({ typeColumns, showFakeOrders = false }) => {
     <div className="listOrder">
       <div className="listOrder__header">
         <div className="listOrderTitel">
-          {showFakeOrders
-            ? `Nombre de fausses commandes: ${filteredRows.length}`
+          {renderCountLabel
+            ? renderCountLabel(filteredRows.length)
             : `Nombre de Commandes: ${filteredRows.length}`}
         </div>
-        <div className="listOrder__headerControls">
-          <input
-            type="search"
-            className="listOrder__searchInput"
-            placeholder="Rechercher une commande..."
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-          />
-        </div>
+        {showSearch && (
+          <div className="listOrder__headerControls">
+            <input
+              type="search"
+              className="listOrder__searchInput"
+              placeholder="Rechercher une commande..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+          </div>
+        )}
       </div>
       <div className="listOrder__gridWrapper">
         <DataGrid
@@ -168,4 +161,4 @@ const ListOrder = ({ typeColumns, showFakeOrders = false }) => {
   );
 };
 
-export default ListOrder;
+export default OrderList;

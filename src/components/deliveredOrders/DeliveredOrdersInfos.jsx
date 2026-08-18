@@ -7,10 +7,16 @@
  */
 import "./deliveredOrders.scss";
 import Sidebar from "../sidebar/Sidebar";
-import Navbar from "../navbar/Navbar";  
-import ListDeliveryOrder from "../listDeliveryOrder/ListDeliveryOrder";
+import Navbar from "../navbar/Navbar";
+import OrderList from "../order/OrderList";
 
-const DelivredOrder = ({ typeColumns, title }) => {
+const ARCHIVED_WHERE = [
+  ["payed", "==", true],
+  ["delivered", "==", true],
+];
+const renderArchivedCount = (count) => `Nombre de Commandes archivées: ${count}`;
+
+const DelivredOrder = ({ typeColumns }) => {
   return (
     <div className="order">
       <Sidebar />
@@ -18,7 +24,12 @@ const DelivredOrder = ({ typeColumns, title }) => {
         <Navbar />
         <div className="listContainer">
           <div className="listTitle">Commandes</div>
-          <ListDeliveryOrder  typeColumns={typeColumns} title={title} />
+          <OrderList
+            typeColumns={typeColumns}
+            collectionName="archivedOrders"
+            whereFilters={ARCHIVED_WHERE}
+            renderCountLabel={renderArchivedCount}
+          />
         </div>
       </div>
     </div>

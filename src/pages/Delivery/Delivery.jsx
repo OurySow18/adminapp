@@ -8,10 +8,13 @@
  */
 import "./delivery.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar"; 
-import ListDelivered from "../../components/delivery/ListDelivered";
+import Navbar from "../../components/navbar/Navbar";
+import OrderList from "../../components/order/OrderList";
 
-const Delivery = ({typeColumns, title}) => {
+const IN_PROGRESS_WHERE = [["payed", "==", true]];
+const renderInProgressCount = (count) => `Nombre de Livraisons a effectuées: ${count}`;
+
+const Delivery = ({ typeColumns }) => {
   return (
     <div className="delivery">
       <Sidebar />
@@ -19,7 +22,12 @@ const Delivery = ({typeColumns, title}) => {
         <Navbar />
         <div className="listContainer">
           <div className="listTitle">Livraisons</div>
-          <ListDelivered typeColumns={typeColumns} title={title} />
+          <OrderList
+            typeColumns={typeColumns}
+            collectionName="orders"
+            whereFilters={IN_PROGRESS_WHERE}
+            renderCountLabel={renderInProgressCount}
+          />
         </div>
       </div>
     </div>
