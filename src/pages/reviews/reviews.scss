@@ -10,6 +10,14 @@
 .reviews__filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .reviews__filters button { padding: 7px 13px; border: 1px solid #cbd5e1; border-radius: 999px; background: #fff; color: #334155; font-weight: 600; cursor: pointer; }
 .reviews__filters button.active { border-color: #ff6f00; color: #fff; background: #ff6f00; }
+.reviews__filterBar { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; margin-bottom: 10px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+.reviews__field { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
+.reviews__field label { color: #64748b; font-size: .78rem; font-weight: 600; }
+.reviews__field input, .reviews__field select { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; color: #111827; background: #fff; }
+.reviews__field input:focus, .reviews__field select:focus { outline: none; border-color: #ff6f00; box-shadow: 0 0 0 3px rgba(255,111,0,.15); }
+.reviews__reset { padding: 9px 14px; border: 1px solid #cbd5e1; border-radius: 8px; color: #334155; background: #f8fafc; font-weight: 600; cursor: pointer; height: fit-content; }
+.reviews__reset:hover { background: #f1f5f9; }
+.reviews__resultCount { margin: 0 0 12px; color: #64748b; font-size: .85rem; }
 .reviews__banner { margin-bottom: 15px; padding: 12px 14px; border-radius: 8px; }
 .reviews__banner--error { color: #991b1b; background: #fee2e2; }
 .reviews__panel { padding: 18px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 8px 22px rgba(15,23,42,.06); overflow-x: auto; }
@@ -21,4 +29,4 @@
 .reviews__comment { max-width: 360px; overflow-wrap: anywhere; }
 .reviews__stars { letter-spacing: 2px; color: #f59e0b; white-space: nowrap; }
 .reviews__stars--empty { color: #e2e8f0; }
-@media (max-width: 700px) { .reviews { flex-direction: column; } .reviews__container { padding: 14px; } }
+@media (max-width: 700px) { .reviews { flex-direction: column; } .reviews__container { padding: 14px; } .reviews__filterBar { flex-direction: column; align-items: stretch; } .reviews__field { min-width: 0; } }
