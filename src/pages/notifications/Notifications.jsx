@@ -4,22 +4,17 @@ import { httpsCallable } from "firebase/functions";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import ConfirmModal from "../../components/modal/ConfirmModal";
-import { functions } from "../../firebase";
+import { functionsApi } from "../../firebase";
 
+// Fonction deja deployee cote codebase "api" (europe-west3) : elle gere
+// l'envoi aux tokens Expo (users/{uid}.pushTokens), pas de FCM direct ici.
 const sendBroadcastNotificationCallable = httpsCallable(
-  functions,
+  functionsApi,
   "sendBroadcastNotification"
 );
 
 const MESSAGE_MAX_LENGTH = 500;
 const TITLE_MAX_LENGTH = 120;
-
-const BROADCAST_ERROR_MESSAGES = {
-  auth_required: "Vous devez être connecté pour envoyer une notification.",
-  admin_required:
-    "Ce compte n'a pas les droits admin nécessaires pour envoyer une notification (aucun document trouvé dans admin/{uid}).",
-  message_required: "Le message est obligatoire.",
-};
 
 const formatBroadcastError = (error) => {
   const code = typeof error?.code === "string" ? error.code : "";
@@ -31,11 +26,11 @@ const formatBroadcastError = (error) => {
     .replace(/^functions\/[a-z-]+:\s*/i, "")
     .trim();
 
-  if (BROADCAST_ERROR_MESSAGES[normalizedMessage]) {
-    return BROADCAST_ERROR_MESSAGES[normalizedMessage];
+  if (normalizedCode === "unauthenticated") {
+    return "Vous devez être connecté pour envoyer une notification.";
   }
-  if (BROADCAST_ERROR_MESSAGES[normalizedCode]) {
-    return BROADCAST_ERROR_MESSAGES[normalizedCode];
+  if (normalizedCode === "permission-denied") {
+    return "Ce compte n'a pas les droits admin nécessaires pour envoyer une notification (aucun document trouvé dans admin/{uid}).";
   }
   return (
     normalizedMessage || "Une erreur inattendue est survenue. Merci de réessayer."
@@ -70,7 +65,7 @@ const Notifications = () => {
     try {
       const response = await sendBroadcastNotificationCallable({
         title: title.trim() || undefined,
-        message: trimmedMessage,
+        body: trimmedMessage,
       });
       const recipientCount = response?.data?.recipientCount ?? 0;
       setSuccessInfo({ recipientCount });

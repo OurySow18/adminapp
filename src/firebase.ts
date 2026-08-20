@@ -18,4 +18,6 @@ export const auth = getAuth();
 
 export const db = getFirestore(app);
 export const functions = getFunctions(app, "europe-west1");
+// Codebase "api" (app cliente Monmarche), region distincte du codebase admin.
+export const functionsApi = getFunctions(app, "europe-west3");
 export const storage = getStorage(app);
