@@ -331,6 +331,7 @@ const Sidbar = () => {
     normalizedPath.startsWith("/delivredOrders");
   const isVendorPayoutsActive = normalizedPath.startsWith("/vendor-payouts");
   const isNotificationsActive = normalizedPath.startsWith("/notifications");
+  const isReviewsActive = normalizedPath.startsWith("/reviews");
   const isProductDeletionsActive = normalizedPath === "/product-deletions";
   const isImageOptimizationActive = normalizedPath === "/image-optimization";
   const isMarketingParentActive = marketingActiveKey !== null;
@@ -1071,6 +1072,16 @@ return (
             <li className={isNotificationsActive ? "active" : ""}>
               <NotificationsNoneIcon className="icon" />
               <span>Notifications</span>
+            </li>
+          </Link>
+          <Link
+            to="/reviews"
+            style={{ textDecoration: "none" }}
+            onClick={handleNavLinkClick}
+          >
+            <li className={isReviewsActive ? "active" : ""}>
+              <StarOutlineIcon className="icon" />
+              <span>Avis clients</span>
             </li>
           </Link>
           <p className="title">SERVICES</p>

@@ -1,0 +1,24 @@
+.reviews { display: flex; width: 100%; min-height: 100vh; background: #f5f6fa; color: #111827; }
+.reviews__container { flex: 1; min-width: 0; padding: 24px; }
+.reviews__header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin: 24px 0; flex-wrap: wrap; }
+.reviews__header h1 { margin: 0; font-size: 1.7rem; }
+.reviews__header p { margin: 5px 0 0; color: #64748b; }
+.reviews__stats { display: flex; gap: 12px; }
+.reviews__stats div { padding: 10px 16px; border-radius: 10px; background: #fff; border: 1px solid #e2e8f0; text-align: center; }
+.reviews__stats span { display: block; color: #64748b; font-size: .78rem; }
+.reviews__stats strong { display: block; margin-top: 4px; font-size: 1.3rem; }
+.reviews__filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.reviews__filters button { padding: 7px 13px; border: 1px solid #cbd5e1; border-radius: 999px; background: #fff; color: #334155; font-weight: 600; cursor: pointer; }
+.reviews__filters button.active { border-color: #ff6f00; color: #fff; background: #ff6f00; }
+.reviews__banner { margin-bottom: 15px; padding: 12px 14px; border-radius: 8px; }
+.reviews__banner--error { color: #991b1b; background: #fee2e2; }
+.reviews__panel { padding: 18px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 8px 22px rgba(15,23,42,.06); overflow-x: auto; }
+.reviews__empty { color: #94a3b8; }
+.reviews__table { width: 100%; border-collapse: collapse; }
+.reviews__table th { padding: 10px 12px; color: #64748b; font-size: .78rem; text-transform: uppercase; text-align: left; border-bottom: 1px solid #e2e8f0; }
+.reviews__table td { padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+.reviews__table td a { color: #c2410c; font-weight: 600; }
+.reviews__comment { max-width: 360px; overflow-wrap: anywhere; }
+.reviews__stars { letter-spacing: 2px; color: #f59e0b; white-space: nowrap; }
+.reviews__stars--empty { color: #e2e8f0; }
+@media (max-width: 700px) { .reviews { flex-direction: column; } .reviews__container { padding: 14px; } }

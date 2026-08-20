@@ -168,6 +168,14 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    /* reviews : avis clients soumis via submitReview (Cloud Function, Admin SDK,
+       contourne ces regles a l'ecriture). Lecture admin uniquement : contient
+       userId + commentaire libre, ne doit pas etre public. */
+    match /reviews/{document=**} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     /* mail : ecriture reservee aux comptes authentifies (client/vendeur/livreur/admin) */
     match /mail/{document=**} { allow write: if isAuthed(); }
 
