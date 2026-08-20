@@ -1,0 +1,19 @@
+.notifications { display: flex; width: 100%; min-height: 100vh; background: #f5f6fa; color: #111827; }
+.notifications__container { flex: 1; min-width: 0; padding: 24px; }
+.notifications__header { margin: 24px 0; }
+.notifications__header h1 { margin: 0; font-size: 1.7rem; }
+.notifications__header p { margin: 5px 0 0; color: #64748b; }
+.notifications__banner { margin-bottom: 15px; padding: 12px 14px; border-radius: 8px; }
+.notifications__banner--error { color: #991b1b; background: #fee2e2; }
+.notifications__banner--success { color: #166534; background: #dcfce7; }
+.notifications__panel { max-width: 640px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 8px 22px rgba(15,23,42,.06); }
+.notifications__field { margin-bottom: 18px; }
+.notifications__field label { display: block; margin-bottom: 7px; font-weight: 600; color: #334155; }
+.notifications__field input, .notifications__field textarea { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; color: #111827; background: #fff; resize: vertical; }
+.notifications__field input:focus, .notifications__field textarea:focus { outline: none; border-color: #ff6f00; box-shadow: 0 0 0 3px rgba(255,111,0,.15); }
+.notifications__field input:disabled, .notifications__field textarea:disabled { background: #f8fafc; opacity: .7; }
+.notifications__counter { margin-top: 6px; color: #94a3b8; font-size: .8rem; text-align: right; }
+.notifications__actions { display: flex; justify-content: flex-end; }
+.notifications button.primary { padding: 10px 18px; border: 1px solid #ff6f00; border-radius: 8px; color: #fff; background: #ff6f00; font-weight: 700; cursor: pointer; }
+.notifications button.primary:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 700px) { .notifications { flex-direction: column; } .notifications__container { padding: 14px; } .notifications__panel { max-width: none; } }

@@ -2716,3 +2716,75 @@ export const onVendorProductCreatedNotifyAdmins = onDocumentCreated(
     });
   }
 );
+
+const BROADCAST_MESSAGE_MAX_LENGTH = 500;
+const BROADCAST_TOKEN_BATCH_SIZE = 500;
+
+interface SendBroadcastNotificationPayload {
+  title?: unknown;
+  message?: unknown;
+}
+
+/* Envoie une notification push a tous les utilisateurs de l'app Monmarche
+   ayant un token FCM enregistre (users/{uid}.fcmToken). Pas de ciblage par
+   segment pour cette premiere version : diffusion immediate a tout le monde. */
+export const sendBroadcastNotification = onCall(
+  { region: REGION },
+  async (request) => {
+    const callerUid = request.auth?.uid ?? null;
+    if (!callerUid) {
+      throw new HttpsError("unauthenticated", "auth_required");
+    }
+    if (!(await isAdminUid(callerUid))) {
+      throw new HttpsError("permission-denied", "admin_required");
+    }
+
+    const payload = (request.data ?? {}) as SendBroadcastNotificationPayload;
+    const message = ensureNonEmptyString(payload.message, "message").slice(
+      0,
+      BROADCAST_MESSAGE_MAX_LENGTH
+    );
+    const title = nonEmptyString(payload.title)?.slice(0, 120) ?? "MonMarché";
+
+    const usersSnap = await db
+      .collection("users")
+      .where("fcmToken", "!=", null)
+      .get();
+
+    const tokens = usersSnap.docs
+      .map((docSnap) => docSnap.data()?.fcmToken)
+      .filter(
+        (token): token is string => typeof token === "string" && token.trim().length > 0
+      );
+
+    if (!tokens.length) {
+      return { ok: true, recipientCount: 0, tokensAttempted: 0 };
+    }
+
+    let recipientCount = 0;
+    for (let i = 0; i < tokens.length; i += BROADCAST_TOKEN_BATCH_SIZE) {
+      const batch = tokens.slice(i, i + BROADCAST_TOKEN_BATCH_SIZE);
+      const response = await admin.messaging().sendEachForMulticast({
+        tokens: batch,
+        notification: { title, body: message },
+      });
+      recipientCount += response.successCount;
+      response.responses.forEach((result, index) => {
+        if (!result.success) {
+          logger.warn("Broadcast notification failed for token", {
+            token: batch[index],
+            error: result.error?.message,
+          });
+        }
+      });
+    }
+
+    logger.info("Broadcast notification sent", {
+      callerUid,
+      tokensAttempted: tokens.length,
+      recipientCount,
+    });
+
+    return { ok: true, recipientCount, tokensAttempted: tokens.length };
+  }
+);
