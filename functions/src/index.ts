@@ -967,7 +967,7 @@ const normalizeOrderItems = (order: Record<string, any>): OrderItemSummary[] => 
 };
 
 type NotificationSeverity = "info" | "warning" | "danger";
-type NotificationType = "order" | "vendor" | "product" | "system";
+type NotificationType = "order" | "vendor" | "product" | "review" | "system";
 type NotificationSource = "app" | "vendor" | "delivery" | "admin";
 
 interface NotificationPayload {
@@ -979,7 +979,7 @@ interface NotificationPayload {
   severity?: NotificationSeverity;
   source?: NotificationSource;
   entity?: {
-    kind: "order" | "vendor" | "user" | "product";
+    kind: "order" | "vendor" | "user" | "product" | "review";
     id: string;
   };
 }
@@ -2713,6 +2713,28 @@ export const onVendorProductCreatedNotifyAdmins = onDocumentCreated(
       severity: "warning",
       source: "vendor",
       entity: { kind: "product", id: productId },
+    });
+  }
+);
+
+export const onReviewCreatedNotifyAdmins = onDocumentCreated(
+  { region: REGION, document: "reviews/{reviewId}" },
+  async (event) => {
+    const reviewId = event.params.reviewId as string;
+    const data = event.data?.data() || {};
+    const rating = toNumber(data.rating, 0);
+    const comment = nonEmptyString(data.comment);
+    const orderId = nonEmptyString(data.orderId) ?? "";
+
+    await createNotificationAndFanout({
+      id: `review_created_${normalizeDocIdPart(reviewId)}`,
+      type: "review",
+      title: `Nouvel avis client - ${rating}/5`,
+      message: comment ? comment.slice(0, 140) : `Commande ${orderId || reviewId}`,
+      link: "/reviews",
+      severity: rating <= 2 ? "warning" : "info",
+      source: "app",
+      entity: { kind: "review", id: reviewId },
     });
   }
 );

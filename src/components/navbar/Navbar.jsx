@@ -35,7 +35,7 @@ import LanguageOutlinedIcon from "@mui/icons-material/LanguageOutlined";
 import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
 import FullscreenExitOutlinedIcon from "@mui/icons-material/FullscreenExitOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
-import ChatBubbleOutlineOutlinedIcon from "@mui/icons-material/ChatBubbleOutlineOutlined";
+import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import MenuIcon from "@mui/icons-material/Menu";
 import MenuOpenIcon from "@mui/icons-material/MenuOpen";
 import CloseIcon from "@mui/icons-material/Close";
@@ -77,8 +77,9 @@ const Navbar = () => {
   const resumePromptedRef = useRef(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const notificationsRef = useRef(null);
+  const [mailOpen, setMailOpen] = useState(false);
+  const mailRef = useRef(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef(null);
 
@@ -219,24 +220,38 @@ const Navbar = () => {
   useEffect(() => {
     if (!currentUser?.uid) {
       setNotifications([]);
-      setUnreadCount(0);
       return undefined;
     }
 
     const inboxRef = collection(db, "admin", currentUser.uid, "notifications");
-    const q = query(inboxRef, orderBy("createdAt", "desc"), limit(20));
+    const q = query(inboxRef, orderBy("createdAt", "desc"), limit(50));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const rows = snapshot.docs.map((docSnap) => ({
         id: docSnap.id,
         ...docSnap.data(),
       }));
       setNotifications(rows);
-      const unread = rows.filter((item) => !item.readAt).length;
-      setUnreadCount(unread);
     });
 
     return () => unsubscribe();
   }, [currentUser]);
+
+  const reviewNotifications = useMemo(
+    () => notifications.filter((item) => item.type === "review"),
+    [notifications]
+  );
+  const otherNotifications = useMemo(
+    () => notifications.filter((item) => item.type !== "review"),
+    [notifications]
+  );
+  const unreadCount = useMemo(
+    () => otherNotifications.filter((item) => !item.readAt).length,
+    [otherNotifications]
+  );
+  const reviewUnreadCount = useMemo(
+    () => reviewNotifications.filter((item) => !item.readAt).length,
+    [reviewNotifications]
+  );
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
@@ -250,6 +265,19 @@ const Navbar = () => {
     }
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [notificationsOpen]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (!mailRef.current) return;
+      if (!mailRef.current.contains(event.target)) {
+        setMailOpen(false);
+      }
+    };
+    if (mailOpen) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [mailOpen]);
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
@@ -268,13 +296,17 @@ const Navbar = () => {
     setNotificationsOpen((prev) => !prev);
   };
 
+  const toggleMail = () => {
+    setMailOpen((prev) => !prev);
+  };
+
   const toggleAccountMenu = () => {
     setAccountMenuOpen((prev) => !prev);
   };
 
-  const markAllNotificationsRead = async () => {
+  const markNotificationsRead = async (items) => {
     if (!currentUser?.uid) return;
-    const unread = notifications.filter((item) => !item.readAt);
+    const unread = items.filter((item) => !item.readAt);
     if (!unread.length) return;
     const batch = writeBatch(db);
     unread.forEach((item) => {
@@ -284,15 +316,15 @@ const Navbar = () => {
     await batch.commit();
   };
 
-  const clearAllNotifications = async () => {
+  const clearNotifications = async (items) => {
     if (!currentUser?.uid) return;
-    if (!notifications.length) return;
+    if (!items.length) return;
     const ok = window.confirm(
       "Supprimer toutes les notifications ? Cette action est irreversible."
     );
     if (!ok) return;
     const batch = writeBatch(db);
-    notifications.forEach((item) => {
+    items.forEach((item) => {
       const ref = doc(db, "admin", currentUser.uid, "notifications", item.id);
       batch.delete(ref);
     });
@@ -306,6 +338,7 @@ const Navbar = () => {
       updateDoc(ref, { readAt: Timestamp.now() }).catch(() => {});
     }
     setNotificationsOpen(false);
+    setMailOpen(false);
     if (typeof notif.link === "string" && notif.link.trim()) {
       if (notif.link.startsWith("/")) {
         navigate(notif.link);
@@ -780,7 +813,7 @@ const Navbar = () => {
                     <button
                       type="button"
                       className="navbar__notificationsAction"
-                      onClick={markAllNotificationsRead}
+                      onClick={() => markNotificationsRead(otherNotifications)}
                       disabled={unreadCount === 0}
                     >
                       Tout marquer lu
@@ -788,20 +821,20 @@ const Navbar = () => {
                     <button
                       type="button"
                       className="navbar__notificationsAction navbar__notificationsAction--danger"
-                      onClick={clearAllNotifications}
-                      disabled={notifications.length === 0}
+                      onClick={() => clearNotifications(otherNotifications)}
+                      disabled={otherNotifications.length === 0}
                     >
                       Tout supprimer
                     </button>
                   </div>
                 </div>
                 <div className="navbar__notificationsList">
-                  {notifications.length === 0 ? (
+                  {otherNotifications.length === 0 ? (
                     <div className="navbar__notificationsEmpty">
                       Aucune notification récente.
                     </div>
                   ) : (
-                    notifications.map((notif) => (
+                    otherNotifications.map((notif) => (
                       <button
                         key={notif.id}
                         type="button"
@@ -826,9 +859,74 @@ const Navbar = () => {
               </div>
             )}
           </div>
-          <div className="item item--chat">
-            <ChatBubbleOutlineOutlinedIcon className="icon" />
-            <div className="counter">2</div>
+          <div className="item navbar__notifications" ref={mailRef}>
+            <button
+              type="button"
+              className="navbar__iconButton"
+              onClick={toggleMail}
+              aria-label="Avis clients"
+              title="Avis clients"
+            >
+              <MailOutlineIcon className="icon" />
+              {reviewUnreadCount > 0 && (
+                <span className="counter">
+                  {reviewUnreadCount > 9 ? "9+" : reviewUnreadCount}
+                </span>
+              )}
+            </button>
+            {mailOpen && (
+              <div className="navbar__notificationsPanel">
+                <div className="navbar__notificationsHeader">
+                  <span>Avis clients</span>
+                  <div className="navbar__notificationsActions">
+                    <button
+                      type="button"
+                      className="navbar__notificationsAction"
+                      onClick={() => markNotificationsRead(reviewNotifications)}
+                      disabled={reviewUnreadCount === 0}
+                    >
+                      Tout marquer lu
+                    </button>
+                    <button
+                      type="button"
+                      className="navbar__notificationsAction navbar__notificationsAction--danger"
+                      onClick={() => clearNotifications(reviewNotifications)}
+                      disabled={reviewNotifications.length === 0}
+                    >
+                      Tout supprimer
+                    </button>
+                  </div>
+                </div>
+                <div className="navbar__notificationsList">
+                  {reviewNotifications.length === 0 ? (
+                    <div className="navbar__notificationsEmpty">
+                      Aucun nouvel avis.
+                    </div>
+                  ) : (
+                    reviewNotifications.map((notif) => (
+                      <button
+                        key={notif.id}
+                        type="button"
+                        className={`navbar__notificationItem ${
+                          notif.readAt ? "" : "navbar__notificationItem--unread"
+                        }`}
+                        onClick={() => handleNotificationClick(notif)}
+                      >
+                        <div className="navbar__notificationTitle">
+                          {notif.title || "Avis client"}
+                        </div>
+                        {notif.message && (
+                          <div className="navbar__notificationMessage">{notif.message}</div>
+                        )}
+                        <div className="navbar__notificationMeta">
+                          {notif.createdAt ? formatNotificationDate(notif.createdAt) : ""}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <div className="navbar__groupDivider" />
           <div className="item">
