@@ -401,11 +401,14 @@ export const generateCompactPrintContent = (orderDetails, orderId, invoiceNumber
     return lines;
   });
   const productsSubtotal = invoiceLines.reduce((sum, line) => sum + line.total, 0);
-  const deliveryFee = toNumber(details.deliveryFee, 0);
-  const invoiceTotal = toNumber(
-    details.total ?? details.totalAmount,
-    productsSubtotal + deliveryFee
-  );
+  // La commande ne stocke pas toujours deliveryFee : le total payé par le client
+  // est alors la seule source fiable, la livraison est déduite de l'écart.
+  const storedTotal = toNumber(details.total ?? details.totalAmount, 0);
+  const deliveryFee =
+    details.deliveryFee != null
+      ? toNumber(details.deliveryFee, 0)
+      : Math.max(0, storedTotal - productsSubtotal);
+  const invoiceTotal = storedTotal > 0 ? storedTotal : productsSubtotal + deliveryFee;
   const displayedInvoiceNumber = invoiceNumber || details.invoiceNumber || details.orderId || orderId || "—";
   const formattedDate = format(resolveOrderDate(details), "dd/MM/yyyy à HH:mm");
   const optionalCustomerFields = [
