@@ -15,6 +15,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { db } from "../../firebase";
+import { loadVendorActivityMap, isVendorInactive } from "../../utils/vendorActivity";
 
 const firstValue = (...values) => {
   for (const value of values) {
@@ -64,6 +65,8 @@ const Datatable = ({
 }) => {
   const [data, setData] = useState([]);
   const [onlineMap, setOnlineMap] = useState(new Map());
+  const [vendorActivityMap, setVendorActivityMap] = useState(new Map());
+  const [showInactiveOnly, setShowInactiveOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pageSize, setPageSize] = useState(9);
   const [searchQuery, setSearchQuery] = useState("");
@@ -209,6 +212,28 @@ const Datatable = ({
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
   }, [title, data]);
 
+  useEffect(() => {
+    if (title !== "vendors") {
+      setVendorActivityMap(new Map());
+      setShowInactiveOnly(false);
+      return undefined;
+    }
+    let cancelled = false;
+    // Chargement ponctuel (getDocs), pas un onSnapshot : ces deux
+    // collections n'ont pas besoin d'etre temps reel ici, et on evite
+    // d'ajouter des listeners permanents sur des collections qui grossissent.
+    loadVendorActivityMap()
+      .then((map) => {
+        if (!cancelled) setVendorActivityMap(map);
+      })
+      .catch((error) => {
+        console.error("Failed to load vendor activity map:", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [title]);
+
   const actionColumn = useMemo(
     () => [
       {
@@ -239,14 +264,27 @@ const Datatable = ({
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
   const enrichedRows = useMemo(() => {
-    if (title !== "admin") return data;
-    return data.map((row) => ({
-      ...row,
-      __online: onlineMap.get(row.__docId || row.id) === true,
-    }));
-  }, [data, onlineMap, title]);
+    if (title === "admin") {
+      return data.map((row) => ({
+        ...row,
+        __online: onlineMap.get(row.__docId || row.id) === true,
+      }));
+    }
+    if (title === "vendors") {
+      return data.map((row) => {
+        const vendorId = row.__docId || row.id;
+        const activity = vendorActivityMap.get(vendorId) || null;
+        return {
+          ...row,
+          __lastSaleAt: activity?.lastSaleAt ?? null,
+          __vendorInactive: isVendorInactive(row, activity),
+        };
+      });
+    }
+    return data;
+  }, [data, onlineMap, vendorActivityMap, title]);
 
-  const displayedRows = useMemo(() => {
+  const searchedRows = useMemo(() => {
     if (!enableSearch || !normalizedSearch) return enrichedRows;
     return enrichedRows.filter((row) => {
       const titleCandidate = firstValue(
@@ -341,7 +379,16 @@ const Datatable = ({
     });
   }, [enrichedRows, enableSearch, normalizedSearch]);
 
+  const displayedRows = useMemo(() => {
+    if (title !== "vendors" || !showInactiveOnly) return searchedRows;
+    return searchedRows.filter((row) => row.__vendorInactive);
+  }, [searchedRows, title, showInactiveOnly]);
+
   const displayedCount = displayedRows.length;
+  const inactiveVendorCount = useMemo(() => {
+    if (title !== "vendors") return 0;
+    return searchedRows.filter((row) => row.__vendorInactive).length;
+  }, [searchedRows, title]);
 
   return (
     <div className="datatable">
@@ -350,6 +397,16 @@ const Datatable = ({
           <span>
             Nombre de {headerTitle} : {displayedCount}
           </span>
+          {title === "vendors" && inactiveVendorCount > 0 && (
+            <label className="datatableTitle__inactiveToggle">
+              <input
+                type="checkbox"
+                checked={showInactiveOnly}
+                onChange={(event) => setShowInactiveOnly(event.target.checked)}
+              />
+              Vendeurs inactifs uniquement ({inactiveVendorCount})
+            </label>
+          )}
           {!disableCreate && (
             <Link to={{ pathname: "new" }} className="link">
               Add new
