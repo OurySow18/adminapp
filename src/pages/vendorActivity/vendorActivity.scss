@@ -38,4 +38,6 @@
 .vendorActivity__actionBtn:hover { background: #f1f5f9; }
 .vendorActivity__actionBtn--warn { border-color: #fca5a5; color: #b91c1c; background: #fef2f2; }
 .vendorActivity__actionBtn--warn:hover { background: #fee2e2; }
+.vendorActivity__actionBtn:disabled { opacity: .55; cursor: not-allowed; }
+.vendorActivity__actionBtn--warn:disabled:hover { background: #fef2f2; }
 @media (max-width: 700px) { .vendorActivity { flex-direction: column; } .vendorActivity__container { padding: 14px; } .vendorActivity__filterBar { flex-direction: column; align-items: stretch; } .vendorActivity__field { min-width: 0; } }

@@ -434,8 +434,14 @@ const VendorActivity = () => {
                         type="button"
                         className="vendorActivity__actionBtn vendorActivity__actionBtn--warn"
                         onClick={() => openWarningModal(row)}
+                        disabled={Boolean(row.lastWarningAt)}
+                        title={
+                          row.lastWarningAt
+                            ? `Déjà averti le ${formatExactDateTime(row.lastWarningAt)}`
+                            : undefined
+                        }
                       >
-                        {row.lastWarningAt ? "Avertir à nouveau" : "Avertir"}
+                        {row.lastWarningAt ? "Déjà averti" : "Avertir"}
                       </button>
                       <button
                         type="button"
