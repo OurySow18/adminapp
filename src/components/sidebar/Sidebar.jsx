@@ -39,6 +39,7 @@ import MenuOpenIcon from "@mui/icons-material/MenuOpen";
 import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
+import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
@@ -341,6 +342,7 @@ const Sidbar = () => {
     isProductDeletionsActive ||
     isImageOptimizationActive;
   const isVendorsParentActive = vendorActiveKey !== null;
+  const isVendorActivityActive = normalizedPath.startsWith("/vendor-activity");
 
   useEffect(() => {
     if (
@@ -874,6 +876,16 @@ return (
               </ul>
             )}
           </li>
+          <Link
+            to="/vendor-activity"
+            style={{ textDecoration: "none" }}
+            onClick={handleNavLinkClick}
+          >
+            <li className={isVendorActivityActive ? "active" : ""}>
+              <QueryStatsIcon className="icon" />
+              <span>Activité vendeurs</span>
+            </li>
+          </Link>
           <Link
             to="/zones"
             style={{ textDecoration: "none" }}

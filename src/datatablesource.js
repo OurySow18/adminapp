@@ -5,7 +5,6 @@ import {
   isVendorPaused,
 } from "./utils/vendorStatus";
 import { formatCatalogLabels, getCatalogLabel } from "./utils/catalogLabels";
-import { formatLastActivity } from "./utils/vendorActivity";
 const toDate = (value) => {
   if (!value) return undefined;
   if (typeof value?.toDate === "function") return value.toDate();
@@ -470,30 +469,6 @@ export const vendorColumns = [
     width: 180,
     valueGetter: (params) =>
       formatDate(getVendorTimestamp(params.row, "submittedAt")),
-  },
-  {
-    field: "lastActivity",
-    headerName: "Dernière activité",
-    width: 170,
-    renderCell: (params) => {
-      const inactive = params.row.__vendorInactive === true;
-      return (
-        <span
-          style={{
-            fontWeight: inactive ? 700 : 400,
-            color: inactive ? "#b91c1c" : "#374151",
-          }}
-          title={
-            inactive
-              ? "Approuvé, aucune vente récente, aucun produit visible"
-              : undefined
-          }
-        >
-          {inactive ? "⚠ " : ""}
-          {formatLastActivity(params.row.__lastSaleAt)}
-        </span>
-      );
-    },
   },
 ];
 

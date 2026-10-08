@@ -77,6 +77,7 @@ const ProductDeletionsList = lazy(() =>
 const ImageOptimization = lazy(() => import("./pages/imageOptimization/ImageOptimization"));
 const Notifications = lazy(() => import("./pages/notifications/Notifications"));
 const Reviews = lazy(() => import("./pages/reviews/Reviews"));
+const VendorActivity = lazy(() => import("./pages/vendorActivity/VendorActivity"));
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -263,6 +264,14 @@ function App() {
               element={
                 <RequireAuth>
                   <Reviews />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="vendor-activity"
+              element={
+                <RequireAuth>
+                  <VendorActivity />
                 </RequireAuth>
               }
             />
