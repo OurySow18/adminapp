@@ -39,6 +39,8 @@ const VendorActivity = () => {
   const [searchText, setSearchText] = useState("");
   const [inactiveOnly, setInactiveOnly] = useState(false);
   const [sortOption, setSortOption] = useState("lastSaleAsc");
+  const [productCountMin, setProductCountMin] = useState("");
+  const [productCountMax, setProductCountMax] = useState("");
 
   const loadData = async () => {
     setLoading(true);
@@ -84,6 +86,8 @@ const VendorActivity = () => {
 
   const filteredRows = useMemo(() => {
     const normalizedSearch = searchText.trim().toLowerCase();
+    const minProducts = productCountMin !== "" ? Number(productCountMin) : null;
+    const maxProducts = productCountMax !== "" ? Number(productCountMax) : null;
     let filtered = rows;
     if (inactiveOnly) {
       filtered = filtered.filter((row) => row.inactive);
@@ -92,6 +96,12 @@ const VendorActivity = () => {
       filtered = filtered.filter((row) =>
         String(row.name || "").toLowerCase().includes(normalizedSearch)
       );
+    }
+    if (minProducts !== null && Number.isFinite(minProducts)) {
+      filtered = filtered.filter((row) => row.totalProductCount >= minProducts);
+    }
+    if (maxProducts !== null && Number.isFinite(maxProducts)) {
+      filtered = filtered.filter((row) => row.totalProductCount <= maxProducts);
     }
 
     const sorted = [...filtered];
@@ -115,7 +125,7 @@ const VendorActivity = () => {
       }
     });
     return sorted;
-  }, [rows, inactiveOnly, searchText, sortOption]);
+  }, [rows, inactiveOnly, searchText, sortOption, productCountMin, productCountMax]);
 
   const inactiveCount = useMemo(() => rows.filter((row) => row.inactive).length, [rows]);
 
@@ -171,6 +181,28 @@ const VendorActivity = () => {
               ))}
             </select>
           </div>
+          <div className="vendorActivity__field vendorActivity__field--narrow">
+            <label htmlFor="vendor-activity-products-min">Produits (min)</label>
+            <input
+              id="vendor-activity-products-min"
+              type="number"
+              min={0}
+              placeholder="0"
+              value={productCountMin}
+              onChange={(event) => setProductCountMin(event.target.value)}
+            />
+          </div>
+          <div className="vendorActivity__field vendorActivity__field--narrow">
+            <label htmlFor="vendor-activity-products-max">Produits (max)</label>
+            <input
+              id="vendor-activity-products-max"
+              type="number"
+              min={0}
+              placeholder="∞"
+              value={productCountMax}
+              onChange={(event) => setProductCountMax(event.target.value)}
+            />
+          </div>
           <label className="vendorActivity__toggle">
             <input
               type="checkbox"
@@ -182,6 +214,20 @@ const VendorActivity = () => {
           <button type="button" className="vendorActivity__refresh" onClick={loadData}>
             Rafraîchir
           </button>
+          {(searchText || inactiveOnly || productCountMin !== "" || productCountMax !== "") && (
+            <button
+              type="button"
+              className="vendorActivity__reset"
+              onClick={() => {
+                setSearchText("");
+                setInactiveOnly(false);
+                setProductCountMin("");
+                setProductCountMax("");
+              }}
+            >
+              Réinitialiser les filtres
+            </button>
+          )}
         </div>
 
         {error && (
