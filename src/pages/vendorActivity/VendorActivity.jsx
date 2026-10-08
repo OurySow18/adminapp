@@ -52,6 +52,24 @@ const getVendorName = (vendor) =>
   vendor?.profile?.displayName ||
   vendor?.id;
 
+const toDate = (value) => {
+  if (!value) return null;
+  if (typeof value?.toDate === "function") return value.toDate();
+  if (value instanceof Date) return value;
+  return null;
+};
+
+const formatExactDateTime = (date) =>
+  date
+    ? date.toLocaleString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
 const VendorActivity = () => {
   const navigate = useNavigate();
   const [vendors, setVendors] = useState([]);
@@ -107,6 +125,7 @@ const VendorActivity = () => {
         activeProductCount: activity?.activeProductCount ?? 0,
         lastSaleAt: activity?.lastSaleAt ?? null,
         lastLoginAt,
+        lastWarningAt: toDate(vendor?.lastWarningAt),
         inactive: isVendorInactive(vendor, activity),
         raw: vendor,
       };
@@ -221,6 +240,17 @@ const VendorActivity = () => {
         lastWarningMessage: finalMessage,
         lastWarningBy: auth.currentUser?.email ?? auth.currentUser?.uid ?? "admin",
       });
+
+      // Mise a jour optimiste locale (pas de refresh complet necessaire pour
+      // voir la colonne "Dernier avertissement" se mettre a jour).
+      const sentAt = new Date();
+      setVendors((prev) =>
+        prev.map((vendor) =>
+          vendor.id === warningTarget.id
+            ? { ...vendor, lastWarningAt: sentAt, lastWarningMessage: finalMessage }
+            : vendor
+        )
+      );
 
       setWarningSuccess(`Avertissement envoyé à ${warningTarget.name}.`);
       setWarningTarget(null);
@@ -359,6 +389,7 @@ const VendorActivity = () => {
                   <th>Produits</th>
                   <th>Dernière vente</th>
                   <th>Dernière connexion</th>
+                  <th>Dernier avertissement</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -386,13 +417,25 @@ const VendorActivity = () => {
                     <td className={!row.lastLoginAt ? "vendorActivity__neverCell" : ""}>
                       {formatLastActivity(row.lastLoginAt, "Jamais connecté")}
                     </td>
+                    <td>
+                      {row.lastWarningAt ? (
+                        <span
+                          className="vendorActivity__warnedCell"
+                          title={formatExactDateTime(row.lastWarningAt)}
+                        >
+                          {formatLastActivity(row.lastWarningAt)}
+                        </span>
+                      ) : (
+                        <span className="vendorActivity__muted">Aucun</span>
+                      )}
+                    </td>
                     <td className="vendorActivity__actions">
                       <button
                         type="button"
                         className="vendorActivity__actionBtn vendorActivity__actionBtn--warn"
                         onClick={() => openWarningModal(row)}
                       >
-                        Avertir
+                        {row.lastWarningAt ? "Avertir à nouveau" : "Avertir"}
                       </button>
                       <button
                         type="button"
@@ -421,6 +464,12 @@ const VendorActivity = () => {
           {warningTarget && !warningTarget.email && (
             <p className="workModal__error">
               Aucun email de contact trouvé pour ce vendeur — l'envoi échouera.
+            </p>
+          )}
+          {warningTarget?.lastWarningAt && (
+            <p className="workModal__text">
+              ⚠ Un avertissement a déjà été envoyé à ce vendeur le{" "}
+              <strong>{formatExactDateTime(warningTarget.lastWarningAt)}</strong>.
             </p>
           )}
           <div className="workModal__field">
