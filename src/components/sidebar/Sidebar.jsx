@@ -154,6 +154,14 @@ const Sidbar = () => {
         to: "/vendors/status/rejected",
         Icon: BlockIcon,
       },
+      {
+        key: "activity",
+        label: "Activité vendeurs",
+        description: "Produits, dernière vente, dernière connexion",
+        to: "/vendor-activity",
+        Icon: QueryStatsIcon,
+        noBadge: true,
+      },
     ],
     []
   );
@@ -308,6 +316,9 @@ const Sidbar = () => {
   }, [normalizedPath]);
 
   const vendorActiveKey = useMemo(() => {
+    if (normalizedPath.startsWith("/vendor-activity")) {
+      return "activity";
+    }
     if (normalizedPath.startsWith("/vendors/status/")) {
       const statusFromPath = normalizedPath.split("/vendors/status/")[1];
       const normalizedStatus = normalizeVendorStatus(statusFromPath);
@@ -342,7 +353,6 @@ const Sidbar = () => {
     isProductDeletionsActive ||
     isImageOptimizationActive;
   const isVendorsParentActive = vendorActiveKey !== null;
-  const isVendorActivityActive = normalizedPath.startsWith("/vendor-activity");
 
   useEffect(() => {
     if (
@@ -849,7 +859,7 @@ return (
 
             {vendorMenuOpen && (
               <ul className="submenu" id="sidebar-vendors-submenu">
-                {vendorMenuItems.map(({ key, label, to, Icon }) => {
+                {vendorMenuItems.map(({ key, label, to, Icon, noBadge }) => {
                   const isActive = vendorActiveKey === key;
                   return (
                     <li
@@ -866,9 +876,11 @@ return (
                           <Icon className="icon icon--sm" />
                           <span>{label}</span>
                         </div>
-                        <span className="submenu__badge">
-                          {renderVendorBadge(key)}
-                        </span>
+                        {!noBadge && (
+                          <span className="submenu__badge">
+                            {renderVendorBadge(key)}
+                          </span>
+                        )}
                       </Link>
                     </li>
                   );
@@ -876,16 +888,6 @@ return (
               </ul>
             )}
           </li>
-          <Link
-            to="/vendor-activity"
-            style={{ textDecoration: "none" }}
-            onClick={handleNavLinkClick}
-          >
-            <li className={isVendorActivityActive ? "active" : ""}>
-              <QueryStatsIcon className="icon" />
-              <span>Activité vendeurs</span>
-            </li>
-          </Link>
           <Link
             to="/zones"
             style={{ textDecoration: "none" }}
