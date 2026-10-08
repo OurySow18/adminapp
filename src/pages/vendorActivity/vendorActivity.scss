@@ -20,6 +20,7 @@
 .vendorActivity__reset:hover { background: #f1f5f9; }
 .vendorActivity__banner { margin-bottom: 15px; padding: 12px 14px; border-radius: 8px; }
 .vendorActivity__banner--error { color: #991b1b; background: #fee2e2; }
+.vendorActivity__banner--success { color: #166534; background: #dcfce7; }
 .vendorActivity__panel { padding: 18px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 8px 22px rgba(15,23,42,.06); overflow-x: auto; }
 .vendorActivity__empty { color: #94a3b8; }
 .vendorActivity__table { width: 100%; border-collapse: collapse; }
@@ -31,4 +32,9 @@
 .vendorActivity__badge { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: #fee2e2; color: #b91c1c; font-size: .72rem; font-weight: 700; }
 .vendorActivity__neverCell { color: #b91c1c; font-weight: 600; }
 .vendorActivity__muted { color: #94a3b8; font-size: .85rem; }
+.vendorActivity__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.vendorActivity__actionBtn { padding: 7px 12px; border: 1px solid #cbd5e1; border-radius: 8px; color: #334155; background: #f8fafc; font-size: .82rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.vendorActivity__actionBtn:hover { background: #f1f5f9; }
+.vendorActivity__actionBtn--warn { border-color: #fca5a5; color: #b91c1c; background: #fef2f2; }
+.vendorActivity__actionBtn--warn:hover { background: #fee2e2; }
 @media (max-width: 700px) { .vendorActivity { flex-direction: column; } .vendorActivity__container { padding: 14px; } .vendorActivity__filterBar { flex-direction: column; align-items: stretch; } .vendorActivity__field { min-width: 0; } }

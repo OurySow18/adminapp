@@ -1,11 +1,13 @@
 import "./vendorActivity.scss";
 import { useEffect, useMemo, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
-import { Link } from "react-router-dom";
+import { addDoc, collection, doc, getDocs, serverTimestamp, updateDoc } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
-import { db } from "../../firebase";
+import ConfirmModal from "../../components/modal/ConfirmModal";
+import { auth, db } from "../../firebase";
 import { resolveVendorStatus, getVendorStatusLabel } from "../../utils/vendorStatus";
+import { escapeHtml } from "../vendors/vendorDetailsHelpers";
 import {
   loadVendorActivityMap,
   isVendorInactive,
@@ -13,6 +15,25 @@ import {
   getVendorLastLogin,
   INACTIVE_VENDOR_DAYS,
 } from "../../utils/vendorActivity";
+
+const getVendorEmail = (vendor) =>
+  vendor?.company?.email ||
+  vendor?.email ||
+  vendor?.contactEmail ||
+  vendor?.profile?.email ||
+  vendor?.profile?.company?.email ||
+  null;
+
+const buildDefaultWarningMessage = (vendorName) =>
+  `Bonjour,
+
+Nous avons remarqué qu'aucune activité (vente ou connexion) n'a été enregistrée récemment sur votre boutique "${vendorName}" sur Monmarché.
+
+Sans activité de votre part, votre compte pourrait être suspendu prochainement.
+
+Si vous souhaitez continuer à vendre sur Monmarché, merci de mettre à jour votre catalogue ou de vous connecter rapidement. N'hésitez pas à nous contacter en cas de besoin.
+
+L'équipe Monmarché`;
 
 const SORT_OPTIONS = [
   { value: "lastSaleAsc", label: "Vente la plus ancienne" },
@@ -32,6 +53,7 @@ const getVendorName = (vendor) =>
   vendor?.id;
 
 const VendorActivity = () => {
+  const navigate = useNavigate();
   const [vendors, setVendors] = useState([]);
   const [activityMap, setActivityMap] = useState(new Map());
   const [loading, setLoading] = useState(true);
@@ -41,6 +63,11 @@ const VendorActivity = () => {
   const [sortOption, setSortOption] = useState("lastSaleAsc");
   const [productCountMin, setProductCountMin] = useState("");
   const [productCountMax, setProductCountMax] = useState("");
+  const [warningTarget, setWarningTarget] = useState(null);
+  const [warningMessage, setWarningMessage] = useState("");
+  const [warningSending, setWarningSending] = useState(false);
+  const [warningError, setWarningError] = useState("");
+  const [warningSuccess, setWarningSuccess] = useState("");
 
   const loadData = async () => {
     setLoading(true);
@@ -74,12 +101,14 @@ const VendorActivity = () => {
       return {
         id: vendor.id,
         name: getVendorName(vendor),
+        email: getVendorEmail(vendor),
         status: resolveVendorStatus(vendor, "draft"),
         totalProductCount: activity?.totalProductCount ?? 0,
         activeProductCount: activity?.activeProductCount ?? 0,
         lastSaleAt: activity?.lastSaleAt ?? null,
         lastLoginAt,
         inactive: isVendorInactive(vendor, activity),
+        raw: vendor,
       };
     });
   }, [vendors, activityMap]);
@@ -128,6 +157,81 @@ const VendorActivity = () => {
   }, [rows, inactiveOnly, searchText, sortOption, productCountMin, productCountMax]);
 
   const inactiveCount = useMemo(() => rows.filter((row) => row.inactive).length, [rows]);
+
+  const openWarningModal = (row) => {
+    setWarningTarget(row);
+    setWarningMessage(buildDefaultWarningMessage(row.name));
+    setWarningError("");
+    setWarningSuccess("");
+  };
+
+  const closeWarningModal = () => {
+    if (warningSending) return;
+    setWarningTarget(null);
+    setWarningMessage("");
+    setWarningError("");
+  };
+
+  const sendWarning = async () => {
+    if (!warningTarget) return;
+    const finalMessage = warningMessage.trim();
+    if (!finalMessage) {
+      setWarningError("Le message est obligatoire.");
+      return;
+    }
+    const vendorEmail = warningTarget.email;
+    if (!vendorEmail) {
+      setWarningError("Aucun email de contact trouvé pour ce vendeur.");
+      return;
+    }
+
+    setWarningSending(true);
+    setWarningError("");
+    try {
+      const vendorNameSafe = escapeHtml(warningTarget.name);
+      const messageHtml = escapeHtml(finalMessage).replace(/\n/g, "<br />");
+      const html = `
+        <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Dernier avertissement - Monmarché</title></head>
+        <body style="font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif">
+          <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #eee">
+            <div style="background:#dc2626;color:#fff;padding:12px;text-align:center">
+              <h1 style="margin:0;font-size:20px">Avertissement - Boutique ${vendorNameSafe}</h1>
+            </div>
+            <div style="padding:20px">
+              <p>${messageHtml}</p>
+            </div>
+            <div style="background:#dc2626;color:#fff;padding:10px;text-align:center;font-size:12px">
+              &copy; ${new Date().getFullYear()} Monmarché
+            </div>
+          </div>
+        </body></html>`;
+
+      await addDoc(collection(db, "mail"), {
+        to: vendorEmail,
+        message: {
+          subject: "Dernier avertissement - Monmarché",
+          text: finalMessage,
+          html,
+        },
+      });
+
+      await updateDoc(doc(db, "vendors", warningTarget.id), {
+        lastWarningAt: serverTimestamp(),
+        lastWarningMessage: finalMessage,
+        lastWarningBy: auth.currentUser?.email ?? auth.currentUser?.uid ?? "admin",
+      });
+
+      setWarningSuccess(`Avertissement envoyé à ${warningTarget.name}.`);
+      setWarningTarget(null);
+      setWarningMessage("");
+    } catch (err) {
+      console.error("Erreur envoi avertissement vendeur:", err);
+      setWarningError("Impossible d'envoyer l'avertissement. Merci de réessayer.");
+    } finally {
+      setWarningSending(false);
+    }
+  };
 
   return (
     <div className="vendorActivity">
@@ -235,6 +339,11 @@ const VendorActivity = () => {
             Impossible de charger les données vendeurs.
           </div>
         )}
+        {warningSuccess && (
+          <div className="vendorActivity__banner vendorActivity__banner--success">
+            {warningSuccess}
+          </div>
+        )}
 
         <section className="vendorActivity__panel">
           {loading && <p className="vendorActivity__empty">Chargement...</p>}
@@ -250,13 +359,14 @@ const VendorActivity = () => {
                   <th>Produits</th>
                   <th>Dernière vente</th>
                   <th>Dernière connexion</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredRows.map((row) => (
                   <tr key={row.id} className={row.inactive ? "vendorActivity__row--inactive" : ""}>
                     <td>
-                      <Link to={`/vendors/${row.id}`}>{row.name}</Link>
+                      {row.name}
                       {row.inactive && <span className="vendorActivity__badge">Inactif</span>}
                     </td>
                     <td>{getVendorStatusLabel(row.status)}</td>
@@ -276,12 +386,58 @@ const VendorActivity = () => {
                     <td className={!row.lastLoginAt ? "vendorActivity__neverCell" : ""}>
                       {formatLastActivity(row.lastLoginAt, "Jamais connecté")}
                     </td>
+                    <td className="vendorActivity__actions">
+                      <button
+                        type="button"
+                        className="vendorActivity__actionBtn vendorActivity__actionBtn--warn"
+                        onClick={() => openWarningModal(row)}
+                      >
+                        Avertir
+                      </button>
+                      <button
+                        type="button"
+                        className="vendorActivity__actionBtn"
+                        onClick={() => navigate(`/vendors/${row.id}`)}
+                      >
+                        Détails
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
         </section>
+
+        <ConfirmModal
+          open={Boolean(warningTarget)}
+          title={warningTarget ? `Avertir ${warningTarget.name}` : ""}
+          onClose={closeWarningModal}
+          onConfirm={sendWarning}
+          confirmText="Envoyer l'avertissement"
+          loading={warningSending}
+          confirmButtonClassName="confirmModal__button--strongConfirm"
+        >
+          {warningTarget && !warningTarget.email && (
+            <p className="workModal__error">
+              Aucun email de contact trouvé pour ce vendeur — l'envoi échouera.
+            </p>
+          )}
+          <div className="workModal__field">
+            <label htmlFor="vendor-warning-message">Message envoyé au vendeur</label>
+            <textarea
+              id="vendor-warning-message"
+              value={warningMessage}
+              onChange={(event) => {
+                setWarningMessage(event.target.value);
+                if (warningError) setWarningError("");
+              }}
+              rows={9}
+              disabled={warningSending}
+            />
+          </div>
+          {warningError && <p className="workModal__error">{warningError}</p>}
+        </ConfirmModal>
       </main>
     </div>
   );
