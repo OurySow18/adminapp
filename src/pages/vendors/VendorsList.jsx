@@ -25,6 +25,24 @@ const getVendorName = (vendor) =>
   vendor?.profile?.displayName ||
   vendor?.id;
 
+const toDate = (value) => {
+  if (!value) return null;
+  if (typeof value?.toDate === "function") return value.toDate();
+  if (value instanceof Date) return value;
+  return null;
+};
+
+const formatExactDateTime = (date) =>
+  date
+    ? date.toLocaleString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
 const getVendorEmail = (vendor) =>
   vendor?.company?.email ||
   vendor?.email ||
@@ -74,6 +92,7 @@ const VendorsList = () => {
       id: vendorId,
       name: getVendorName(vendor),
       email: getVendorEmail(vendor),
+      lastSentAt: toDate(vendor.lastOnboardingHelpAt),
     });
     setHelpMessage(buildDefaultHelpMessage(getVendorName(vendor)));
     setHelpError("");
@@ -154,21 +173,27 @@ const VendorsList = () => {
     () => ({
       field: "onboardingHelp",
       headerName: "Aide",
-      width: 150,
+      width: 170,
       sortable: false,
       filterable: false,
-      renderCell: (params) => (
-        <button
-          type="button"
-          className="vendorsList__helpButton"
-          onClick={(event) => {
-            event.stopPropagation();
-            openHelpModal(params.row);
-          }}
-        >
-          Proposer de l'aide
-        </button>
-      ),
+      renderCell: (params) => {
+        const lastSentAt = toDate(params.row.lastOnboardingHelpAt);
+        return (
+          <button
+            type="button"
+            className={`vendorsList__helpButton ${
+              lastSentAt ? "vendorsList__helpButton--sent" : ""
+            }`}
+            title={lastSentAt ? `Envoyé le ${formatExactDateTime(lastSentAt)}` : undefined}
+            onClick={(event) => {
+              event.stopPropagation();
+              openHelpModal(params.row);
+            }}
+          >
+            {lastSentAt ? "Renvoyer" : "Proposer de l'aide"}
+          </button>
+        );
+      },
     }),
     []
   );
@@ -209,6 +234,12 @@ const VendorsList = () => {
         {helpTarget && !helpTarget.email && (
           <p className="workModal__error">
             Aucun email de contact trouvé pour cette boutique — l'envoi échouera.
+          </p>
+        )}
+        {helpTarget?.lastSentAt && (
+          <p className="workModal__text">
+            ℹ Un email a déjà été envoyé à cette boutique le{" "}
+            <strong>{formatExactDateTime(helpTarget.lastSentAt)}</strong>.
           </p>
         )}
         <div className="workModal__field">

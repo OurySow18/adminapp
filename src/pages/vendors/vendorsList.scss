@@ -13,3 +13,13 @@
 .vendorsList__helpButton:hover {
   background: #ffedd5;
 }
+
+.vendorsList__helpButton--sent {
+  border-color: #16a34a;
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.vendorsList__helpButton--sent:hover {
+  background: #dcfce7;
+}
