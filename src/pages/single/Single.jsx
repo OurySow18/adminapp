@@ -4,10 +4,11 @@ import Navbar from "../../components/navbar/Navbar";
 import ListCommande from "../../components/table/Table";
 import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { doc, onSnapshot, updateDoc, collection, query, where } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, collection } from "firebase/firestore";
 import { db, auth, storage } from "../../firebase";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { useCustomerOrderStats } from "../../hooks/useCustomerOrderStats";
 
 const Single = ({ title }) => {
   const [data, setData] = useState(null);
@@ -25,7 +26,6 @@ const Single = ({ title }) => {
     error: null,
     success: null,
   });
-  const [realOrdersState, setRealOrdersState] = useState({ loading: true, count: 0 });
   const [shiftRows, setShiftRows] = useState([]);
   const [shiftState, setShiftState] = useState({
     loading: true,
@@ -86,63 +86,7 @@ const Single = ({ title }) => {
     return () => unsub();
   }, [title, params.id, editableFields]);
 
-  // Compte les vraies commandes (orders + archivedOrders, hors fakeOrder) de
-  // cet utilisateur. Pas de compteur stocke pour les commandes reelles
-  // (contrairement a fakeOrdersCount), donc on interroge directement les deux
-  // collections filtrees par userId (index simple, pas de scan global).
-  useEffect(() => {
-    if (title !== "users") {
-      setRealOrdersState({ loading: false, count: 0 });
-      return undefined;
-    }
-    setRealOrdersState({ loading: true, count: 0 });
-
-    const counts = { active: 0, archived: 0 };
-    const loaded = { active: false, archived: false };
-    const updateTotal = () => {
-      if (loaded.active && loaded.archived) {
-        setRealOrdersState({ loading: false, count: counts.active + counts.archived });
-      }
-    };
-
-    const activeQuery = query(collection(db, "orders"), where("userId", "==", params.id));
-    const unsubActive = onSnapshot(
-      activeQuery,
-      (snapshot) => {
-        counts.active = snapshot.docs.filter((d) => d.data()?.fakeOrder !== true).length;
-        loaded.active = true;
-        updateTotal();
-      },
-      (error) => {
-        console.error("Erreur comptage commandes actives:", error);
-        loaded.active = true;
-        updateTotal();
-      }
-    );
-
-    const archivedQuery = query(
-      collection(db, "archivedOrders"),
-      where("userId", "==", params.id)
-    );
-    const unsubArchived = onSnapshot(
-      archivedQuery,
-      (snapshot) => {
-        counts.archived = snapshot.docs.filter((d) => d.data()?.fakeOrder !== true).length;
-        loaded.archived = true;
-        updateTotal();
-      },
-      (error) => {
-        console.error("Erreur comptage commandes archivees:", error);
-        loaded.archived = true;
-        updateTotal();
-      }
-    );
-
-    return () => {
-      unsubActive();
-      unsubArchived();
-    };
-  }, [title, params.id]);
+  const customerOrderStats = useCustomerOrderStats(title === "users" ? params.id : null);
 
   useEffect(() => {
     if (title !== "admin") return undefined;
@@ -378,13 +322,12 @@ const Single = ({ title }) => {
   if (title === "users") {
     infoRows.push({
       label: "Commandes",
-      value: realOrdersState.loading ? "..." : realOrdersState.count,
+      value: customerOrderStats.loading ? "..." : customerOrderStats.realOrdersCount,
     });
-    const fakeOrdersCount = Number(data.fakeOrdersCount) || 0;
     infoRows.push({
       label: "Fausses commandes",
-      value: fakeOrdersCount,
-      alert: fakeOrdersCount > 0,
+      value: customerOrderStats.loading ? "..." : customerOrderStats.fakeOrdersCount,
+      alert: !customerOrderStats.loading && customerOrderStats.fakeOrdersCount > 0,
     });
   }
 

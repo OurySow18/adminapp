@@ -10,6 +10,7 @@ import ConfirmModal from "../modal/ConfirmModal";
 import { formatDateTime, formatPackaging, formatPrice, toNumber } from "./detailsOrderHelpers";
 import { useOrderData } from "./useOrderData";
 import { useOrderActions } from "./useOrderActions";
+import { useCustomerOrderStats } from "../../hooks/useCustomerOrderStats";
 
 const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
   const [previewImage, setPreviewImage] = useState(null);
@@ -27,6 +28,7 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
     : "/orders";
 
   const { orderDetails, loading, loadError, orderVendors } = useOrderData(title, params.id);
+  const customerOrderStats = useCustomerOrderStats(orderDetails?.userId || null);
 
   const {
     isProcessing,
@@ -333,6 +335,24 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
             <div className="detailsOrderPage__kv"><span>Téléphone</span><strong>{orderDetails?.deliverInfos?.phone || "—"}</strong></div>
             <div className="detailsOrderPage__kv"><span>Adresse</span><strong>{orderDetails?.deliverInfos?.address || "—"}</strong></div>
             <div className="detailsOrderPage__kv"><span>Description</span><strong>{orderDetails?.deliverInfos?.additionalInfo || "—"}</strong></div>
+            <div className="detailsOrderPage__kv">
+              <span>Commandes passées</span>
+              <strong>
+                {customerOrderStats.loading ? "..." : customerOrderStats.realOrdersCount}
+              </strong>
+            </div>
+            <div className="detailsOrderPage__kv">
+              <span>Fausses commandes</span>
+              <strong
+                style={
+                  !customerOrderStats.loading && customerOrderStats.fakeOrdersCount > 0
+                    ? { color: "#b91c1c" }
+                    : undefined
+                }
+              >
+                {customerOrderStats.loading ? "..." : customerOrderStats.fakeOrdersCount}
+              </strong>
+            </div>
           </div>
 
           <div className="detailsOrderPage__card">
