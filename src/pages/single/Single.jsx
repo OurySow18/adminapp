@@ -316,6 +316,14 @@ const Single = ({ title }) => {
       value: data.zone || data.deliveryZone || "N/A",
     });
   }
+  if (title === "users") {
+    const fakeOrdersCount = Number(data.fakeOrdersCount) || 0;
+    infoRows.push({
+      label: "Fausses commandes",
+      value: fakeOrdersCount,
+      alert: fakeOrdersCount > 0,
+    });
+  }
 
   return (
     <div className="single">
@@ -417,7 +425,9 @@ const Single = ({ title }) => {
                 {infoRows.map((row) => (
                   <div className="profileDetails__row" key={row.label}>
                     <dt>{row.label}</dt>
-                    <dd>{row.value}</dd>
+                    <dd style={row.alert ? { color: "#b91c1c" } : undefined}>
+                      {row.value}
+                    </dd>
                   </div>
                 ))}
               </dl>
