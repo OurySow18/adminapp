@@ -4,6 +4,7 @@ import {
   onSnapshot,
   query,
   orderBy,
+  where,
   limit as limitDocs,
 } from "firebase/firestore";
 import { db } from "../../firebase";
@@ -43,6 +44,13 @@ const formatCurrency = (amount, currency = "GNF") => {
   }).format(numeric);
 };
 
+const getTimeMs = (value) => {
+  if (!value) return 0;
+  if (typeof value?.toDate === "function") return value.toDate().getTime();
+  if (value instanceof Date) return value.getTime();
+  return 0;
+};
+
 const ListCommande = ({
   limit = 10,
   userId = null,
@@ -50,45 +58,91 @@ const ListCommande = ({
   onCountChange = null,
 }) => {
   const navigate = useNavigate();
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [activeOrders, setActiveOrders] = useState([]);
+  const [archivedOrders, setArchivedOrders] = useState([]);
+  const [activeLoaded, setActiveLoaded] = useState(false);
+  const [archivedLoaded, setArchivedLoaded] = useState(!userId);
 
+  // Avec un userId : on interroge directement orders + archivedOrders
+  // filtres par userId (historique complet de ce client, y compris les
+  // commandes deja livrees/archivees). Sans userId (flux "commandes
+  // recentes" global) : on garde l'ancien comportement, orders uniquement,
+  // trie + limite cote serveur.
   useEffect(() => {
-    const constraints = [orderBy("timeStamp", "desc")];
-    if (Number.isInteger(limit) && limit > 0) {
+    setActiveLoaded(false);
+    const constraints = userId
+      ? [where("userId", "==", userId), orderBy("timeStamp", "desc")]
+      : [orderBy("timeStamp", "desc")];
+    if (!userId && Number.isInteger(limit) && limit > 0) {
       constraints.push(limitDocs(limit));
     }
     const ordersQuery = query(collection(db, "orders"), ...constraints);
     const unsubscribe = onSnapshot(
       ordersQuery,
       (snapshot) => {
-        const list = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
-        const filtered = list.filter((row) => {
-          const matchesUser = userId ? row?.userId === userId : true;
-          if (!matchesUser) return false;
-          if (!showOnlyPendingValid) return true;
-          return row?.payed !== true && row?.fakeOrder !== true;
-        });
-        setOrders(filtered);
-        if (typeof onCountChange === "function") {
-          onCountChange(filtered.length);
-        }
-        setLoading(false);
+        setActiveOrders(
+          snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+        );
+        setActiveLoaded(true);
       },
       (error) => {
-        console.error("Erreur chargement commandes:", error);
-        setOrders([]);
-        if (typeof onCountChange === "function") {
-          onCountChange(0);
-        }
-        setLoading(false);
+        console.error("Erreur chargement commandes actives:", error);
+        setActiveOrders([]);
+        setActiveLoaded(true);
       }
     );
     return () => unsubscribe();
-  }, [limit, userId, showOnlyPendingValid, onCountChange]);
+  }, [limit, userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      setArchivedOrders([]);
+      setArchivedLoaded(true);
+      return undefined;
+    }
+    setArchivedLoaded(false);
+    const archivedQuery = query(
+      collection(db, "archivedOrders"),
+      where("userId", "==", userId),
+      orderBy("timeStamp", "desc")
+    );
+    const unsubscribe = onSnapshot(
+      archivedQuery,
+      (snapshot) => {
+        setArchivedOrders(
+          snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+        );
+        setArchivedLoaded(true);
+      },
+      (error) => {
+        console.error("Erreur chargement commandes archivées:", error);
+        setArchivedOrders([]);
+        setArchivedLoaded(true);
+      }
+    );
+    return () => unsubscribe();
+  }, [userId]);
+
+  const loading = !activeLoaded || !archivedLoaded;
+
+  const orders = React.useMemo(() => {
+    if (loading) return [];
+    const merged = userId ? [...activeOrders, ...archivedOrders] : [...activeOrders];
+    merged.sort((a, b) => getTimeMs(b.timeStamp) - getTimeMs(a.timeStamp));
+    const filtered = showOnlyPendingValid
+      ? merged.filter((row) => row?.payed !== true && row?.fakeOrder !== true)
+      : merged;
+    return Number.isInteger(limit) && limit > 0 && userId
+      ? filtered.slice(0, limit)
+      : filtered;
+  }, [activeOrders, archivedOrders, loading, userId, showOnlyPendingValid, limit]);
+
+  useEffect(() => {
+    if (!loading && typeof onCountChange === "function") {
+      onCountChange(orders.length);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders, loading]);
 
   return (
     <TableContainer component={Paper} className="table">
@@ -115,12 +169,17 @@ const ListCommande = ({
           {!loading &&
             orders.map((row) => {
               const receiver = row.deliverInfos ?? {};
+              const isArchived = Boolean(row.archived);
               return (
                 <TableRow
                   key={row.id}
                   hover
                   sx={{ cursor: "pointer" }}
-                  onClick={() => navigate(`/orders/${row.id}`)}
+                  onClick={() =>
+                    navigate(
+                      isArchived ? `/delivredOrders/${row.id}` : `/orders/${row.id}`
+                    )
+                  }
                 >
                   <TableCell className="tableCell">{row.orderId || row.id}</TableCell>
                   <TableCell className="tableCell">
@@ -141,11 +200,15 @@ const ListCommande = ({
                     {row.paymentType || row.paymentMethode || "-"}
                   </TableCell>
                   <TableCell className="tableCell">
-                    <span
-                      className={`status ${row.delivered ? "delivered" : "pending"}`}
-                    >
-                      {row.delivered ? "Livré" : "En attente"}
-                    </span>
+                    {row.fakeOrder === true ? (
+                      <span className="status fake">Fausse commande</span>
+                    ) : (
+                      <span
+                        className={`status ${row.delivered ? "delivered" : "pending"}`}
+                      >
+                        {row.delivered ? "Livré" : "En attente"}
+                      </span>
+                    )}
                   </TableCell>
                 </TableRow>
               );
@@ -153,7 +216,7 @@ const ListCommande = ({
           {!loading && orders.length === 0 && (
             <TableRow>
               <TableCell colSpan={7} className="tableCell">
-                Aucune commande trouvée.©e.
+                Aucune commande trouvée.
               </TableCell>
             </TableRow>
           )}
@@ -164,8 +227,3 @@ const ListCommande = ({
 };
 
 export default ListCommande;
-
-
-
-
-
