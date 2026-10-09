@@ -45,7 +45,7 @@ service cloud.firestore {
 
     function isCatalogLockedFor(uid) {
       return exists(/databases/$(database)/documents/vendors/$(uid)) &&
-             get(/databases/$(database)/documents/vendors/$(uid)).data.lockCatalog == true;
+             get(/databases/$(database)/documents/vendors/$(uid)).data.get('lockCatalog', false) == true;
     }
 
     /* users : lecture/ecriture du proprietaire, admin, livreur en lecture (infos client livraison) */
@@ -127,11 +127,13 @@ service cloud.firestore {
     }
 
     /* vendors : create libre pour soi, lecture proprietaire + admin + livreur
-       (infos de retrait), update/delete bloqués si lockEdits=true (sauf admin) */
+       (infos de retrait), update/delete bloqués si lockEdits=true (sauf admin).
+       get('lockEdits', false) : un document sans ce champ est considéré non verrouillé
+       (sinon l'accès au champ manquant fait échouer la règle). */
     match /vendors/{userId} {
       allow create: if isSelf(userId);
       allow read: if isSelf(userId) || isAdmin() || isDriver();
-      allow update, delete: if (isSelf(userId) && !(resource.data.lockEdits == true)) || isAdmin();
+      allow update, delete: if (isSelf(userId) && !(resource.data.get('lockEdits', false) == true)) || isAdmin();
 
       match /{document=**} {
         allow read: if isSelf(userId) || isAdmin() || isDriver();
