@@ -153,6 +153,16 @@
       font-size: 0.9rem;
     }
 
+    .detailsOrderPage__customerLink {
+      color: #c2410c;
+      text-decoration: none;
+      font-weight: 600;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+
     strong {
       color: #111827;
       font-size: 0.92rem;

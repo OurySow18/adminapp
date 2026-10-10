@@ -330,7 +330,26 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
 
           <div className="detailsOrderPage__card">
             <h2>Client & livraison</h2>
-            <div className="detailsOrderPage__kv"><span>Email</span><strong>{orderDetails?.mail_invoice || "—"}</strong></div>
+            <div className="detailsOrderPage__kv">
+              <span>Email</span>
+              <strong>
+                {orderDetails?.mail_invoice ? (
+                  orderDetails?.userId ? (
+                    <Link
+                      to={`/users/${orderDetails.userId}`}
+                      className="detailsOrderPage__customerLink"
+                      title="Voir la fiche client"
+                    >
+                      {orderDetails.mail_invoice}
+                    </Link>
+                  ) : (
+                    orderDetails.mail_invoice
+                  )
+                ) : (
+                  "—"
+                )}
+              </strong>
+            </div>
             <div className="detailsOrderPage__kv"><span>Nom</span><strong>{orderDetails?.deliverInfos?.name || "—"}</strong></div>
             <div className="detailsOrderPage__kv"><span>Téléphone</span><strong>{orderDetails?.deliverInfos?.phone || "—"}</strong></div>
             <div className="detailsOrderPage__kv"><span>Adresse</span><strong>{orderDetails?.deliverInfos?.address || "—"}</strong></div>
