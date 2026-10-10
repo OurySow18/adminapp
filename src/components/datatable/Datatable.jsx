@@ -14,7 +14,15 @@ import {
   doc,
   onSnapshot,
 } from "firebase/firestore";
-import { db } from "../../firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../../firebase";
+import ConfirmModal from "../modal/ConfirmModal";
+import FeedbackPopup from "../feedbackPopup/FeedbackPopup";
+
+const backfillRealOrdersCountCallable = httpsCallable(
+  functions,
+  "backfillRealOrdersCount"
+);
 
 const firstValue = (...values) => {
   for (const value of values) {
@@ -65,6 +73,13 @@ const Datatable = ({
   const [data, setData] = useState([]);
   const [onlineMap, setOnlineMap] = useState(new Map());
   const [loading, setLoading] = useState(true);
+  const [backfillModalOpen, setBackfillModalOpen] = useState(false);
+  const [backfillRunning, setBackfillRunning] = useState(false);
+  const [backfillFeedback, setBackfillFeedback] = useState({
+    open: false,
+    type: "success",
+    message: "",
+  });
   const [pageSize, setPageSize] = useState(9);
   const [searchQuery, setSearchQuery] = useState("");
   const enableSearch = ["products", "users", "vendors", "admin", "drivers"].includes(
@@ -209,6 +224,30 @@ const Datatable = ({
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
   }, [title, data]);
 
+  const runBackfillRealOrdersCount = async () => {
+    setBackfillRunning(true);
+    try {
+      const response = await backfillRealOrdersCountCallable();
+      const { ordersScanned = 0, usersUpdated = 0 } = response?.data || {};
+      setBackfillModalOpen(false);
+      setBackfillFeedback({
+        open: true,
+        type: "success",
+        message: `Terminé : ${ordersScanned} commande(s) analysée(s), ${usersUpdated} client(s) mis à jour.`,
+      });
+    } catch (error) {
+      console.error("Erreur backfill realOrdersCount:", error);
+      setBackfillModalOpen(false);
+      setBackfillFeedback({
+        open: true,
+        type: "error",
+        message: error?.message || "Impossible de recalculer les compteurs.",
+      });
+    } finally {
+      setBackfillRunning(false);
+    }
+  };
+
   const actionColumn = useMemo(
     () => [
       {
@@ -350,6 +389,15 @@ const Datatable = ({
           <span>
             Nombre de {headerTitle} : {displayedCount}
           </span>
+          {title === "users" && (
+            <button
+              type="button"
+              className="datatableTitle__backfillButton"
+              onClick={() => setBackfillModalOpen(true)}
+            >
+              Recalculer les compteurs de commandes
+            </button>
+          )}
           {!disableCreate && (
             <Link to={{ pathname: "new" }} className="link">
               Add new
@@ -380,6 +428,33 @@ const Datatable = ({
           loading={loading}
         />
       </div>
+      {title === "users" && (
+        <>
+          <ConfirmModal
+            open={backfillModalOpen}
+            title="Recalculer les compteurs de commandes"
+            onClose={() => !backfillRunning && setBackfillModalOpen(false)}
+            onConfirm={runBackfillRealOrdersCount}
+            confirmText="Lancer le recalcul"
+            loading={backfillRunning}
+          >
+            <p>
+              Recalcule le nombre de vraies commandes (validées, non fausses)
+              de chaque client à partir de l'historique complet des
+              commandes, et remplace la valeur actuelle de leur compteur. À
+              utiliser une fois pour rattraper les commandes validées avant
+              la mise en place de ce compteur — sans risque à relancer
+              plusieurs fois.
+            </p>
+          </ConfirmModal>
+          <FeedbackPopup
+            open={backfillFeedback.open}
+            type={backfillFeedback.type}
+            message={backfillFeedback.message}
+            onClose={() => setBackfillFeedback((prev) => ({ ...prev, open: false }))}
+          />
+        </>
+      )}
     </div>
   );
 };

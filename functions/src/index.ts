@@ -2744,3 +2744,63 @@ export const onReviewCreatedNotifyAdmins = onDocumentCreated(
    des tokens FCM natifs. Ne pas la redefinir ici — voir Notifications.jsx,
    qui l'appelle directement via un client Functions pointe sur cette
    region/codebase. */
+
+/* Rattrapage ponctuel (declenche manuellement depuis l'admin app) :
+   realOrdersCount n'existe que depuis l'ajout de l'increment dans
+   finalizeOrderValidation, les commandes validees avant cette date ne sont
+   pas comptees. Recalcule le compteur par client a partir de orders +
+   archivedOrders (payed==true, fakeOrder!=true), en ecrasant (pas en
+   incrementant) pour rester idempotent si relance plusieurs fois. */
+export const backfillRealOrdersCount = onCall(
+  { region: REGION, timeoutSeconds: 300 },
+  async (request) => {
+    const callerUid = request.auth?.uid ?? null;
+    if (!callerUid) {
+      throw new HttpsError("unauthenticated", "auth_required");
+    }
+    if (!(await isAdminUid(callerUid))) {
+      throw new HttpsError("permission-denied", "admin_required");
+    }
+
+    const counts = new Map<string, number>();
+    let ordersScanned = 0;
+
+    const countValidated = (snapshot: FirebaseFirestore.QuerySnapshot) => {
+      snapshot.docs.forEach((docSnap) => {
+        ordersScanned += 1;
+        const data = docSnap.data() || {};
+        if (data.payed === true && data.fakeOrder !== true) {
+          const userId = nonEmptyString(data.userId);
+          if (userId) {
+            counts.set(userId, (counts.get(userId) ?? 0) + 1);
+          }
+        }
+      });
+    };
+
+    const [ordersSnap, archivedSnap] = await Promise.all([
+      db.collection("orders").get(),
+      db.collection("archivedOrders").get(),
+    ]);
+    countValidated(ordersSnap);
+    countValidated(archivedSnap);
+
+    const entries = Array.from(counts.entries());
+    const chunkSize = 450;
+    for (let i = 0; i < entries.length; i += chunkSize) {
+      const batch = db.batch();
+      entries.slice(i, i + chunkSize).forEach(([userId, count]) => {
+        batch.set(db.doc(`users/${userId}`), { realOrdersCount: count }, { merge: true });
+      });
+      await batch.commit();
+    }
+
+    logger.info("Backfill realOrdersCount terminé", {
+      callerUid,
+      ordersScanned,
+      usersUpdated: entries.length,
+    });
+
+    return { ok: true, ordersScanned, usersUpdated: entries.length };
+  }
+);
