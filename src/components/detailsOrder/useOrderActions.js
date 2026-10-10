@@ -187,6 +187,21 @@ export const useOrderActions = ({ title, orderId, orderDetails, navigate }) => {
         await updateDoc(doc(db, "orders", orderId), {
           ...updatePayload,
         });
+
+        // Ne compter une "vraie commande" cote client qu'a la validation :
+        // une commande encore en attente peut finir fausse, annulee ou
+        // supprimee sans jamais etre une vente reelle.
+        const userId = orderDetails?.userId;
+        if (userId) {
+          updateDoc(doc(db, "users", userId), {
+            realOrdersCount: increment(1),
+          }).catch((err) => {
+            console.error("Erreur incrementation realOrdersCount:", err);
+          });
+        } else {
+          console.warn("Aucun userId sur la commande, realOrdersCount non mis à jour.");
+        }
+
         await sendPerMail();
         setActionFeedback(
           selectedDriver?.uid

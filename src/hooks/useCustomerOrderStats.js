@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
-import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 
 const EMPTY_STATE = { loading: false, realOrdersCount: 0, fakeOrdersCount: 0 };
 
 // Stats client reutilisees sur la fiche utilisateur et sur le detail d'une
-// commande : nombre de vraies commandes (orders + archivedOrders, hors
-// fakeOrder, requete where(userId==)) et fakeOrdersCount (deja stocke sur
-// le document utilisateur, incremente/decremente par markAsFakeOrder /
-// revertFakeOrder).
+// commande. Les deux compteurs vivent sur users/{uid} :
+//  - fakeOrdersCount : incremente/decremente par markAsFakeOrder/revertFakeOrder.
+//  - realOrdersCount : incremente uniquement a la validation de la commande
+//    (finalizeOrderValidation), jamais a la creation. Une commande encore en
+//    attente peut finir fausse, annulee ou supprimee sans etre une vente
+//    reelle, donc elle ne doit pas compter avant d'etre validee.
 export const useCustomerOrderStats = (userId) => {
   const [state, setState] = useState({ ...EMPTY_STATE, loading: Boolean(userId) });
 
@@ -17,67 +19,25 @@ export const useCustomerOrderStats = (userId) => {
       setState(EMPTY_STATE);
       return undefined;
     }
-    setState({ ...EMPTY_STATE, loading: true });
+    setState((prev) => ({ ...prev, loading: true }));
 
-    const counts = { active: 0, archived: 0, fake: 0 };
-    const loaded = { active: false, archived: false, user: false };
-    const updateTotal = () => {
-      if (loaded.active && loaded.archived && loaded.user) {
-        setState({
-          loading: false,
-          realOrdersCount: counts.active + counts.archived,
-          fakeOrdersCount: counts.fake,
-        });
-      }
-    };
-
-    const unsubUser = onSnapshot(
+    const unsubscribe = onSnapshot(
       doc(db, "users", userId),
       (snapshot) => {
-        counts.fake = Number(snapshot.data()?.fakeOrdersCount) || 0;
-        loaded.user = true;
-        updateTotal();
+        const data = snapshot.data() || {};
+        setState({
+          loading: false,
+          realOrdersCount: Number(data.realOrdersCount) || 0,
+          fakeOrdersCount: Number(data.fakeOrdersCount) || 0,
+        });
       },
       (error) => {
         console.error("Erreur chargement stats client (users):", error);
-        loaded.user = true;
-        updateTotal();
+        setState({ ...EMPTY_STATE, loading: false });
       }
     );
 
-    const unsubActive = onSnapshot(
-      query(collection(db, "orders"), where("userId", "==", userId)),
-      (snapshot) => {
-        counts.active = snapshot.docs.filter((d) => d.data()?.fakeOrder !== true).length;
-        loaded.active = true;
-        updateTotal();
-      },
-      (error) => {
-        console.error("Erreur chargement stats client (orders):", error);
-        loaded.active = true;
-        updateTotal();
-      }
-    );
-
-    const unsubArchived = onSnapshot(
-      query(collection(db, "archivedOrders"), where("userId", "==", userId)),
-      (snapshot) => {
-        counts.archived = snapshot.docs.filter((d) => d.data()?.fakeOrder !== true).length;
-        loaded.archived = true;
-        updateTotal();
-      },
-      (error) => {
-        console.error("Erreur chargement stats client (archivedOrders):", error);
-        loaded.archived = true;
-        updateTotal();
-      }
-    );
-
-    return () => {
-      unsubUser();
-      unsubActive();
-      unsubArchived();
-    };
+    return () => unsubscribe();
   }, [userId]);
 
   return state;
