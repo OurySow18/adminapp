@@ -49,38 +49,21 @@ const VendorProductsSection = ({
               <tbody>
                 {products.map((product) => {
                   const productLabel = getProductLabel(product);
-                  const productStatus =
-                    product?.status ??
-                    product?.core?.status ??
-                    product?.draft?.core?.status ??
-                    null;
-                  const productActive =
-                    product?.active ??
-                    product?.isActive ??
-                    product?.core?.active ??
-                    product?.core?.isActive ??
-                    product?.draft?.core?.active ??
-                    product?.draft?.core?.isActive;
-                  const isProductBlocked =
-                    product?.blocked === true ||
-                    productStatus === "archived" ||
-                    productActive === false;
-                  let vendorStatusLabel = "Actif vendeur";
-                  if (isProductBlocked) {
-                    vendorStatusLabel = "Inactif vendeur";
-                  } else if (productStatus === "draft") {
-                    vendorStatusLabel = "Brouillon vendeur";
-                  } else if (productStatus === "pending") {
-                    vendorStatusLabel = "En attente vendeur";
-                  } else if (
-                    productStatus &&
-                    !["active", "published"].includes(productStatus)
-                  ) {
-                    vendorStatusLabel = `${String(productStatus)} vendeur`;
-                  }
-                  const vendorStatusClass = isProductBlocked
-                    ? "vendorDetails__statusChip--blocked"
-                    : "vendorDetails__statusChip--active";
+                  // vm_status est le champ reellement ecrit par le vendeur
+                  // (meme source que la page detail produit) ; blocked/status/
+                  // active/isActive sont des champs legacy non maintenus par
+                  // cette app et peuvent diverger de vm_status.
+                  const vendorStatusFlag = toStatusFlag(
+                    product?.vm_status ??
+                      product?.core?.vm_status ??
+                      product?.draft?.core?.vm_status
+                  );
+                  const vendorStatusLabel = vendorStatusFlag
+                    ? "Actif vendeur"
+                    : "Inactif vendeur";
+                  const vendorStatusClass = vendorStatusFlag
+                    ? "vendorDetails__statusChip--active"
+                    : "vendorDetails__statusChip--blocked";
                   const adminStatusFlag = toStatusFlag(
                     product?.mm_status ??
                       product?.core?.mm_status ??
@@ -92,6 +75,11 @@ const VendorProductsSection = ({
                   const adminStatusClass = adminStatusFlag
                     ? "vendorDetails__statusChip--active"
                     : "vendorDetails__statusChip--blocked";
+                  // Le bouton Bloquer/Activer de cette table ne touche que
+                  // mm_status (cf. blockProductsForVendor/
+                  // reactivateProductsForVendor) : son affichage doit donc
+                  // suivre adminStatusFlag, pas le statut vendeur.
+                  const isProductBlocked = !adminStatusFlag;
                   const blockedReason =
                     product?.blockedReason ??
                     product?.core?.blockedReason ??
