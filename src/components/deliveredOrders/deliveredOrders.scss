@@ -1,78 +1,65 @@
-.listOrder{
-    height: 600px;
-    padding: 20px;
+// Habillage Sidebar/Navbar/conteneur de cette page, meme structure que
+// pages/Order/order.scss. Ne redefinit plus .listOrder (ni ses classes
+// imbriquees) : c'est entierement la responsabilite d'OrderList.scss,
+// importe par le composant OrderList lui-meme. L'ancienne version de ce
+// fichier redefinissait .listOrder avec une hauteur fixe de 600px, en
+// collision avec le composant OrderList partage - ca cassait l'affichage
+// du tableau au premier rendu (corrige en le constatant visuellement).
+.order {
+  width: 100%;
+  display: flex;
+  min-height: 100vh;
+  background: #f5f6fa;
 
-    .listOrderTitel{
-        width: 100%;
-        font-size: 29px;
-        color: gray;
-        margin-bottom: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+  .orderContainer {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
 
-        .link{
-            text-decoration: none;
-            color: green;
-            font-size: 26px;
-            font-weight: 400;
-            border: 1px solid green;
-            padding: 5px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
+    .listContainer {
+      -webkit-box-shadow: 2px 4px 12px 1px rgba(15, 23, 42, 0.12);
+      box-shadow: 2px 4px 12px 1px rgba(15, 23, 42, 0.12);
+      background: #fff;
+      padding: 24px;
+      margin: 24px;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+
+      .listTitle {
+        font-weight: 600;
+        color: #4b5563;
+        font-size: 1.5rem;
+      }
     }
+  }
+}
 
-    .cellWithImg{
-        display: flex;
-        align-items: center;
-
-        .cellImg{
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            object-fit: cover;
-            margin-right: 20px;
-        }
+@media (max-width: 992px) {
+  .order {
+    .orderContainer {
+      .listContainer {
+        margin: 20px;
+        padding: 20px;
+        border-radius: 14px;
+      }
     }
+  }
+}
 
-    .cellWithStatus{
-        padding: 5px;
-        border-radius: 5px;
+@media (max-width: 768px) {
+  .order {
+    flex-direction: column;
 
-        &.active{
-            background-color: rgba(0, 128, 0, 0.05);
-            color: green;
-        }
-        &.pending{
-            background-color: rgba(255, 217, 0, 0.05);
-            color: goldenrod;
-        }
-        &.passive{
-            background-color: rgba(255, 0, 0, 0.05);
-            color: crimson;
-        }
+    .orderContainer {
+      width: 100%;
+
+      .listContainer {
+        margin: 16px;
+        padding: 18px;
+      }
     }
-
-        .cellAction{
-            display: flex;
-            align-items: center;
-            gap: 15px;
-
-            .viewButton{
-                padding: 2px 5px;
-                border-radius: 5px;
-                color: darkblue;
-                border: 1px dotted rgba(0, 0, 139, 0.596);
-                cursor: pointer;
-            }
-            .deleteButton{
-                padding: 2px 5px;
-                border-radius: 5px;
-                color: crimson;
-                border: 1px dotted rgba(220, 20, 60, 0.6);
-                cursor: pointer;
-            }
-         
-    }
+  }
 }
