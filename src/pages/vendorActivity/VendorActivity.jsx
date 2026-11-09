@@ -70,18 +70,45 @@ const formatExactDateTime = (date) =>
       })
     : null;
 
+// Filtres memorises le temps de l'onglet (sessionStorage) : revenir sur
+// cette page apres avoir consulte un vendeur ne doit pas obliger a les
+// refaire. Pas de persistance plus longue (pas de localStorage) : un
+// filtre "Inactifs uniquement" oublie d'une session a l'autre serait
+// plus gênant qu'utile.
+const FILTERS_STORAGE_KEY = "vendorActivityFilters";
+const DEFAULT_FILTERS = {
+  searchText: "",
+  inactiveOnly: false,
+  statusFilter: "all",
+  sortOption: "lastSaleAsc",
+  productCountMin: "",
+  productCountMax: "",
+};
+
+const loadStoredFilters = () => {
+  try {
+    const raw = sessionStorage.getItem(FILTERS_STORAGE_KEY);
+    if (!raw) return DEFAULT_FILTERS;
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_FILTERS, ...parsed };
+  } catch (err) {
+    return DEFAULT_FILTERS;
+  }
+};
+
 const VendorActivity = () => {
   const navigate = useNavigate();
+  const storedFilters = useMemo(loadStoredFilters, []);
   const [vendors, setVendors] = useState([]);
   const [activityMap, setActivityMap] = useState(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [searchText, setSearchText] = useState("");
-  const [inactiveOnly, setInactiveOnly] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sortOption, setSortOption] = useState("lastSaleAsc");
-  const [productCountMin, setProductCountMin] = useState("");
-  const [productCountMax, setProductCountMax] = useState("");
+  const [searchText, setSearchText] = useState(storedFilters.searchText);
+  const [inactiveOnly, setInactiveOnly] = useState(storedFilters.inactiveOnly);
+  const [statusFilter, setStatusFilter] = useState(storedFilters.statusFilter);
+  const [sortOption, setSortOption] = useState(storedFilters.sortOption);
+  const [productCountMin, setProductCountMin] = useState(storedFilters.productCountMin);
+  const [productCountMax, setProductCountMax] = useState(storedFilters.productCountMax);
   const [warningTarget, setWarningTarget] = useState(null);
   const [warningMessage, setWarningMessage] = useState("");
   const [warningSending, setWarningSending] = useState(false);
@@ -112,6 +139,25 @@ const VendorActivity = () => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        FILTERS_STORAGE_KEY,
+        JSON.stringify({
+          searchText,
+          inactiveOnly,
+          statusFilter,
+          sortOption,
+          productCountMin,
+          productCountMax,
+        })
+      );
+    } catch (err) {
+      // stockage indisponible (navigation privee, quota...) : tant pis,
+      // les filtres ne seront simplement pas memorises.
+    }
+  }, [searchText, inactiveOnly, statusFilter, sortOption, productCountMin, productCountMax]);
 
   // Seules les boutiques actives (approved) ou bloquees (blocked) sont des
   // "vrais" vendeurs a surveiller ici : les brouillons/soumis/en revue
