@@ -112,8 +112,20 @@ const VendorActivity = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Seules les boutiques actives (approved) ou bloquees (blocked) sont des
+  // "vrais" vendeurs a surveiller ici : les brouillons/soumis/en revue
+  // n'ont jamais vendu ni ete approuves, ca n'a pas de sens de les compter
+  // comme inactifs sur cette page.
+  const eligibleVendors = useMemo(
+    () =>
+      vendors.filter((vendor) =>
+        ["approved", "blocked"].includes(resolveVendorStatus(vendor, "draft"))
+      ),
+    [vendors]
+  );
+
   const rows = useMemo(() => {
-    return vendors.map((vendor) => {
+    return eligibleVendors.map((vendor) => {
       const activity = activityMap.get(vendor.id) || null;
       const lastLoginAt = getVendorLastLogin(vendor);
       return {
@@ -130,7 +142,7 @@ const VendorActivity = () => {
         raw: vendor,
       };
     });
-  }, [vendors, activityMap]);
+  }, [eligibleVendors, activityMap]);
 
   const filteredRows = useMemo(() => {
     const normalizedSearch = searchText.trim().toLowerCase();
@@ -273,9 +285,10 @@ const VendorActivity = () => {
             <h1>Activité des vendeurs</h1>
             <p>
               Vendeur, nombre de produits, dernière vente et dernière connexion —
-              pour repérer les comptes à nettoyer. Inactif = approuvé, aucune
-              vente depuis {INACTIVE_VENDOR_DAYS} jours (ou jamais), aucun
-              produit visible.
+              pour repérer les comptes à nettoyer. Limité aux boutiques actives
+              ou bloquées (brouillons/soumis/en revue exclus). Inactif =
+              approuvé, aucune vente depuis {INACTIVE_VENDOR_DAYS} jours (ou
+              jamais), aucun produit visible.
             </p>
           </div>
           <div className="vendorActivity__stats">
