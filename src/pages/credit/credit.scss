@@ -1,0 +1,84 @@
+// Styles partages par toutes les pages du module Credit entreprise
+// (src/pages/credit/*). Meme vocabulaire que vendorActivity.scss/reviews.scss.
+.credit { display: flex; width: 100%; min-height: 100vh; background: #f5f6fa; color: #111827; }
+.credit__container { flex: 1; min-width: 0; padding: 24px; }
+.credit__header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin: 24px 0; flex-wrap: wrap; }
+.credit__header h1 { margin: 0; font-size: 1.7rem; }
+.credit__header p { margin: 5px 0 0; max-width: 620px; color: #64748b; }
+.credit__back { display: inline-block; margin-bottom: 12px; color: #64748b; text-decoration: none; font-size: .85rem; }
+.credit__back:hover { color: #334155; text-decoration: underline; }
+
+.credit__cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.credit__card { display: block; padding: 16px 18px; border-radius: 14px; background: #fff; border: 1px solid #e2e8f0; box-shadow: 0 8px 22px rgba(15,23,42,.06); text-decoration: none; color: inherit; cursor: pointer; }
+.credit__card:hover { border-color: #ff6f00; }
+.credit__card span { display: block; color: #64748b; font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; }
+.credit__card strong { display: block; margin-top: 6px; font-size: 1.6rem; }
+.credit__card--alert strong { color: #b91c1c; }
+
+.credit__actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.credit__button { padding: 9px 16px; border-radius: 8px; border: 1px solid #cbd5e1; background: #f8fafc; color: #334155; font-weight: 600; font-size: .9rem; cursor: pointer; }
+.credit__button:hover { background: #f1f5f9; }
+.credit__button:disabled { opacity: .55; cursor: not-allowed; }
+.credit__button--primary { border-color: #ff6f00; color: #fff; background: #ff6f00; }
+.credit__button--primary:hover { background: #e86500; }
+.credit__button--danger { border-color: #fca5a5; color: #b91c1c; background: #fef2f2; }
+.credit__button--danger:hover { background: #fee2e2; }
+.credit__button--ghost { border-color: transparent; background: transparent; }
+
+.credit__tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
+.credit__tab { padding: 8px 14px; border-radius: 999px; border: 1px solid #cbd5e1; background: #fff; color: #475569; font-weight: 600; font-size: .85rem; cursor: pointer; white-space: nowrap; }
+.credit__tab:hover { background: #f8fafc; }
+.credit__tab.active { border-color: #ff6f00; color: #fff; background: #ff6f00; }
+
+.credit__filterBar { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; margin-bottom: 16px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+.credit__field { display: flex; flex-direction: column; gap: 5px; min-width: 170px; }
+.credit__field--narrow { min-width: 120px; }
+.credit__field label { color: #64748b; font-size: .78rem; font-weight: 600; }
+.credit__field input, .credit__field select, .credit__field textarea { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; color: #111827; background: #fff; }
+.credit__field input:focus, .credit__field select:focus, .credit__field textarea:focus { outline: none; border-color: #ff6f00; box-shadow: 0 0 0 3px rgba(255,111,0,.15); }
+.credit__toggle { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 999px; background: #fef2f2; color: #b91c1c; font-size: .85rem; font-weight: 600; cursor: pointer; height: fit-content; }
+
+.credit__banner { margin-bottom: 15px; padding: 12px 14px; border-radius: 8px; }
+.credit__banner--error { color: #991b1b; background: #fee2e2; }
+.credit__banner--success { color: #166534; background: #dcfce7; }
+.credit__banner--info { color: #1e40af; background: #dbeafe; }
+
+.credit__panel { padding: 18px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 8px 22px rgba(15,23,42,.06); overflow-x: auto; margin-bottom: 18px; }
+.credit__panel h2 { margin: 0 0 14px; font-size: 1.1rem; }
+.credit__empty { color: #94a3b8; }
+
+.credit__table { width: 100%; border-collapse: collapse; }
+.credit__table th { padding: 10px 12px; color: #64748b; font-size: .78rem; text-transform: uppercase; text-align: left; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+.credit__table td { padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.credit__table td a { color: #c2410c; font-weight: 600; text-decoration: none; }
+.credit__table td a:hover { text-decoration: underline; }
+.credit__row--late { background: #fff7f7; }
+.credit__row--waiting { background: #fffbeb; }
+
+.credit__pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .75rem; font-weight: 700; white-space: nowrap; }
+.credit__pill--pending_review { color: #92400e; background: #fef3c7; }
+.credit__pill--pending_company_approval { color: #1e40af; background: #dbeafe; }
+.credit__pill--company_approved { color: #166534; background: #dcfce7; }
+.credit__pill--company_rejected { color: #9a3412; background: #ffedd5; }
+.credit__pill--active { color: #166534; background: #dcfce7; }
+.credit__pill--late { color: #b91c1c; background: #fee2e2; }
+.credit__pill--settled { color: #334155; background: #e2e8f0; }
+.credit__pill--rejected { color: #b91c1c; background: #fee2e2; }
+.credit__pill--cancelled { color: #64748b; background: #f1f5f9; }
+
+.credit__muted { color: #94a3b8; font-size: .85rem; }
+.credit__lateDays { color: #b91c1c; font-weight: 700; }
+
+.credit__installments { display: flex; flex-direction: column; gap: 8px; }
+.credit__installmentRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: #f8fafc; }
+.credit__installmentRow--late { background: #fef2f2; }
+.credit__installmentRow--paid { background: #f0fdf4; }
+
+.credit__total { font-weight: 700; font-size: 1.05rem; }
+
+@media (max-width: 700px) {
+  .credit { flex-direction: column; }
+  .credit__container { padding: 14px; }
+  .credit__filterBar { flex-direction: column; align-items: stretch; }
+  .credit__field { min-width: 0; }
+}

@@ -78,6 +78,13 @@ const ImageOptimization = lazy(() => import("./pages/imageOptimization/ImageOpti
 const Notifications = lazy(() => import("./pages/notifications/Notifications"));
 const Reviews = lazy(() => import("./pages/reviews/Reviews"));
 const VendorActivity = lazy(() => import("./pages/vendorActivity/VendorActivity"));
+const CreditDashboard = lazy(() => import("./pages/credit/CreditDashboard"));
+const CreditRequests = lazy(() => import("./pages/credit/CreditRequests"));
+const CreditDebtors = lazy(() => import("./pages/credit/CreditDebtors"));
+const CreditAgreementDetails = lazy(() => import("./pages/credit/CreditAgreementDetails"));
+const CreditPayments = lazy(() => import("./pages/credit/CreditPayments"));
+const CreditCompanies = lazy(() => import("./pages/credit/CreditCompanies"));
+const CreditCompanyDetails = lazy(() => import("./pages/credit/CreditCompanyDetails"));
 
 function App() {
   const { darkMode } = useContext(DarkModeContext);
@@ -272,6 +279,64 @@ function App() {
               element={
                 <RequireAuth>
                   <VendorActivity />
+                </RequireAuth>
+              }
+            />
+
+            {/*Credit entreprise*/}
+            <Route
+              path="admin/credit"
+              element={
+                <RequireAuth>
+                  <CreditDashboard />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/credit/demandes"
+              element={
+                <RequireAuth>
+                  <CreditRequests />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/credit/debiteurs"
+              element={
+                <RequireAuth>
+                  <CreditDebtors />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/credit/debiteurs/:agreementId"
+              element={
+                <RequireAuth>
+                  <CreditAgreementDetails />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/credit/paiements"
+              element={
+                <RequireAuth>
+                  <CreditPayments />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/credit/entreprises"
+              element={
+                <RequireAuth>
+                  <CreditCompanies />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="admin/credit/entreprises/:companyId"
+              element={
+                <RequireAuth>
+                  <CreditCompanyDetails />
                 </RequireAuth>
               }
             />

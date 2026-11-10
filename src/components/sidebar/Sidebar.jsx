@@ -40,8 +40,13 @@ import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
+import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import HourglassBottomIcon from "@mui/icons-material/HourglassBottom";
+import RuleIcon from "@mui/icons-material/Rule";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
+import ApartmentIcon from "@mui/icons-material/Apartment";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../../firebase";
 import {
   VENDOR_STATUS_VALUES,
@@ -97,6 +102,8 @@ const Sidbar = () => {
   });
   const [marketingMenuOpen, setMarketingMenuOpen] = useState(false);
   const [statisticsMenuOpen, setStatisticsMenuOpen] = useState(false);
+  const [creditMenuOpen, setCreditMenuOpen] = useState(false);
+  const [creditPendingCount, setCreditPendingCount] = useState(null);
   const centerRef = useRef(null);
   const normalizedPath = useMemo(
     () => location.pathname.replace(/\/+$/, "") || "/",
@@ -165,6 +172,31 @@ const Sidbar = () => {
     ],
     []
   );
+
+  const creditMenuItems = useMemo(
+    () => [
+      { key: "dashboard", label: "Tableau de bord", to: "/admin/credit", Icon: AccountBalanceWalletIcon, noBadge: true },
+      { key: "demandes", label: "Demandes", to: "/admin/credit/demandes", Icon: RuleIcon, noBadge: true },
+      { key: "debiteurs", label: "Débiteurs et échéances", to: "/admin/credit/debiteurs", Icon: HourglassBottomIcon, noBadge: true },
+      { key: "paiements", label: "Paiements", to: "/admin/credit/paiements", Icon: ReceiptLongIcon, noBadge: true },
+      { key: "entreprises", label: "Entreprises", to: "/admin/credit/entreprises", Icon: ApartmentIcon, noBadge: true },
+    ],
+    []
+  );
+
+  useEffect(() => {
+    const creditRef = collection(db, "creditAgreements");
+    const q = query(creditRef, where("status", "==", "pending_review"));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => setCreditPendingCount(snapshot.size),
+      (error) => {
+        console.error("Failed to load credit pending count:", error);
+        setCreditPendingCount(null);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
 
   const vendorProductFilterIcons = useMemo(
     () => ({
@@ -315,6 +347,15 @@ const Sidbar = () => {
     return null;
   }, [normalizedPath]);
 
+  const creditActiveKey = useMemo(() => {
+    if (normalizedPath.startsWith("/admin/credit/demandes")) return "demandes";
+    if (normalizedPath.startsWith("/admin/credit/debiteurs")) return "debiteurs";
+    if (normalizedPath.startsWith("/admin/credit/paiements")) return "paiements";
+    if (normalizedPath.startsWith("/admin/credit/entreprises")) return "entreprises";
+    if (normalizedPath === "/admin/credit") return "dashboard";
+    return null;
+  }, [normalizedPath]);
+
   const vendorActiveKey = useMemo(() => {
     if (normalizedPath.startsWith("/vendor-activity")) {
       return "activity";
@@ -353,6 +394,7 @@ const Sidbar = () => {
     isProductDeletionsActive ||
     isImageOptimizationActive;
   const isVendorsParentActive = vendorActiveKey !== null;
+  const isCreditParentActive = creditActiveKey !== null;
 
   useEffect(() => {
     if (
@@ -395,6 +437,12 @@ const Sidbar = () => {
       setVendorMenuOpen(true);
     }
   }, [vendorActiveKey, vendorMenuOpen]);
+
+  useEffect(() => {
+    if (creditActiveKey && !creditMenuOpen) {
+      setCreditMenuOpen(true);
+    }
+  }, [creditActiveKey, creditMenuOpen]);
 
   useEffect(() => {
     if (marketingActiveKey && !marketingMenuOpen) {
@@ -488,6 +536,10 @@ const toggleMarketingMenu = () => {
 
 const toggleStatisticsMenu = () => {
   setStatisticsMenuOpen((prev) => !prev);
+};
+
+const toggleCreditMenu = () => {
+  setCreditMenuOpen((prev) => !prev);
 };
 
 const logout = async () => {
@@ -959,6 +1011,58 @@ return (
               <span>Paiements vendeurs</span>
             </li>
           </Link>
+          <li className={`menu-group ${creditMenuOpen ? "open" : ""}`}>
+            <div className="menu-group__header">
+              <Link
+                to="/admin/credit"
+                style={{ textDecoration: "none" }}
+                className={`menu-group__primary ${isCreditParentActive ? "active" : ""}`}
+                onClick={handleNavLinkClick}
+              >
+                <AccountBalanceWalletIcon className="icon" />
+                <span>Crédit entreprise</span>
+              </Link>
+              {creditPendingCount !== null && creditPendingCount > 0 && (
+                <span className="submenu__badge" style={{ marginRight: 4 }}>
+                  {creditPendingCount}
+                </span>
+              )}
+              <button
+                type="button"
+                className={`menu-group__chevron ${creditMenuOpen ? "menu-group__chevron--open" : ""}`}
+                onClick={toggleCreditMenu}
+                aria-label={
+                  creditMenuOpen
+                    ? "Reduire le sous-menu Credit entreprise"
+                    : "Deployer le sous-menu Credit entreprise"
+                }
+              >
+                <ExpandMoreIcon />
+              </button>
+            </div>
+            {creditMenuOpen && (
+              <ul className="submenu" id="sidebar-credit-submenu">
+                {creditMenuItems.map(({ key, label, to, Icon }) => (
+                  <li key={key} className={`submenu__item ${creditActiveKey === key ? "active" : ""}`}>
+                    <Link
+                      to={to}
+                      className="submenu__link"
+                      style={{ textDecoration: "none" }}
+                      onClick={handleNavLinkClick}
+                    >
+                      <div className="submenu__linkLabel">
+                        <Icon className="icon icon--sm" />
+                        <span>{label}</span>
+                      </div>
+                      {key === "demandes" && creditPendingCount !== null && creditPendingCount > 0 && (
+                        <span className="submenu__badge">{creditPendingCount}</span>
+                      )}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
           <p className="title">UTILES</p>
           <li className={`menu-group ${statisticsMenuOpen ? "open" : ""}`}>
             <div className="menu-group__header">

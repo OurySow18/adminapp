@@ -856,4 +856,35 @@ export const orderColumns = [
     headerName: "Total",
     width: 150,
   },
+  {
+    field: "credit",
+    headerName: "Crédit entreprise",
+    width: 160,
+    renderCell: (params) => {
+      if (params.row.paymentType !== "credit_entreprise") return null;
+      const status = params.row.orderStatus;
+      const label =
+        status === "awaiting_credit_approval"
+          ? "En attente"
+          : status === "confirmed"
+          ? "Livraison lancée"
+          : status === "awaiting_payment"
+          ? "Refusé"
+          : "Crédit";
+      return (
+        <span
+          style={{
+            padding: "3px 10px",
+            borderRadius: 999,
+            fontSize: ".75rem",
+            fontWeight: 700,
+            background: status === "awaiting_credit_approval" ? "#fef3c7" : "#dcfce7",
+            color: status === "awaiting_credit_approval" ? "#92400e" : "#166534",
+          }}
+        >
+          {label}
+        </span>
+      );
+    },
+  },
 ];

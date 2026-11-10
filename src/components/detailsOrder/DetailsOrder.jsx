@@ -216,12 +216,16 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
       sum + product.purchases.reduce((quantity, purchase) => quantity + purchase.quantity, 0),
     0
   );
+  const isCreditOrder = orderDetails?.paymentType === "credit_entreprise";
+  const isAwaitingCreditApproval = orderDetails?.orderStatus === "awaiting_credit_approval";
   const isPrimaryActionDisabled = isDeliveryMode
-    ? isProcessing || orderDetails?.archived || orderDetails?.delivered
+    ? isProcessing || orderDetails?.archived || orderDetails?.delivered || isAwaitingCreditApproval
     : isArchivedMode
     ? isProcessing
-    : isProcessing || orderDetails?.payed;
-  const primaryActionLabel = isArchivedMode
+    : isProcessing || orderDetails?.payed || isAwaitingCreditApproval;
+  const primaryActionLabel = isAwaitingCreditApproval && !isArchivedMode
+    ? "En attente de validation crédit"
+    : isArchivedMode
     ? isProcessing
       ? "Traitement..."
       : btnValidation
@@ -296,6 +300,23 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
             </button>
           </div>
         </div>
+
+        {isCreditOrder && (
+          <div className="detailsOrderPage__alert" style={{ background: "#dbeafe", color: "#1e40af" }}>
+            Commande à crédit entreprise.{" "}
+            {isAwaitingCreditApproval
+              ? "En attente de validation (Monmarché puis entreprise) — ne peut pas être attribuée à un livreur ni expédiée tant que le crédit n'est pas approuvé."
+              : "Crédit déjà traité pour cette commande."}
+            {orderDetails?.credit?.agreementId && (
+              <>
+                {" "}
+                <Link to={`/admin/credit/debiteurs/${orderDetails.credit.agreementId}`}>
+                  Voir la demande de crédit
+                </Link>
+              </>
+            )}
+          </div>
+        )}
 
         {(actionFeedback || actionError) && (
           <div className={`detailsOrderPage__alert ${actionError ? "detailsOrderPage__alert--error" : ""}`}>
