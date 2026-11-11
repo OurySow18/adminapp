@@ -175,6 +175,19 @@ export const formatPackaging = (value, fallbackUnit = "") => {
   return `${value}${fallbackUnit ? ` ${fallbackUnit}` : ""}`;
 };
 
+// Poids d'un article du panier, distinct du conditionnement generique
+// (conditionnement/unit peuvent designer autre chose qu'un poids, ex:
+// "Bouteille", "Pack de 6"). Non rempli pour tous les produits.
+export const resolveProductWeight = (product) => {
+  const raw = [
+    product?.poids,
+    product?.weight,
+    product?.attributes?.weight,
+    product?.attributes?.poids,
+  ].find((value) => value !== undefined && value !== null && value !== "");
+  return formatPackaging(raw);
+};
+
 export const buildPaymentEmailHtml = (details) => `
   <!DOCTYPE html>
   <html>
@@ -358,7 +371,9 @@ export const generateCompactPrintContent = (orderDetails, orderId, invoiceNumber
   const money = (value) =>
     `${toNumber(value, 0).toLocaleString("fr-FR")} GNF`;
   const invoiceLines = cart.flatMap((product) => {
-    const name = product?.name || product?.title || product?.productName || "Produit";
+    const baseName = product?.name || product?.title || product?.productName || "Produit";
+    const weightLabel = resolveProductWeight(product);
+    const name = weightLabel ? `${baseName} ${weightLabel}` : baseName;
     const packaging =
       product?.poids || product?.weight || product?.conditionnement || product?.unit || "—";
     const lines = [];

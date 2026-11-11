@@ -7,7 +7,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { resolveOrderDate } from "../../utils/orderDate";
 import ConfirmModal from "../modal/ConfirmModal";
-import { formatDateTime, formatPackaging, formatPrice, toNumber } from "./detailsOrderHelpers";
+import { formatDateTime, formatPackaging, formatPrice, resolveProductWeight, toNumber } from "./detailsOrderHelpers";
 import { useOrderData } from "./useOrderData";
 import { useOrderActions } from "./useOrderActions";
 import { useCustomerOrderStats } from "../../hooks/useCustomerOrderStats";
@@ -164,6 +164,7 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
       vendorId,
       rowKey: `${product?.productId || product?.id || "item"}-${index}`,
       displayName: product?.name || product?.title || product?.productName || "Produit sans nom",
+      weightLabel: resolveProductWeight(product),
       vendorName:
         vendorCompany?.name ||
         product?.vendorName ||
@@ -463,9 +464,13 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
                                     className="orderProduct__link"
                                   >
                                     {p.displayName}
+                                    {p.weightLabel ? ` ${p.weightLabel}` : ""}
                                   </Link>
                                 ) : (
-                                  <strong>{p.displayName}</strong>
+                                  <strong>
+                                    {p.displayName}
+                                    {p.weightLabel ? ` ${p.weightLabel}` : ""}
+                                  </strong>
                                 )}
                                 {p.productId && <small>ID : {p.productId}</small>}
                               </div>
@@ -557,9 +562,13 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
                               className="orderProduct__link"
                             >
                               {p.displayName}
+                              {p.weightLabel ? ` ${p.weightLabel}` : ""}
                             </Link>
                           ) : (
-                            <strong>{p.displayName}</strong>
+                            <strong>
+                              {p.displayName}
+                              {p.weightLabel ? ` ${p.weightLabel}` : ""}
+                            </strong>
                           )}
                           <small>{p.vendorName}</small>
                           {p.vendorPhone && (
