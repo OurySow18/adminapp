@@ -7,7 +7,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { resolveOrderDate } from "../../utils/orderDate";
 import ConfirmModal from "../modal/ConfirmModal";
-import { formatDateTime, formatPackaging, formatPrice, resolveProductWeight, toNumber } from "./detailsOrderHelpers";
+import { formatDateTime, formatPrice, resolveProductWeight, toNumber } from "./detailsOrderHelpers";
 import { useOrderData } from "./useOrderData";
 import { useOrderActions } from "./useOrderActions";
 import { useCustomerOrderStats } from "../../hooks/useCustomerOrderStats";
@@ -94,15 +94,6 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
     const vendorDocument = vendorId ? orderVendors[String(vendorId)] || {} : {};
     const vendorCompany =
       vendorDocument?.company || vendorDocument?.profile?.company || {};
-    const packaging = [
-      product?.poids,
-      product?.weight,
-      product?.conditionnement,
-      product?.packaging,
-      product?.unit,
-      product?.attributes?.weight,
-      product?.attributes?.poids,
-    ].find((value) => value !== undefined && value !== null && value !== "");
     const quantityBulk = Math.max(0, toNumber(product?.quantityBulk, 0));
     const quantityDetail = Math.max(0, toNumber(product?.quantityDetail, 0));
     const amountBulk = toNumber(product?.amountBulk, 0);
@@ -197,7 +188,6 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
         product?.media?.cover ||
         product?.images?.[0] ||
         null,
-      packaging: formatPackaging(packaging),
       purchases,
       totalAmount,
       commissionAmount,
@@ -430,7 +420,6 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
                       <tr>
                         <th>Produit</th>
                         <th>Vendeur</th>
-                        <th>Conditionnement</th>
                         <th>Achat</th>
                         <th className="money">À payer au vendeur</th>
                         <th className="money">Total</th>
@@ -485,7 +474,6 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
                               {p.vendorAddress && <span>{p.vendorAddress}</span>}
                             </div>
                           </td>
-                          <td>{p.packaging || "—"}</td>
                           <td>
                             <div className="orderPurchases">
                               {p.purchases.map((purchase) => (
@@ -583,12 +571,6 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
                           )}
                         </div>
                       </div>
-                      {p.packaging && (
-                        <div className="row">
-                          <span className="label">Conditionnement</span>
-                          <span className="value">{p.packaging}</span>
-                        </div>
-                      )}
                       <div className="row orderCard__purchaseRow">
                         <span className="label">Achat</span>
                         <span className="value orderPurchases">

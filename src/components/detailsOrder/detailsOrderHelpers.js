@@ -374,8 +374,6 @@ export const generateCompactPrintContent = (orderDetails, orderId, invoiceNumber
     const baseName = product?.name || product?.title || product?.productName || "Produit";
     const weightLabel = resolveProductWeight(product);
     const name = weightLabel ? `${baseName} ${weightLabel}` : baseName;
-    const packaging =
-      product?.poids || product?.weight || product?.conditionnement || product?.unit || "—";
     const lines = [];
     const bulkQuantity = Math.max(0, toNumber(product?.quantityBulk, 0));
     const detailQuantity = Math.max(0, toNumber(product?.quantityDetail, 0));
@@ -384,7 +382,6 @@ export const generateCompactPrintContent = (orderDetails, orderId, invoiceNumber
     if (bulkQuantity > 0 || bulkAmount > 0) {
       lines.push({
         name,
-        packaging,
         quantity: bulkQuantity,
         unitPrice: toNumber(product?.priceBulk, bulkQuantity ? bulkAmount / bulkQuantity : 0),
         total: bulkAmount,
@@ -393,7 +390,6 @@ export const generateCompactPrintContent = (orderDetails, orderId, invoiceNumber
     if (detailQuantity > 0 || detailAmount > 0) {
       lines.push({
         name,
-        packaging,
         quantity: detailQuantity,
         unitPrice: toNumber(
           product?.priceDetail,
@@ -407,7 +403,6 @@ export const generateCompactPrintContent = (orderDetails, orderId, invoiceNumber
       const total = toNumber(product?.totalAmount ?? product?.total ?? product?.amount, 0);
       lines.push({
         name,
-        packaging,
         quantity,
         unitPrice: toNumber(product?.price ?? product?.unitPrice, total / quantity),
         total,
@@ -493,10 +488,10 @@ export const generateCompactPrintContent = (orderDetails, orderId, invoiceNumber
               </div>
             </section>
             <table>
-              <thead><tr><th>Produit</th><th>Format</th><th class="number">Qté</th><th class="number">Prix unitaire</th><th class="number">Total</th></tr></thead>
+              <thead><tr><th>Produit</th><th class="number">Qté</th><th class="number">Prix unitaire</th><th class="number">Total</th></tr></thead>
               <tbody>${invoiceLines
                 .map(
-                  (line) => `<tr><td class="product">${escapeHtml(line.name)}</td><td>${escapeHtml(line.packaging)}</td><td class="number">${line.quantity}</td><td class="number">${money(line.unitPrice)}</td><td class="number line-total">${money(line.total)}</td></tr>`
+                  (line) => `<tr><td class="product">${escapeHtml(line.name)}</td><td class="number">${line.quantity}</td><td class="number">${money(line.unitPrice)}</td><td class="number line-total">${money(line.total)}</td></tr>`
                 )
                 .join("")}</tbody>
             </table>
