@@ -175,9 +175,17 @@ export const formatPackaging = (value, fallbackUnit = "") => {
   return `${value}${fallbackUnit ? ` ${fallbackUnit}` : ""}`;
 };
 
+// Les vendeurs ecrivent souvent le poids/la contenance a la fin du nom du
+// produit, entre parentheses (ex: "Physiolac 1 (400g)", "Huile (20L)") :
+// aucun champ dedie n'est rempli en pratique. On le detecte (nombre + unite
+// de poids/volume courante) pour le sortir du nom et l'afficher a part,
+// sans parentheses (ex: "Physiolac 1" + "400g").
+const NAME_WEIGHT_SUFFIX = /\(\s*(\d+(?:[.,]\d+)?\s*(?:kg|g|l|cl|ml)\s*)\)\s*$/i;
+
 // Poids d'un article du panier, distinct du conditionnement generique
 // (conditionnement/unit peuvent designer autre chose qu'un poids, ex:
-// "Bouteille", "Pack de 6"). Non rempli pour tous les produits.
+// "Bouteille", "Pack de 6"). Non rempli pour tous les produits : si aucun
+// champ dedie n'existe, on retombe sur le poids ecrit dans le nom.
 export const resolveProductWeight = (product) => {
   const raw = [
     product?.poids,
@@ -185,7 +193,19 @@ export const resolveProductWeight = (product) => {
     product?.attributes?.weight,
     product?.attributes?.poids,
   ].find((value) => value !== undefined && value !== null && value !== "");
-  return formatPackaging(raw);
+  const formatted = formatPackaging(raw);
+  if (formatted) return formatted;
+
+  const name = product?.name || product?.title || product?.productName || "";
+  const match = String(name).match(NAME_WEIGHT_SUFFIX);
+  return match ? match[1].replace(/\s+/g, "") : null;
+};
+
+// Nom du produit sans le poids/la contenance entre parentheses, quand ce
+// poids a ete extrait du nom (sinon le nom est rendu tel quel).
+export const resolveProductBaseName = (product) => {
+  const name = product?.name || product?.title || product?.productName || "Produit sans nom";
+  return String(name).replace(NAME_WEIGHT_SUFFIX, "").trim() || name;
 };
 
 export const buildPaymentEmailHtml = (details) => `
@@ -371,7 +391,7 @@ export const generateCompactPrintContent = (orderDetails, orderId, invoiceNumber
   const money = (value) =>
     `${toNumber(value, 0).toLocaleString("fr-FR")} GNF`;
   const invoiceLines = cart.flatMap((product) => {
-    const baseName = product?.name || product?.title || product?.productName || "Produit";
+    const baseName = resolveProductBaseName(product);
     const weightLabel = resolveProductWeight(product);
     const name = weightLabel ? `${baseName} ${weightLabel}` : baseName;
     const lines = [];

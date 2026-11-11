@@ -7,7 +7,13 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { resolveOrderDate } from "../../utils/orderDate";
 import ConfirmModal from "../modal/ConfirmModal";
-import { formatDateTime, formatPrice, resolveProductWeight, toNumber } from "./detailsOrderHelpers";
+import {
+  formatDateTime,
+  formatPrice,
+  resolveProductBaseName,
+  resolveProductWeight,
+  toNumber,
+} from "./detailsOrderHelpers";
 import { useOrderData } from "./useOrderData";
 import { useOrderActions } from "./useOrderActions";
 import { useCustomerOrderStats } from "../../hooks/useCustomerOrderStats";
@@ -154,7 +160,7 @@ const DetailsOrder = ({ title, btnValidation, mode = "orders" }) => {
       productId,
       vendorId,
       rowKey: `${product?.productId || product?.id || "item"}-${index}`,
-      displayName: product?.name || product?.title || product?.productName || "Produit sans nom",
+      displayName: resolveProductBaseName(product),
       weightLabel: resolveProductWeight(product),
       vendorName:
         vendorCompany?.name ||
