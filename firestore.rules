@@ -48,6 +48,43 @@ service cloud.firestore {
              get(/databases/$(database)/documents/vendors/$(uid)).data.get('lockCatalog', false) == true;
     }
 
+    /* ---------- Credit entreprise : helpers ---------- */
+
+    // Correspondant actif d'une entreprise : document companyAdmins/{uid}.
+    // (Pas de custom claims : même principe que isAdmin() avec /admin/{uid}.)
+    function isCompanyAdminFor(companyId) {
+      return isAuthed()
+        && exists(/databases/$(database)/documents/companyAdmins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/companyAdmins/$(request.auth.uid)).data.companyId == companyId
+        && get(/databases/$(database)/documents/companyAdmins/$(request.auth.uid)).data.status == 'active';
+    }
+
+    // Employé rattaché : document companyMembers/{companyId}__{uid}.
+    // Ne jamais se fier à users/{uid}.company, que le client peut modifier.
+    function isMemberOf(companyId) {
+      return isAuthed()
+        && exists(/databases/$(database)/documents/companyMembers/$(companyId + '__' + request.auth.uid));
+    }
+
+    function isOwnCreditDoc() {
+      return isAuthed() && resource.data.uid == request.auth.uid;
+    }
+
+    // Décision du correspondant sur une demande transmise par Monmarché.
+    // Il ne peut toucher qu'à status, companyDecision et updatedAt.
+    function isValidCompanyDecision() {
+      let after = request.resource.data;
+      let decision = after.companyDecision;
+      return resource.data.status == 'pending_company_approval'
+        && after.diff(resource.data).affectedKeys().hasOnly(['status', 'companyDecision', 'updatedAt'])
+        && after.status in ['company_approved', 'company_rejected']
+        && decision.by == request.auth.uid
+        && decision.at == request.time
+        && after.updatedAt == request.time
+        && decision.approved == (after.status == 'company_approved')
+        && (decision.approved || decision.get('note', '').size() > 0);
+    }
+
     /* users : lecture/ecriture du proprietaire, admin, livreur en lecture (infos client livraison) */
     match /users/{uid} {
       allow read: if isAdmin() || isDriver() || isSelf(uid);
@@ -142,15 +179,26 @@ service cloud.firestore {
     }
 
     /* orders : creation par le client proprietaire, lecture/ecriture admin+livreur,
-       le client peut modifier/annuler sa commande tant qu'elle n'est pas validee (payed) */
+       le client peut modifier/annuler sa commande tant qu'elle n'est pas validee (payed).
+       Credit entreprise : un client ne cree jamais lui-meme une commande a credit (seule
+       submitOrder, SDK Admin, le peut) ; une commande a credit en attente ne peut pas etre
+       prise par un livreur, et le client ne peut jamais modifier une commande a credit. */
     match /orders/{orderId} {
-      allow create: if isAuthed() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuthed()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.get('paymentType', '') != 'credit_entreprise'
+        && request.resource.data.get('orderStatus', '') != 'awaiting_credit_approval'
+        && !('credit' in request.resource.data);
 
       allow read: if isAdmin() || isDriver() ||
         (isAuthed() && resource.data.userId == request.auth.uid);
 
-      allow update: if isAdmin() || isDriver() ||
-        (isAuthed() && resource.data.userId == request.auth.uid && resource.data.payed != true);
+      allow update: if isAdmin()
+        || (isDriver() && resource.data.get('orderStatus', '') != 'awaiting_credit_approval')
+        || (isAuthed()
+            && resource.data.userId == request.auth.uid
+            && resource.data.payed != true
+            && resource.data.get('paymentType', '') != 'credit_entreprise');
 
       // Suppression uniquement par l'admin (etape d'archivage vers archivedOrders)
       allow delete: if isAdmin();
@@ -168,6 +216,82 @@ service cloud.firestore {
        vendeur ni polluer les stats de ventes/livraison. Admin uniquement. */
     match /archivedFakeOrders/{document=**} {
       allow read, write: if isAdmin();
+    }
+
+    /* ---------- Credit entreprise ---------- */
+
+    /* Entreprises partenaires : gérées par Monmarché, lues par leur correspondant et leurs employés */
+    match /companies/{companyId} {
+      allow read: if isAdmin() || isCompanyAdminFor(companyId) || isMemberOf(companyId);
+      allow write: if isAdmin();
+    }
+
+    /* Correspondants */
+    match /companyAdmins/{uid} {
+      allow read: if isAdmin() || isSelf(uid);
+      allow write: if isAdmin();
+    }
+
+    /* Codes de rattachement : créés et annulés par le correspondant.
+       L'activation par l'employé passe par une fonction serveur. */
+    match /enrollmentCodes/{code} {
+      allow read: if isAdmin() || isCompanyAdminFor(resource.data.companyId);
+      allow create: if isAdmin()
+        || (isCompanyAdminFor(request.resource.data.companyId)
+            && request.resource.data.createdBy == request.auth.uid
+            && request.resource.data.memberLimit is int
+            && request.resource.data.memberLimit >= 0
+            && !('usedBy' in request.resource.data)
+            && !('revokedAt' in request.resource.data));
+      allow update: if isAdmin()
+        || (isCompanyAdminFor(resource.data.companyId)
+            && !('usedBy' in resource.data)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revokedAt'])
+            && request.resource.data.revokedAt == request.time);
+      allow delete: if isAdmin();
+    }
+
+    /* Employés rattachés : le correspondant règle le plafond et le statut */
+    match /companyMembers/{memberId} {
+      allow read: if isAdmin() || isCompanyAdminFor(resource.data.companyId) || isOwnCreditDoc();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isCompanyAdminFor(resource.data.companyId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditLimit', 'status', 'updatedAt'])
+            && request.resource.data.creditLimit is int
+            && request.resource.data.creditLimit >= 0
+            && request.resource.data.status in ['active', 'suspended', 'left']
+            && request.resource.data.updatedAt == request.time);
+    }
+
+    /* Crédits : Monmarché gère tout ; le correspondant ne fait que valider ou refuser */
+    match /creditAgreements/{agreementId} {
+      allow read: if isAdmin() || isCompanyAdminFor(resource.data.companyId) || isOwnCreditDoc();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isCompanyAdminFor(resource.data.companyId) && isValidCompanyDecision());
+    }
+
+    /* Remboursements : enregistrés par Monmarché, jamais modifiés (une erreur
+       se corrige par une écriture d'annulation au montant négatif) */
+    match /creditPayments/{paymentId} {
+      allow read: if isAdmin() || isCompanyAdminFor(resource.data.companyId) || isOwnCreditDoc();
+      allow create: if isAdmin()
+        && request.resource.data.recordedBy == request.auth.uid
+        && request.resource.data.amount is int
+        && request.resource.data.amount != 0
+        && request.resource.data.method in ['orange_money', 'cash', 'bank_transfer', 'other'];
+      allow update, delete: if false;
+    }
+
+    /* Rappels : créés par Monmarché ; le statut d'envoi est mis à jour par la
+       fonction serveur (SDK Admin) */
+    match /creditReminders/{reminderId} {
+      allow read: if isAdmin() || isCompanyAdminFor(resource.data.companyId) || isOwnCreditDoc();
+      allow create: if isAdmin()
+        && request.resource.data.sentBy == request.auth.uid
+        && request.resource.data.channel in ['push', 'email', 'sms', 'phone'];
+      allow update, delete: if false;
     }
 
     /* reviews : avis clients soumis via submitReview (Cloud Function, Admin SDK,
