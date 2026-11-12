@@ -9,6 +9,7 @@ import { lazy, Suspense, useContext } from "react";
 import "./style/dark.scss";
 import { DarkModeContext } from "./context/darkModeContext";
 import { AuthContext } from "./context/AuthContext";
+import RouteLoader from "./components/routeLoader/RouteLoader";
 import { productInputs, userInputs, zonesInputs } from "./formSource";
 import {
   userColumns,
@@ -111,7 +112,7 @@ function App() {
     <div className={darkMode ? "app dark " : "app"}>
       <SidebarProvider>
         <BrowserRouter>
-          <Suspense fallback={null}>
+          <Suspense fallback={<RouteLoader />}>
           <Routes>
           <Route path="/">
             <Route path="login" element={<Login />} />
