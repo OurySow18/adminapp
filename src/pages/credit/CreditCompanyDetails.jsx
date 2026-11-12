@@ -187,7 +187,8 @@ const CreditCompanyDetails = () => {
   const handleSaveMember = async () => {
     try {
       await updateDoc(doc(db, COMPANY_MEMBERS_COLLECTION, memberTarget.id), {
-        creditLimit: Number(memberLimit) || 0,
+        // Entier : le portail correspondant devra satisfaire creditLimit is int.
+        creditLimit: Math.round(Number(memberLimit) || 0),
         status: memberStatus,
         updatedAt: serverTimestamp(),
       });

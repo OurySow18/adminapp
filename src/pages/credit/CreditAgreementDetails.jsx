@@ -125,7 +125,9 @@ const CreditAgreementDetails = () => {
   };
 
   const handleRecordPayment = async () => {
-    const amount = Number(paymentAmount);
+    // Les montants GNF sont des entiers : les regles Firestore rejettent
+    // creditPayments.amount s'il n'est pas "is int" (ex: saisie avec virgule).
+    const amount = Math.round(Number(paymentAmount));
     if (!Number.isFinite(amount) || amount <= 0) {
       setPaymentError("Montant invalide.");
       return;
@@ -404,6 +406,7 @@ const CreditAgreementDetails = () => {
               id="credit-payment-amount"
               type="number"
               min={1}
+              step={1}
               value={paymentAmount}
               onChange={(event) => setPaymentAmount(event.target.value)}
               disabled={actionRunning}
