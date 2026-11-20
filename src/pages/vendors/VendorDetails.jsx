@@ -479,10 +479,11 @@ const VendorDetails = () => {
       {
         label: "Ventes vendeur",
         value: vendorSalesSummary.display,
+        to: `/vendors/${id}/sales`,
       },
     ];
     return base;
-  }, [vendor, profile, requiredDocs.length, isPartner, vendorSalesSummary.display]);
+  }, [vendor, profile, requiredDocs.length, isPartner, vendorSalesSummary.display, id]);
 
   if (loading) {
     return (

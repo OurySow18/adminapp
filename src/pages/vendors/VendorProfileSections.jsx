@@ -1,6 +1,8 @@
 // Sections d'informations en lecture seule du dossier vendeur : entreprise,
 // contact, statut, resume, informations legales, ops/livraison, food,
 // consentements, documents requis. Extrait de VendorDetails.jsx.
+import { Link } from "react-router-dom";
+
 const REQUIRED_DOC_LABELS = {
   repId: "Pièce d'identité du représentant",
   gewerbe: "Enregistrement commerce",
@@ -117,12 +119,23 @@ const VendorProfileSections = ({
       <section>
         <h2>Résumé</h2>
         <div className="vendorDetails__grid vendorDetails__grid--four">
-          {stats.map((item) => (
-            <div key={item.label} className="vendorDetails__stat">
-              <span className="vendorDetails__statLabel">{item.label}</span>
-              <span className="vendorDetails__statValue">{item.value}</span>
-            </div>
-          ))}
+          {stats.map((item) =>
+            item.to ? (
+              <Link
+                key={item.label}
+                to={item.to}
+                className="vendorDetails__stat vendorDetails__stat--link"
+              >
+                <span className="vendorDetails__statLabel">{item.label}</span>
+                <span className="vendorDetails__statValue">{item.value}</span>
+              </Link>
+            ) : (
+              <div key={item.label} className="vendorDetails__stat">
+                <span className="vendorDetails__statLabel">{item.label}</span>
+                <span className="vendorDetails__statValue">{item.value}</span>
+              </div>
+            )
+          )}
         </div>
       </section>
 

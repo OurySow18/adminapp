@@ -43,6 +43,8 @@ const DeliveredOrders = lazy(() =>
 const Zone = lazy(() => import("./pages/zones/Zone"));
 const VendorsList = lazy(() => import("./pages/vendors/VendorsList"));
 const VendorDetails = lazy(() => import("./pages/vendors/VendorDetails"));
+const VendorSales = lazy(() => import("./pages/vendors/VendorSales"));
+const VendorProductSales = lazy(() => import("./pages/vendors/VendorProductSales"));
 const VendorProductsList = lazy(() =>
   import("./pages/vendorProducts/VendorProductsList")
 );
@@ -237,6 +239,22 @@ function App() {
                 element={
                   <RequireAuth>
                     <VendorDetails />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path=":id/sales"
+                element={
+                  <RequireAuth>
+                    <VendorSales />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path=":id/sales/:productId"
+                element={
+                  <RequireAuth>
+                    <VendorProductSales />
                   </RequireAuth>
                 }
               />

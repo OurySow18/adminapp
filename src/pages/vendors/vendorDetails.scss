@@ -387,6 +387,21 @@
   gap: 4px;
 }
 
+.vendorDetails__stat--link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+
+  &:hover {
+    box-shadow: inset 0 0 0 1px rgba(255, 111, 0, 0.4);
+    transform: translateY(-1px);
+  }
+
+  .vendorDetails__statValue {
+    color: #ff6f00;
+  }
+}
+
 .vendorDetails__statLabel {
   font-size: 12px;
   text-transform: uppercase;
