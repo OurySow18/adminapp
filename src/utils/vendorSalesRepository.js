@@ -70,6 +70,8 @@ export const loadVendorLedgerEntries = async (vendorId) => {
       deliveredAt: data.deliveredAt || null,
       createdAt: data.createdAt || null,
       paidAt: data.paidAt || null,
+      paidByEmail: data.paidByEmail || null,
+      paidBatchId: data.paidBatchId || null,
     };
   });
   entries.sort((a, b) => toMillis(b.deliveredAt) - toMillis(a.deliveredAt));

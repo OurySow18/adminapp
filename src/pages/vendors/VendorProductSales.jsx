@@ -136,6 +136,7 @@ const VendorProductSales = () => {
                     <th>Montant brut</th>
                     <th>Statut paiement vendeur</th>
                     <th>Date de paiement</th>
+                    <th>Payé par</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -154,6 +155,7 @@ const VendorProductSales = () => {
                           </span>
                         </td>
                         <td>{formatDateTime(entry.paidAt)}</td>
+                        <td>{entry.status === "paid" ? entry.paidByEmail || "—" : "—"}</td>
                       </tr>
                     );
                   })}
