@@ -39,18 +39,34 @@
     }
   }
 
+  section + section {
+    margin-top: 4px;
+    padding-top: 20px;
+    border-top: 1px solid var(--mm-border);
+  }
+
   .vendorSales__heading {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 12px;
+    gap: 16px;
     flex-wrap: wrap;
   }
 
   .vendorSales__subtitle {
-    margin: 4px 0 0;
+    margin: 6px 0 0;
     color: var(--mm-text);
-    font-size: 0.95rem;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .vendorSales__idChip {
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: 6px;
   }
 
   .vendorSales__summary {
@@ -60,39 +76,60 @@
   }
 
   .vendorSales__summaryCard {
-    flex: 1 1 180px;
+    flex: 1 1 200px;
     background: #f9fafb;
     border: 1px solid var(--mm-border);
-    border-radius: 12px;
-    padding: 14px 16px;
+    border-left: 4px solid var(--mm-border);
+    border-radius: 10px;
+    padding: 14px 18px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
+    transition: box-shadow 0.15s ease;
+
+    &:hover {
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+    }
 
     span {
-      font-size: 12px;
+      font-size: 11px;
       text-transform: uppercase;
-      color: #999;
-      letter-spacing: 0.04em;
+      color: #9ca3af;
+      letter-spacing: 0.05em;
+      font-weight: 600;
     }
 
     strong {
-      font-size: 18px;
+      font-size: 20px;
       color: var(--mm-text-strong);
     }
+  }
+
+  .vendorSales__summaryCard--units {
+    border-left-color: #2563eb;
+  }
+
+  .vendorSales__summaryCard--amount {
+    border-left-color: #16a34a;
+  }
+
+  .vendorSales__summaryCard--live {
+    border-left-color: var(--mm-orange);
   }
 
   .vendorSales__btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
+    gap: 8px;
+    padding: 9px 16px;
     border-radius: 10px;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     font-weight: 600;
     text-decoration: none;
     cursor: pointer;
     border: none;
+    white-space: nowrap;
+    transition: background-color 0.15s ease, transform 0.15s ease;
   }
 
   .vendorSales__btn--light {
@@ -101,45 +138,130 @@
 
     &:hover {
       background: #e2e8f0;
+      transform: translateX(-1px);
     }
   }
 
   .vendorSales__error {
     color: #dc2626;
     font-weight: 600;
+    background: rgba(220, 38, 38, 0.08);
+    border-radius: 10px;
+    padding: 10px 14px;
   }
 
-  .vendorSales__loading,
-  .vendorSales__empty {
+  .vendorSales__loading {
     color: var(--mm-text);
+  }
+
+  .vendorSales__empty {
+    color: #9ca3af;
+    text-align: center;
+    background: #fafafa;
+    border: 1px dashed var(--mm-border);
+    border-radius: 12px;
+    padding: 28px 16px;
+    margin: 0;
+  }
+
+  section h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .vendorSales__countBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: var(--mm-text);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .vendorSales__tableWrap {
+    overflow-x: auto;
+    border: 1px solid var(--mm-border);
+    border-radius: 12px;
   }
 
   .vendorSales__table {
     width: 100%;
+    min-width: 720px;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
 
     th,
     td {
-      padding: 10px 12px;
+      padding: 11px 14px;
       border-bottom: 1px solid var(--mm-border);
       text-align: left;
+      white-space: nowrap;
     }
 
     th {
-      color: #999;
+      background: #f9fafb;
+      color: #9ca3af;
       text-transform: uppercase;
-      font-size: 11px;
-      letter-spacing: 0.04em;
+      font-size: 10.5px;
+      letter-spacing: 0.05em;
+      font-weight: 700;
+      position: sticky;
+      top: 0;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    tbody tr:hover {
+      background: #fff7ed;
+    }
+  }
+
+  .vendorSales__cellStrong {
+    font-weight: 700;
+    color: var(--mm-text-strong);
+  }
+
+  .vendorSales__mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  .vendorSales__truncate {
+    display: inline-block;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+    cursor: help;
+  }
+
+  .vendorSales__orderLink {
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
     }
   }
 
   .vendorSales__row--clickable {
     cursor: pointer;
+  }
 
-    &:hover {
-      background: #fff7ed;
-    }
+  .vendorSales__rowChevron {
+    display: inline-block;
+    margin-left: 6px;
+    color: #cbd5e1;
+    font-weight: 700;
   }
 
   .vendorSales__badge {
@@ -150,6 +272,7 @@
     font-size: 11px;
     font-weight: 600;
     margin: 2px 4px 2px 0;
+    white-space: nowrap;
   }
 
   .vendorSales__badge--paid {
