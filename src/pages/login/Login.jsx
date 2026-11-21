@@ -13,15 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import FeedbackPopup from "../../components/feedbackPopup/FeedbackPopup";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  limit,
-  doc,
-  getDoc,
-} from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { SUPER_ADMIN_UID } from "../../config/adminConfig";
 
 const Login = () => {
@@ -82,21 +74,21 @@ const Login = () => {
       return trimmed;
     }
 
-    // Sinon, on considère que c'est un username d'ADMIN
-    const adminQuery = query(
-      collection(db, "admin"),
-      where("username", "==", trimmed),
-      limit(1)
-    );
-    const snap = await getDocs(adminQuery);
+    // Sinon, on considère que c'est un username d'ADMIN.
+    // adminUsernames/{username} -> { email } est lisible sans connexion, document
+    // par document ; la collection admin, elle, n'est lisible qu'une fois connecté.
+    // Ce document est tenu à jour par la Cloud Function syncAdminUsername.
+    const usernameSnap = trimmed.includes("/")
+      ? null
+      : await getDoc(doc(db, "adminUsernames", trimmed));
 
-    if (snap.empty) {
+    if (!usernameSnap || !usernameSnap.exists()) {
       throw new Error(
         "Aucun administrateur trouvé avec ce nom d'utilisateur."
       );
     }
 
-    const adminData = snap.docs[0].data();
+    const adminData = usernameSnap.data();
     if (!adminData.email) {
       throw new Error(
         "Ce compte administrateur n'a pas d'adresse e-mail associée."
