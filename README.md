@@ -11,7 +11,11 @@ firebase deploy --only firestore,storage
 
 Ne plus recréer `firestore.rules` ni `firestore.indexes.json` ici. Voir `monmarche-shared/docs/migration-monorepo.md`.
 
-Les Cloud Functions et l'hébergement sont encore déployés depuis ce dépôt, jusqu'à leur migration. Toujours cibler : `firebase deploy --only functions` ou `--only hosting`.
+## Cloud Functions : déplacées
+
+Depuis le 21/11/2026, les Cloud Functions de l'admin (codebase `admin` : paiements vendeurs, avis, notifications, optimisation d'images…) sont dans **monmarche-shared**, dossier `firebase/functions/admin/`, avec leur historique Git. Elles sont déployées uniquement depuis là-bas : `firebase deploy --only functions:admin`. Ne plus recréer de dossier `functions/` ici.
+
+L'hébergement de l'admin est encore déployé depuis ce dépôt, jusqu'à sa migration : `firebase deploy --only hosting`.
 
 ---
 
