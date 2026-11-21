@@ -1,3 +1,20 @@
+# Admin Monmarché
+
+## Règles et index Firestore : déplacés
+
+Depuis le 21/11/2026, les règles Firestore, les index et les règles Storage du projet `monmarhe` sont dans le monorepo **monmarche-shared**, dossier `firebase/`. Ils sont déployés uniquement depuis là-bas :
+
+```powershell
+cd monmarche-shared/firebase
+firebase deploy --only firestore,storage
+```
+
+Ne plus recréer `firestore.rules` ni `firestore.indexes.json` ici. Voir `monmarche-shared/docs/migration-monorepo.md`.
+
+Les Cloud Functions et l'hébergement sont encore déployés depuis ce dépôt, jusqu'à leur migration. Toujours cibler : `firebase deploy --only functions` ou `--only hosting`.
+
+---
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
