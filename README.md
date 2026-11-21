@@ -1,5 +1,16 @@
 # Admin Monmarché
 
+> ## ⚠️ Dépôt remplacé par le monorepo monmarche-shared
+>
+> Depuis le 21/11/2026, **tout le code de l'admin est dans `monmarche-shared/apps/admin`**, avec l'historique Git de ce dépôt. L'admin (site `monmarhe.web.app`) est compilé et publié uniquement depuis le monorepo :
+>
+> ```powershell
+> cd monmarche-shared
+> firebase deploy --only hosting:admin
+> ```
+>
+> Ne plus modifier ni déployer ce dépôt. `firebase.json` et `.firebaserc` en ont été retirés pour qu'aucun déploiement ne puisse en partir. Voir `monmarche-shared/docs/migration-monorepo.md`.
+
 ## Règles et index Firestore : déplacés
 
 Depuis le 21/11/2026, les règles Firestore, les index et les règles Storage du projet `monmarhe` sont dans le monorepo **monmarche-shared**, dossier `firebase/`. Ils sont déployés uniquement depuis là-bas :
@@ -15,7 +26,7 @@ Ne plus recréer `firestore.rules` ni `firestore.indexes.json` ici. Voir `monmar
 
 Depuis le 21/11/2026, les Cloud Functions de l'admin (codebase `admin` : paiements vendeurs, avis, notifications, optimisation d'images…) sont dans **monmarche-shared**, dossier `firebase/functions/admin/`, avec leur historique Git. Elles sont déployées uniquement depuis là-bas : `firebase deploy --only functions:admin`. Ne plus recréer de dossier `functions/` ici.
 
-L'hébergement de l'admin est encore déployé depuis ce dépôt, jusqu'à sa migration : `firebase deploy --only hosting`.
+L'hébergement de l'admin est lui aussi déployé depuis le monorepo depuis le 21/11/2026 (voir plus haut).
 
 ---
 
